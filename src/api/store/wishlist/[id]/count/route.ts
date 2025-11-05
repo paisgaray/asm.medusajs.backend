@@ -1,4 +1,5 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+
 import { WISHLIST_MODULE } from '../../../../../modules/wishlist';
 import WishlistService from '../../../../../modules/wishlist/service';
 import { validateWishlistOwnership } from '../../middleware';
@@ -15,4 +16,3 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     res.json({ count: items.length });
   });
 }
-

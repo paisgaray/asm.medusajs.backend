@@ -1,12 +1,9 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+
 import { WISHLIST_MODULE } from '../../../modules/wishlist';
 import WishlistService from '../../../modules/wishlist/service';
 
-export async function validateCustomerId(
-  req: MedusaRequest,
-  res: MedusaResponse,
-  next: () => void,
-): Promise<void> {
+export async function validateCustomerId(req: MedusaRequest, res: MedusaResponse, next: () => void): Promise<void> {
   const customerId = req.query.customer_id as string | undefined;
 
   if (!customerId) {
@@ -49,11 +46,7 @@ export async function validateWishlistOwnership(
   }
 }
 
-export async function validateItemOwnership(
-  req: MedusaRequest,
-  res: MedusaResponse,
-  next: () => void,
-): Promise<void> {
+export async function validateItemOwnership(req: MedusaRequest, res: MedusaResponse, next: () => void): Promise<void> {
   const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
   const wishlistId = req.params.id as string;
   const itemId = req.params.itemId as string;
@@ -93,11 +86,7 @@ export async function validateItemOwnership(
   }
 }
 
-export async function validateProductId(
-  req: MedusaRequest,
-  res: MedusaResponse,
-  next: () => void,
-): Promise<void> {
+export async function validateProductId(req: MedusaRequest, res: MedusaResponse, next: () => void): Promise<void> {
   const { product_id } = req.body as { product_id?: string };
 
   if (!product_id) {
@@ -107,5 +96,3 @@ export async function validateProductId(
 
   next();
 }
-
-

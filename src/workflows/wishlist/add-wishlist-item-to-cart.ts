@@ -1,7 +1,8 @@
 import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 import { addToCartWorkflow, useQueryGraphStep } from '@medusajs/medusa/core-flows';
-import { validateVariantStep } from './steps/validate-variant-step';
+
 import { removeItemFromWishlistStep } from './steps/remove-item-from-wishlist-step';
+import { validateVariantStep } from './steps/validate-variant-step';
 
 type AddWishlistItemToCartInput = {
   cart_id: string;

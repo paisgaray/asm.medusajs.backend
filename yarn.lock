@@ -2580,7 +2580,7 @@
   dependencies:
     bignumber.js "^9.1.2"
 
-"@medusajs/ui@4.0.26":
+"@medusajs/ui@4.0.26", "@medusajs/ui@^4.0.26":
   version "4.0.26"
   resolved "https://registry.yarnpkg.com/@medusajs/ui/-/ui-4.0.26.tgz#3664471c8fd3123c84ab3f4021af13d8b23bd11b"
   integrity sha512-vkW8mWxpZ3odYNAOvBYx+eip1PHKREJDTI/ptQSUBlbsuFhc7kEUtDT6qYjtkD6/EqvJeV9su1jTsz28J9yWCg==

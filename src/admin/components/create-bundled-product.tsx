@@ -94,7 +94,7 @@ const CreateBundledProduct = () => {
       queryClient.invalidateQueries({ queryKey: ['bundled-products'] });
       setTitle('');
       setItems([{ product_id: undefined, quantity: 1 }]);
-    } catch (error) {
+    } catch {
       toast.error('Failed to create bundled product');
     }
   };

@@ -7,6 +7,7 @@ module.exports = {
   parserOptions: { project: "tsconfig.json", sourceType: "module" },
   rules: {
     "camelcase": "off",
+    "@typescript-eslint/no-require-imports": "off",
     "@typescript-eslint/no-var-requires": "off",
     "prettier/prettier": [
       "error",
@@ -15,7 +16,8 @@ module.exports = {
         "tabWidth": 2,
         "singleQuote": true,
         "trailingComma": "all",
-        "arrowParens": "always"
+        "arrowParens": "always",
+        "endOfLine": "lf"
       }
     ],
     "@typescript-eslint/no-unused-vars": [

@@ -12,5 +12,3 @@ export const createWishlistWorkflow = createWorkflow(
     return new WorkflowResponse({ wishlist });
   },
 );
-
-

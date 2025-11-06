@@ -13,5 +13,3 @@ export const removeItemFromWishlistWorkflow = createWorkflow(
     return new WorkflowResponse(result);
   },
 );
-
-

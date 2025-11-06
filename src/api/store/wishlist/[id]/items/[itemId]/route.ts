@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+
 import { removeItemFromWishlistWorkflow } from '../../../../../../workflows/wishlist';
 import { validateItemOwnership } from '../../../middleware';
+import { handleErrorResponse } from '../../../utils';
 
 export async function DELETE(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   await validateItemOwnership(req, res, async () => {
@@ -21,18 +23,7 @@ export async function DELETE(req: MedusaRequest, res: MedusaResponse): Promise<v
         res.status(404).json({ message: 'Item not found' });
         return;
       }
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error !== null
-            ? JSON.stringify(error)
-            : String(error);
-
-      res.status(500).json({
-        message: 'Failed to remove item from wishlist',
-        error: errorMessage,
-      });
+      handleErrorResponse(res, 500, 'Failed to remove item from wishlist', error);
     }
   });
 }
-

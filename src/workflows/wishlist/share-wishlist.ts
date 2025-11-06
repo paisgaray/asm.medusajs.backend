@@ -12,5 +12,3 @@ export const shareWishlistWorkflow = createWorkflow(
     return new WorkflowResponse(result);
   },
 );
-
-

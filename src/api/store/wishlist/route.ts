@@ -1,8 +1,10 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { createWishlistWorkflow } from '../../../workflows/wishlist/create-wishlist';
+
 import { WISHLIST_MODULE } from '../../../modules/wishlist';
 import WishlistService from '../../../modules/wishlist/service';
+import { createWishlistWorkflow } from '../../../workflows/wishlist/create-wishlist';
 import { validateCustomerId } from './middleware';
+import { handleErrorResponse } from './utils';
 
 export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   await validateCustomerId(req, res, async () => {
@@ -16,7 +18,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
 }
 
 export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  const { customer_id } = req.body as { customer_id: string };
+  const { customer_id } = req.body as { customer_id?: string };
 
   if (!customer_id) {
     res.status(400).json({ message: 'customer_id is required' });
@@ -32,18 +34,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
 
     res.json({ wishlist: result.wishlist });
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : typeof error === 'object' && error !== null
-          ? JSON.stringify(error)
-          : String(error);
-
-    res.status(500).json({
-      message: 'Failed to create wishlist',
-      error: errorMessage,
-    });
+    handleErrorResponse(res, 500, 'Failed to create wishlist', error);
   }
 }
-
 

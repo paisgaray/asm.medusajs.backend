@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+
 import { shareWishlistWorkflow } from '../../../../../workflows/wishlist';
 import { validateWishlistOwnership } from '../../middleware';
+import { handleErrorResponse } from '../../utils';
 
 export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   await validateWishlistOwnership(req, res, async () => {
@@ -20,11 +22,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         wishlist: result.wishlist,
       });
     } catch (error: unknown) {
-      res.status(500).json({
-        message: 'Failed to share wishlist',
-        error: error instanceof Error ? error.message : String(error),
-      });
+      handleErrorResponse(res, 500, 'Failed to share wishlist', error);
     }
   });
 }
-

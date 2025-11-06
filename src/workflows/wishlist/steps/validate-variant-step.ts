@@ -1,5 +1,5 @@
-import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
+import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 type ValidateVariantStepInput = {
   product_id: string;
@@ -47,7 +47,7 @@ export const validateVariantStep = createStep(
         entity: 'product_variant',
         fields: ['id', 'product_id', 'product.id', 'product.status'],
         filters: {
-          product_id: product_id,
+          product_id,
         },
       });
 
@@ -66,15 +66,13 @@ export const validateVariantStep = createStep(
             });
           }
         }
-        throw new Error(
-          `Product ${product_id} has no variants or variant ${variant_id} does not exist`,
-        );
+        throw new Error(`Product ${product_id} has no variants or variant ${variant_id} does not exist`);
       }
 
-      const publishedVariant = allVariants.find(
-        (v: { product?: { status?: string } }) =>
-          v.product?.status === 'published',
-      );
+      const publishedVariant = allVariants.find((v) => {
+        const product = v.product;
+        return product && product.status === 'published';
+      });
 
       if (!publishedVariant) {
         if (variants && variants.length > 0) {
@@ -89,14 +87,12 @@ export const validateVariantStep = createStep(
             });
           }
         }
-        throw new Error(
-          `Product ${product_id} is not published or has no published variants`,
-        );
+        throw new Error(`Product ${product_id} is not published or has no published variants`);
       }
 
       return new StepResponse({
         variant_id: publishedVariant.id,
-        product_id: product_id,
+        product_id,
         original_variant_id: variant_id,
         fallback: true,
       });
@@ -108,4 +104,3 @@ export const validateVariantStep = createStep(
     }
   },
 );
-

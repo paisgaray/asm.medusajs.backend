@@ -1,4 +1,5 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
+
 import { removeItemFromWishlistStep } from './steps/remove-item-from-wishlist-step';
 
 type RemoveItemFromWishlistInput = {

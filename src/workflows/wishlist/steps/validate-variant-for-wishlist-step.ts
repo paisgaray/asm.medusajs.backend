@@ -1,5 +1,5 @@
-import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
+import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 type ValidateVariantForWishlistStepInput = {
   product_id: string;
@@ -38,9 +38,7 @@ export const validateVariantForWishlistStep = createStep(
       const product = variant.product;
 
       if (!product) {
-        throw new Error(
-          `Product not found for variant ${product_variant_id}`,
-        );
+        throw new Error(`Product not found for variant ${product_variant_id}`);
       }
 
       if (product.id !== product_id) {
@@ -50,9 +48,7 @@ export const validateVariantForWishlistStep = createStep(
       }
 
       if (product.status !== 'published') {
-        throw new Error(
-          `Product ${product_id} is not published. Status: ${product.status}`,
-        );
+        throw new Error(`Product ${product_id} is not published. Status: ${product.status}`);
       }
 
       return new StepResponse({
@@ -68,4 +64,3 @@ export const validateVariantForWishlistStep = createStep(
     }
   },
 );
-

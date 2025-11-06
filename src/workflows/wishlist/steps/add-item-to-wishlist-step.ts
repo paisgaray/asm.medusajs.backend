@@ -1,4 +1,5 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
+
 import { WISHLIST_MODULE } from '../../../modules/wishlist';
 import WishlistService from '../../../modules/wishlist/service';
 
@@ -59,4 +60,3 @@ export const addItemToWishlistStep = createStep(
     return new StepResponse(item);
   },
 );
-

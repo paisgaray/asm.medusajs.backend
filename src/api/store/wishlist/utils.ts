@@ -1,4 +1,4 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { MedusaResponse } from '@medusajs/framework/http';
 
 export function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -34,15 +34,9 @@ export function extractErrorMessage(error: unknown): string {
   return String(error);
 }
 
-export function handleErrorResponse(
-  res: MedusaResponse,
-  statusCode: number,
-  message: string,
-  error: unknown,
-): void {
+export function handleErrorResponse(res: MedusaResponse, statusCode: number, message: string, error: unknown): void {
   res.status(statusCode).json({
     message,
     error: extractErrorMessage(error),
   });
 }
-

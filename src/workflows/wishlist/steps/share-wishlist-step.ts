@@ -1,5 +1,6 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { randomBytes } from 'crypto';
+
 import { WISHLIST_MODULE } from '../../../modules/wishlist';
 import WishlistService from '../../../modules/wishlist/service';
 
@@ -49,4 +50,3 @@ export const shareWishlistStep = createStep(
     });
   },
 );
-

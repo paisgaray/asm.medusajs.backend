@@ -1,6 +1,5 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
-import { Modules } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 
 type CartItem = {
   id: string;
@@ -42,30 +41,14 @@ export async function DELETE(req: MedusaRequest, res: MedusaResponse): Promise<v
       return;
     }
 
-    const link = req.scope.resolve(ContainerRegistrationKeys.LINK);
     const cartModule = req.scope.resolve(Modules.CART);
 
     const itemIds = items.map((item: CartItem) => item.id);
 
-    for (const itemId of itemIds) {
-      try {
-        if (typeof cartModule.delete === 'function') {
-          await cartModule.delete([itemId]);
-        } else if (typeof cartModule.deleteLineItems === 'function') {
-          await cartModule.deleteLineItems([itemId]);
-        } else if (typeof cartModule.deleteLineItem === 'function') {
-          await cartModule.deleteLineItem(cartId, itemId);
-        } else {
-          await link.delete([
-            {
-              [Modules.CART]: { id: cartId },
-              [Modules.CART]: { id: itemId },
-            },
-          ]);
-        }
-      } catch {
-        // Continue to next item
-      }
+    try {
+      await cartModule.deleteLineItems(itemIds);
+    } catch {
+      // Continue even if deletion fails
     }
 
     const updatedCartResult = await query.graph({
@@ -98,4 +81,3 @@ export async function DELETE(req: MedusaRequest, res: MedusaResponse): Promise<v
     });
   }
 }
-

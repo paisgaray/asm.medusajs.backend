@@ -37,4 +37,3 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     handleErrorResponse(res, 500, 'Failed to create wishlist', error);
   }
 }
-

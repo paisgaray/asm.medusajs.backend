@@ -1,6 +1,17 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { QueryContext } from '@medusajs/framework/utils';
 
+type BundleItem = {
+  quantity: number;
+  product: {
+    variants: {
+      calculated_price: {
+        calculated_amount: number;
+      };
+    }[];
+  };
+};
+
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { id } = req.params;
   const query = req.scope.resolve('query');
@@ -40,7 +51,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     },
   );
 
+  const bundleTotal = data[0].items.reduce((total: number, item: BundleItem) => {
+    const price = item?.product?.variants?.[0]?.calculated_price?.calculated_amount || 0;
+    return total + price * (item?.quantity || 1);
+  }, 0);
+
   res.json({
-    bundle_product: data[0],
+    bundle_product: Object.assign(data[0], { bundleTotal }),
   });
 }

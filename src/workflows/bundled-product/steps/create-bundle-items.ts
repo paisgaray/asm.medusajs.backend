@@ -6,6 +6,7 @@ import BundledProductModuleService from '../../../modules/bundled-product/servic
 type CreateBundleItemsStepInput = {
   bundle_id: string;
   items: {
+    details: string;
     quantity: number;
   }[];
 };
@@ -16,7 +17,7 @@ export const createBundleItemsStep = createStep(
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
     const bundleItems = await bundledProductModuleService.createBundleItems(
-      items.map((item) => ({ bundle_id, quantity: item.quantity })),
+      items.map((item) => ({ bundle_id, details: item.details, quantity: item.quantity })),
     );
 
     return new StepResponse(

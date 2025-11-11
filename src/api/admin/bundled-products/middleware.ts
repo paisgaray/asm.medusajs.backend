@@ -15,7 +15,7 @@ export const bundledProductsMiddlewares: MiddlewareRoute[] = [
     methods: ['GET'],
     middlewares: [
       validateAndTransformQuery(createFindParams(), {
-        defaults: ['id', 'title', 'product.*', 'items.*', 'items.product.*'],
+        defaults: ['id', 'title', 'details', 'product.*', 'items.*', 'items.product.*'],
         isList: true,
         defaultLimit: 15,
       }),

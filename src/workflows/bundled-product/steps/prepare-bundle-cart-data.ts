@@ -15,8 +15,8 @@ export type PrepareBundleCartDataStepInput = {
   };
   quantity: number;
   items: {
-    item_id: string;
-    variant_id: string;
+    item_id?: string;
+    variant_id?: string;
   }[];
 };
 

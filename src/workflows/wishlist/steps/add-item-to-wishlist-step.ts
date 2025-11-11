@@ -5,8 +5,9 @@ import WishlistService from '../../../modules/wishlist/service';
 
 type AddItemToWishlistStepInput = {
   wishlist_id: string;
-  product_id: string;
+  product_id?: string;
   product_variant_id?: string;
+  bundle_id?: string;
   quantity?: number;
 };
 
@@ -15,15 +16,37 @@ export const addItemToWishlistStep = createStep(
   async (input: AddItemToWishlistStepInput, { container }) => {
     const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
 
-    const allItems = await wishlistService.listWishlistItems({
-      wishlist_id: input.wishlist_id,
-      product_id: input.product_id,
+    const typeFilter = wishlistService.buildItemFilter({
+      bundle_id: input.bundle_id,
+      product_variant_id: input.product_variant_id,
     });
 
+    const filters: {
+      wishlist_id: string;
+      product_id?: string;
+      product_variant_id?: string;
+      bundle_id?: string;
+    } = {
+      wishlist_id: input.wishlist_id,
+      ...typeFilter,
+    };
+
+    if (typeFilter.product_variant_id && input.product_id) {
+      filters.product_id = input.product_id;
+    }
+
+    const allItems = await wishlistService.listWishlistItems(filters);
+
     const existingItem = allItems.find((item) => {
-      const itemVariantId = item.product_variant_id || null;
-      const searchVariantId = input.product_variant_id || null;
-      return itemVariantId === searchVariantId;
+      if (typeFilter.bundle_id) {
+        return item.bundle_id === typeFilter.bundle_id;
+      }
+      if (typeFilter.product_variant_id) {
+        const itemVariantId = item.product_variant_id || null;
+        const searchVariantId = typeFilter.product_variant_id || null;
+        return itemVariantId === searchVariantId;
+      }
+      return false;
     });
 
     let item;
@@ -40,8 +63,9 @@ export const addItemToWishlistStep = createStep(
         if (error instanceof Error && error.message.includes('not found')) {
           item = await wishlistService.createWishlistItems({
             wishlist_id: input.wishlist_id,
-            product_id: input.product_id,
-            product_variant_id: input.product_variant_id || undefined,
+            product_id: input.product_id || undefined,
+            product_variant_id: typeFilter.product_variant_id || undefined,
+            bundle_id: typeFilter.bundle_id || undefined,
             quantity: input.quantity || 1,
           });
         } else {
@@ -51,8 +75,9 @@ export const addItemToWishlistStep = createStep(
     } else {
       item = await wishlistService.createWishlistItems({
         wishlist_id: input.wishlist_id,
-        product_id: input.product_id,
-        product_variant_id: input.product_variant_id || undefined,
+        product_id: input.product_id || undefined,
+        product_variant_id: typeFilter.product_variant_id || undefined,
+        bundle_id: typeFilter.bundle_id || undefined,
         quantity: input.quantity || 1,
       });
     }

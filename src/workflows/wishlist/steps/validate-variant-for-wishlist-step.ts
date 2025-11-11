@@ -2,8 +2,14 @@ import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 type ValidateVariantForWishlistStepInput = {
-  product_id: string;
+  product_id?: string;
   product_variant_id?: string | null;
+};
+
+type VariantValidationResult = {
+  variant_id: string | null;
+  product_id: string | null;
+  valid: boolean;
 };
 
 export const validateVariantForWishlistStep = createStep(
@@ -11,8 +17,13 @@ export const validateVariantForWishlistStep = createStep(
   async (input: ValidateVariantForWishlistStepInput, { container }) => {
     const { product_id, product_variant_id } = input;
 
-    if (!product_variant_id) {
-      throw new Error('product_variant_id is required to add item to wishlist');
+    if (!product_variant_id || !product_id) {
+      const result: VariantValidationResult = {
+        variant_id: null,
+        product_id: null,
+        valid: false,
+      };
+      return new StepResponse<VariantValidationResult>(result);
     }
 
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
@@ -51,11 +62,12 @@ export const validateVariantForWishlistStep = createStep(
         throw new Error(`Product ${product_id} is not published. Status: ${product.status}`);
       }
 
-      return new StepResponse({
+      const result: VariantValidationResult = {
         variant_id: variant.id,
         product_id: product.id,
         valid: true,
-      });
+      };
+      return new StepResponse<VariantValidationResult>(result);
     } catch (error: unknown) {
       if (error instanceof Error) {
         throw error;

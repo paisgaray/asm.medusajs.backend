@@ -10,9 +10,11 @@ import { createBundleItemsStep } from '../steps/create-bundle-items';
 export type CreateBundledProductWorkflowInput = {
   bundle: {
     title: string;
+    details: string;
     product: CreateProductWorkflowInputDTO;
     items: {
       product_id: string;
+      details: string;
       quantity: number;
     }[];
   };
@@ -21,7 +23,7 @@ export type CreateBundledProductWorkflowInput = {
 export const createBundledProductWorkflow = createWorkflow(
   'create-bundled-product',
   ({ bundle: bundleData }: CreateBundledProductWorkflowInput) => {
-    const bundle = createBundleStep({ title: bundleData.title });
+    const bundle = createBundleStep({ title: bundleData.title, details: bundleData.details });
 
     const bundleItems = createBundleItemsStep({ bundle_id: bundle.id, items: bundleData.items });
 
@@ -34,14 +36,14 @@ export const createBundledProductWorkflow = createWorkflow(
       },
     ]);
 
-    const bundleProducttemLinks = transform({ bundleData, bundleItems }, (data) => {
+    const bundleProductLinks = transform({ bundleData, bundleItems }, (data) => {
       return data.bundleItems.map((item, index) => ({
         [BUNDLED_PRODUCT_MODULE]: { bundle_item_id: item.id },
         [Modules.PRODUCT]: { product_id: data.bundleData.items[index].product_id },
       }));
     });
 
-    createRemoteLinkStep(bundleProducttemLinks).config({
+    createRemoteLinkStep(bundleProductLinks).config({
       name: 'create-bundle-product-items-links',
     });
 

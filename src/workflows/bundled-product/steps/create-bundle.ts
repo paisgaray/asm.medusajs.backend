@@ -5,14 +5,15 @@ import BundledProductModuleService from '../../../modules/bundled-product/servic
 
 type CreateBundleStepInput = {
   title: string;
+  details: string;
 };
 
 export const createBundleStep = createStep(
   'create-bundle',
-  async ({ title }: CreateBundleStepInput, { container }) => {
+  async ({ title, details }: CreateBundleStepInput, { container }) => {
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    const bundle = await bundledProductModuleService.createBundles({ title });
+    const bundle = await bundledProductModuleService.createBundles({ title, details });
 
     return new StepResponse(bundle, bundle.id);
   },

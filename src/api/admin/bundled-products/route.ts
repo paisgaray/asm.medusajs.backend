@@ -9,10 +9,12 @@ import {
 
 export const PostBundledProductsSchema = z.object({
   title: z.string(),
+  details: z.string(),
   product: AdminCreateProduct(),
   items: z.array(
     z.object({
       product_id: z.string(),
+      details: z.string(),
       quantity: z.number(),
     }),
   ),

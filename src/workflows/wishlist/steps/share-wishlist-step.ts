@@ -31,6 +31,7 @@ export const shareWishlistStep = createStep(
         wishlist_id: newWishlist.id,
         product_id: item.product_id,
         product_variant_id: item.product_variant_id || undefined,
+        bundle_id: item.bundle_id || undefined,
         quantity: item.quantity,
       });
     }

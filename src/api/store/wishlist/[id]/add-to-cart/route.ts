@@ -36,7 +36,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         wishlist_id: wishlistId,
       });
 
-      const itemsWithVariants = items.filter((item) => item.product_variant_id);
+      const itemsWithVariants = items.filter(
+        (item): item is typeof item & { product_id: string; product_variant_id: string } => {
+          return Boolean(item.product_id) && Boolean(item.product_variant_id);
+        },
+      );
 
       if (itemsWithVariants.length === 0) {
         res.status(400).json({
@@ -63,19 +67,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
               wishlist_id: wishlistId,
               item_id: item.id,
               product_id: item.product_id,
-              variant_id: item.product_variant_id!,
+              variant_id: item.product_variant_id,
               quantity: item.quantity,
             },
           });
 
           const validatedVariant = result.variant_validation;
-          const finalVariantId = validatedVariant?.variant_id || item.product_variant_id!;
+          const finalVariantId = validatedVariant?.variant_id || item.product_variant_id;
 
           addedItems.push({
             item_id: item.id,
             variant_id: finalVariantId,
             quantity: item.quantity,
-            original_variant_id: validatedVariant?.fallback ? item.product_variant_id || undefined : undefined,
+            original_variant_id: validatedVariant?.fallback ? item.product_variant_id : undefined,
             fallback_used: validatedVariant?.fallback || false,
           });
 

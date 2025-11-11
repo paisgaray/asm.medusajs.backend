@@ -23,7 +23,7 @@ type ErrorResponse = {
   message: string;
   error: string;
   variant_id: string;
-  product_id: string;
+  product_id: string | null;
   cart_id: string;
   suggestion?: string;
 };
@@ -50,9 +50,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     try {
       const item = await wishlistService.retrieveWishlistItem(itemId);
 
-      if (!item.product_variant_id) {
+      if (!item.product_variant_id || !item.product_id) {
         res.status(400).json({
-          message: 'Item does not have a product variant. Cannot add to cart.',
+          message: 'Item does not have a valid product/variant combination. Cannot add to cart.',
         });
         return;
       }

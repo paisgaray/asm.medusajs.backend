@@ -7,6 +7,7 @@ module.exports = {
   parserOptions: { project: "tsconfig.json", sourceType: "module" },
   rules: {
     "camelcase": "off",
+    "dot-notation": "off",
     "@typescript-eslint/no-require-imports": "off",
     "@typescript-eslint/no-var-requires": "off",
     "prettier/prettier": [

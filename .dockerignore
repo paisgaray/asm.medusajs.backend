@@ -1,0 +1,86 @@
+# Node / Yarn
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+.yarn/unplugged
+# Se você quer install offline determinístico, **NÃO** ignore o cache:
+!.yarn
+!.yarn/cache/**
+!.yarn/plugins/**
+!.yarn/releases/**
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Saídas de build locais
+.medusa
+dist
+build
+
+# Env locais
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE/OS
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# (Recomendação: NÃO ignore Dockerfile/compose)
+# Docker
+# Dockerfile
+# docker-compose.yml
+.dockerignore
+
+# Testes e reports
+test
+tests
+__tests__
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+coverage
+.nyc_output
+
+# Logs / runtime
+logs
+*.log
+pids
+*.pid
+*.seed
+*.pid.lock
+tmp
+temp
+.tmp
+.cache
+.parcel-cache
+.npm
+.eslintcache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.node_repl_history
+
+# Pacotes
+*.tgz
+
+# (Removidas as linhas com ../ pois não têm efeito)

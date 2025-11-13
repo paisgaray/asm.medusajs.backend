@@ -21,3 +21,8 @@ build
 *.log
 .env.local
 .env.*.local
+package-lock.json
+yarn.lock
+yarn.lock
+.env.backend
+.dockerignore

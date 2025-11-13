@@ -1,98 +1,194 @@
+import { validateAndTransformBody, validateAndTransformQuery } from '@medusajs/framework';
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { MedusaError } from '@medusajs/framework/utils';
+import { MiddlewareRoute } from '@medusajs/medusa';
 
 import { WISHLIST_MODULE } from '../../../modules/wishlist';
 import WishlistService from '../../../modules/wishlist/service';
+import {
+  StoreWishlistCreateSchema,
+  StoreWishlistListQuerySchema,
+  StoreWishlistRetrieveQuerySchema,
+  WishlistAddToCartBodySchema,
+  WishlistBundleAddToCartBodySchema,
+  WishlistItemCreateSchema,
+  WishlistItemsListQuerySchema,
+  type StoreWishlistRetrieveQuery,
+} from './validators';
 
-export async function validateCustomerId(req: MedusaRequest, res: MedusaResponse, next: () => void): Promise<void> {
-  const customerId = req.query.customer_id as string | undefined;
+const wishlistListQueryConfig = {
+  defaults: ['id', 'customer_id', 'share_token'],
+  defaultLimit: 20,
+  isList: true,
+};
+
+const wishlistRetrieveQueryConfig = {
+  defaults: ['id', 'customer_id', 'share_token'],
+};
+
+const wishlistItemsListQueryConfig = {
+  defaults: ['id', 'wishlist_id', 'product_id', 'product_variant_id', 'bundle_id', 'quantity'],
+  defaultLimit: 50,
+  isList: true,
+};
+
+async function ensureWishlistOwnership(req: MedusaRequest, _res: MedusaResponse, next: () => void): Promise<void> {
+  const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
+  const wishlistId = req.params.id as string;
+  const query = req.filterableFields as StoreWishlistRetrieveQuery;
+  const customerId = query?.customer_id;
 
   if (!customerId) {
-    res.status(400).json({ message: 'customer_id is required' });
+    next();
     return;
+  }
+
+  const wishlist = await wishlistService.retrieveWishlist(wishlistId);
+
+  if (wishlist.customer_id !== customerId) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, 'Access denied');
   }
 
   next();
 }
 
-export async function validateWishlistOwnership(
-  req: MedusaRequest,
-  res: MedusaResponse,
-  next: () => void,
-): Promise<void> {
-  const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
-  const wishlistId = req.params.id as string;
-  const customerId = req.query.customer_id as string | undefined;
-
-  if (!customerId) {
-    next();
-    return;
-  }
-
-  try {
-    const wishlist = await wishlistService.retrieveWishlist(wishlistId);
-
-    if (wishlist.customer_id !== customerId) {
-      res.status(403).json({ message: 'Access denied' });
-      return;
-    }
-
-    next();
-  } catch (error: unknown) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({ message: 'Wishlist not found' });
-      return;
-    }
-    throw error;
-  }
-}
-
-export async function validateItemOwnership(req: MedusaRequest, res: MedusaResponse, next: () => void): Promise<void> {
+async function ensureWishlistItemOwnership(req: MedusaRequest, _res: MedusaResponse, next: () => void): Promise<void> {
   const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
   const wishlistId = req.params.id as string;
   const itemId = req.params.itemId as string;
-  const customerId = req.query.customer_id as string | undefined;
+  const query = req.filterableFields as StoreWishlistRetrieveQuery;
+  const customerId = query?.customer_id;
 
-  try {
-    const item = await wishlistService.retrieveWishlistItem(itemId);
+  const item = await wishlistService.retrieveWishlistItem(itemId);
 
-    if (item.wishlist_id !== wishlistId) {
-      res.status(404).json({ message: 'Item not found in this wishlist' });
-      return;
-    }
-
-    if (customerId) {
-      try {
-        const wishlist = await wishlistService.retrieveWishlist(item.wishlist_id);
-        if (wishlist.customer_id !== customerId) {
-          res.status(403).json({ message: 'Access denied' });
-          return;
-        }
-      } catch (error: unknown) {
-        if (error instanceof Error && error.message.includes('not found')) {
-          res.status(404).json({ message: 'Wishlist not found' });
-          return;
-        }
-        throw error;
-      }
-    }
-
-    next();
-  } catch (error: unknown) {
-    if (error instanceof Error && error.message.includes('not found')) {
-      res.status(404).json({ message: 'Item not found' });
-      return;
-    }
-    throw error;
+  if (item.wishlist_id !== wishlistId) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, 'Item not found in this wishlist');
   }
-}
 
-export async function validateProductId(req: MedusaRequest, res: MedusaResponse, next: () => void): Promise<void> {
-  const { product_id } = req.body as { product_id?: string };
-
-  if (!product_id) {
-    res.status(400).json({ message: 'product_id is required' });
-    return;
+  if (customerId) {
+    const wishlist = await wishlistService.retrieveWishlist(item.wishlist_id);
+    if (wishlist.customer_id !== customerId) {
+      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, 'Access denied');
+    }
   }
 
   next();
 }
+
+export const wishlistMiddlewares: MiddlewareRoute[] = [
+  {
+    matcher: '/store/wishlist',
+    methods: ['GET'],
+    middlewares: [validateAndTransformQuery(StoreWishlistListQuerySchema, wishlistListQueryConfig)],
+  },
+  {
+    matcher: '/store/wishlist',
+    methods: ['POST'],
+    middlewares: [validateAndTransformBody(StoreWishlistCreateSchema)],
+  },
+  {
+    matcher: '/store/wishlist/:id',
+    methods: ['GET', 'DELETE'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id',
+    methods: ['POST'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items',
+    methods: ['GET'],
+    middlewares: [
+      validateAndTransformQuery(WishlistItemsListQuerySchema, wishlistItemsListQueryConfig),
+      ensureWishlistOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items',
+    methods: ['POST'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+      validateAndTransformBody(WishlistItemCreateSchema),
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items',
+    methods: ['DELETE'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items/:itemId',
+    methods: ['DELETE'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistItemOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/count',
+    methods: ['GET'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/share',
+    methods: ['POST'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/add-to-cart',
+    methods: ['POST'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+      validateAndTransformBody(WishlistAddToCartBodySchema),
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items/:itemId/add-to-cart',
+    methods: ['POST'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistItemOwnership,
+      validateAndTransformBody(WishlistAddToCartBodySchema),
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items/:itemId/add-bundle-to-cart',
+    methods: ['POST'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistItemOwnership,
+      validateAndTransformBody(WishlistBundleAddToCartBodySchema),
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items/:itemId/remove-bundle',
+    methods: ['DELETE'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistItemOwnership,
+    ],
+  },
+  {
+    matcher: '/store/wishlist/shared/:token',
+    methods: ['GET'],
+    middlewares: [validateAndTransformQuery(WishlistItemsListQuerySchema, wishlistItemsListQueryConfig)],
+  },
+];

@@ -1,29 +1,28 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { WISHLIST_MODULE } from '../../../../../modules/wishlist';
-import WishlistService from '../../../../../modules/wishlist/service';
+import { getSharedWishlistWorkflow } from '../../../../../workflows/wishlist';
+import type { WishlistItemsListQuery } from '../../validators';
 
-export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
-  const shareToken = req.params.token as string;
+export async function GET(req: MedusaRequest<undefined, WishlistItemsListQuery>, res: MedusaResponse): Promise<void> {
+  const query = req.filterableFields as WishlistItemsListQuery;
+  const selector = {
+    ...(query.product_id ? { product_id: query.product_id } : {}),
+    ...(query.product_variant_id ? { product_variant_id: query.product_variant_id } : {}),
+    ...(query.bundle_id ? { bundle_id: query.bundle_id } : {}),
+  };
 
-  const allWishlists = await wishlistService.listWishlists({});
-  const wishlists = allWishlists.filter((w) => w.share_token === shareToken);
-
-  if (wishlists.length === 0) {
-    res.status(404).json({ message: 'Wishlist not found' });
-    return;
-  }
-
-  const wishlist = wishlists[0];
-  const items = await wishlistService.listWishlistItems({
-    wishlist_id: wishlist.id,
+  const { result } = await getSharedWishlistWorkflow(req.scope).run({
+    input: {
+      share_token: req.params.token as string,
+      list_config: req.listConfig,
+      filterable_fields: selector,
+    },
   });
 
   res.json({
     wishlist: {
-      ...wishlist,
-      items,
+      ...result.wishlist,
+      items: result.items,
     },
   });
 }

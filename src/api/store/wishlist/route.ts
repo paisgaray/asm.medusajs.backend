@@ -1,39 +1,34 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { WISHLIST_MODULE } from '../../../modules/wishlist';
-import WishlistService from '../../../modules/wishlist/service';
-import { createWishlistWorkflow } from '../../../workflows/wishlist/create-wishlist';
-import { validateCustomerId } from './middleware';
-import { handleErrorResponse } from './utils';
+import { createWishlistWorkflow, listWishlistsWorkflow } from '../../../workflows/wishlist';
+import type { StoreWishlistCreateBody, StoreWishlistListQuery } from './validators';
 
-export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  await validateCustomerId(req, res, async () => {
-    const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
-    const customerId = req.query.customer_id as string;
+export async function GET(req: MedusaRequest<undefined, StoreWishlistListQuery>, res: MedusaResponse): Promise<void> {
+  const query = req.filterableFields as StoreWishlistListQuery;
 
-    const wishlists = await wishlistService.listWishlists({ customer_id: customerId });
+  const { result } = await listWishlistsWorkflow(req.scope).run({
+    input: {
+      customer_id: query.customer_id,
+      list_config: req.listConfig,
+    },
+  });
 
-    res.json({ wishlists });
+  res.json({
+    wishlists: result.wishlists,
+    count: result.count,
+    limit: req.listConfig.take ?? result.wishlists.length,
+    offset: req.listConfig.skip ?? 0,
   });
 }
 
-export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  const { customer_id } = req.body as { customer_id?: string };
+export async function POST(req: MedusaRequest<StoreWishlistCreateBody>, res: MedusaResponse): Promise<void> {
+  const body = req.validatedBody as StoreWishlistCreateBody;
 
-  if (!customer_id) {
-    res.status(400).json({ message: 'customer_id is required' });
-    return;
-  }
+  const { result } = await createWishlistWorkflow(req.scope).run({
+    input: {
+      customer_id: body.customer_id,
+    },
+  });
 
-  try {
-    const { result } = await createWishlistWorkflow(req.scope).run({
-      input: {
-        customer_id,
-      },
-    });
-
-    res.json({ wishlist: result.wishlist });
-  } catch (error: unknown) {
-    handleErrorResponse(res, 500, 'Failed to create wishlist', error);
-  }
+  res.json({ wishlist: result.wishlist });
 }

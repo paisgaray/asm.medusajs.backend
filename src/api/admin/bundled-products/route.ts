@@ -1,28 +1,12 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { AdminCreateProduct } from '@medusajs/medusa/api/admin/products/validators';
-import { z } from 'zod';
 
 import {
   createBundledProductWorkflow,
   CreateBundledProductWorkflowInput,
 } from '../../../workflows/bundled-product/workflows/create-bundled-product';
+import type { CreateBundledProductsSchema } from './validators';
 
-export const PostBundledProductsSchema = z.object({
-  title: z.string(),
-  details: z.string(),
-  product: AdminCreateProduct(),
-  items: z.array(
-    z.object({
-      product_id: z.string(),
-      details: z.string(),
-      quantity: z.number(),
-    }),
-  ),
-});
-
-type PostBundledProductsSchema = z.infer<typeof PostBundledProductsSchema>;
-
-export async function POST(req: AuthenticatedMedusaRequest<PostBundledProductsSchema>, res: MedusaResponse) {
+export async function POST(req: AuthenticatedMedusaRequest<CreateBundledProductsSchema>, res: MedusaResponse) {
   const { result: bundledProduct } = await createBundledProductWorkflow(req.scope).run({
     input: { bundle: req.body } as CreateBundledProductWorkflowInput,
   });

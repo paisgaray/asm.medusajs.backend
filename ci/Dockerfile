@@ -5,6 +5,12 @@ FROM node:20-alpine AS builder
 
 WORKDIR /server
 
+# **CORREÇÃO CRÍTICA 1:**
+# Define NODE_ENV=development para garantir que as devDependencies
+# (necessárias para o 'yarn build') sejam instaladas, mesmo que o Coolify
+# tente injetar 'production' como um argumento de build.
+ENV NODE_ENV=development
+
 # Dependências para compilar módulos nativos
 RUN apk add --no-cache python3 make g++
 
@@ -63,7 +69,10 @@ ENV PORT=9000
 
 EXPOSE 9000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# **CORREÇÃO CRÍTICA 2:**
+# Aumentado o start-period de 5s para 30s. Isso é essencial para dar tempo
+# ao 'start.sh' executar o 'db:migrate' e ao Medusa iniciar o servidor.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:${PORT:-9000}/health || exit 1
 
 CMD ["/server/start.sh"]

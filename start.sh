@@ -1,71 +1,63 @@
 #!/usr/bin/env sh
+# Garante que o script pare em qualquer erro
 set -e
 
-echo "[Medusa] start.sh iniciado"
+echo "────────────────────────────────────────────────"
+echo "  🚀 Medusa Backend - Script de Inicialização  🚀"
+echo "────────────────────────────────────────────────"
 
+# Definir diretório de trabalho para a raiz do projeto
 cd /server
 
 # ──────────────────────────────────────────────
-# Espera pelo Postgres (opcional, guiado por env)
+# 1. Esperar pelo PostgreSQL (usando POSTGRES_HOST/PORT)
 # ──────────────────────────────────────────────
-PGHOST="${POSTGRES_HOST:-}"
-PGPORT="${POSTGRES_PORT:-5432}"
-PGUSER="${POSTGRES_USER:-postgres}"
-
-if [ -n "$PGHOST" ]; then
-  echo "[Medusa] Aguardando Postgres (${PGHOST}:${PGPORT}) via pg_isready..."
-  until pg_isready -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}"; do
-    echo "[Medusa] Aguardando DB..."
-    sleep 2
-  done
-  echo "[Medusa] Postgres OK!"
+if [ -n "$POSTGRES_HOST" ] && [ -n "$POSTGRES_PORT" ]; then
+    echo "[DB] Aguardando PostgreSQL em ${POSTGRES_HOST}:${POSTGRES_PORT}..."
+    # Loop de espera usando pg_isready para verificar a conexão na porta.
+    until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -q; do
+        echo "[DB] PostgreSQL ainda indisponível. Esperando 2 segundos..."
+        sleep 2
+    done
+    echo "[DB] PostgreSQL está OK e aceitando conexões."
 else
-  echo "[Medusa] POSTGRES_HOST não definido; pulando check de Postgres."
+    echo "[DB] Variáveis POSTGRES_HOST/POSTGRES_PORT não definidas; ignorando verificação de saúde."
 fi
 
 # ──────────────────────────────────────────────
-# Espera pelo MinIO (opcional, guiado por env)
+# 2. Executar Migrações do Banco de Dados
 # ──────────────────────────────────────────────
-if [ -n "$MINIO_HOST" ] && [ -n "$MINIO_PORT" ]; then
-  echo "[Medusa] Aguardando MinIO (${MINIO_HOST}:${MINIO_PORT}) via nc..."
-  while ! nc -z "${MINIO_HOST}" "${MINIO_PORT}"; do
-    echo "[Medusa] MinIO ainda não está disponível..."
-    sleep 2
-  done
-  echo "[Medusa] MinIO OK!"
+CLI_COMPILED="./.medusa/server/dist/cli.js"
+
+echo "[Medusa] Executando migrações (db:migrate)..."
+if [ -f "$CLI_COMPILED" ]; then
+    # Usar o CLI compilado, se disponível
+    node "$CLI_COMPILED" db:migrate
 else
-  echo "[Medusa] MINIO_HOST/MINIO_PORT não definidos; pulando check de MinIO."
+    # Fallback para npx medusa (usado em builds menores ou quando o CLI não está pré-compilado)
+    npx medusa db:migrate
 fi
+echo "[Medusa] Migrações concluídas com sucesso."
 
 # ──────────────────────────────────────────────
-# Verifica se existe Admin buildado (apenas log)
+# 3. Informações Adicionais (Admin Check e Redis)
 # ──────────────────────────────────────────────
-ADMIN_INDEX="/server/.medusa/server/public/admin/index.html"
+ADMIN_INDEX="./.medusa/server/public/admin/index.html"
 if [ -f "${ADMIN_INDEX}" ]; then
-  echo "[Medusa] Admin build OK em ${ADMIN_INDEX}"
+    echo "[Admin] Admin build OK em ${ADMIN_INDEX}"
 else
-  echo "[Medusa] Admin build NÃO encontrado em ${ADMIN_INDEX}"
-  echo "[Medusa] Se não for servir Admin pelo backend, defina admin.serve=false no medusa-config.*"
+    echo "[Admin] Admin build NÃO encontrado. Verifique o STAGE 1 (builder)."
 fi
 
-# ──────────────────────────────────────────────
-# Migrações de banco (prioriza CLI compilado)
-# ──────────────────────────────────────────────
-CLI_COMPILED="/server/.medusa/server/dist/cli.js"
-
-if [ -f "${CLI_COMPILED}" ]; then
-  echo "[Medusa] Executando migrações via CLI compilado..."
-  node "${CLI_COMPILED}" db:migrate
-else
-  echo "[Medusa] CLI compilado não encontrado; usando npx medusa db:migrate..."
-  npx medusa db:migrate
+if [ -z "$REDIS_URL" ]; then
+    echo "[Redis] REDIS_URL não definido. O Medusa usará uma instância falsa de Redis (NÃO recomendado para Produção)."
 fi
 
-echo "[Medusa] Migrações OK"
 
 # ──────────────────────────────────────────────
-# Sobe o servidor Medusa a partir do build
+# 4. Iniciar Servidor Medusa
 # ──────────────────────────────────────────────
-cd /server/.medusa/server
-echo "[Medusa] Iniciando servidor Medusa..."
+echo "[Medusa] Iniciando servidor Medusa na porta ${PORT:-9000} com NODE_ENV=${NODE_ENV}..."
+
+# 'exec' substitui o processo shell, que é uma prática recomendada no Docker.
 exec npx medusa start

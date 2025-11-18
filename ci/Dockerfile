@@ -10,7 +10,8 @@ RUN apk add --no-cache python3 make g++
 
 # Yarn Berry metadata
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn ./.yarn
+# Se .yarn não está versionada, NÃO copie:
+# COPY .yarn ./.yarn
 
 # Instala dependências (inclui dev, para garantir CLI / npx medusa)
 RUN corepack enable && yarn install

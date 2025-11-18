@@ -14,9 +14,7 @@ services:
       DISABLE_MEDUSA_ADMIN: "false"
 
       DATABASE_URL: "${DATABASE_URL}"
-      POSTGRES_HOST: "${POSTGRES_HOST}"
-      POSTGRES_PORT: "${POSTGRES_PORT}"
-      POSTGRES_USER: "${POSTGRES_USER}"
+  
 
       REDIS_URL: "${REDIS_URL}"
 

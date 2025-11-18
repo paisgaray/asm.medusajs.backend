@@ -52,6 +52,7 @@ COPY --from=builder --chown=medusa:nodejs /server/.yarnrc.yml /server/.yarnrc.ym
 COPY --from=builder --chown=medusa:nodejs /server/start.sh /server/start.sh
 COPY --from=builder --chown=medusa:nodejs /server/medusa-config.* /server/
 COPY --from=builder --chown=medusa:nodejs /server/tsconfig.json /server/
+COPY --from=builder --chown=medusa:nodejs /server/src /server/src
 
 RUN chmod +x /server/start.sh
 
@@ -62,7 +63,6 @@ ENV PORT=9000
 
 EXPOSE 9000
 
-# Healthcheck padrão (backend expõe /health)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:${PORT:-9000}/health || exit 1
 

@@ -1,63 +1,58 @@
-# ──────────────────────────────────────────────
-# STAGE 1 — Build com Yarn Berry (node_modules + .medusa)
-# ──────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:23 as builder
 
-WORKDIR /server
+WORKDIR /app/medusa
 
+COPY . . 
 
-ENV NODE_ENV=development
+RUN rm -rf node_modules
 
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
-COPY package.json yarn.lock .yarnrc.yml ./
+RUN yarn install --loglevel=error
 
-
-RUN corepack enable && yarn install
-
-COPY . .
-
-RUN yarn build
-
-RUN sed -i 's/\r$//' /server/start.sh && chmod +x /server/start.sh
+RUN yarn run build
 
 
-# ──────────────────────────────────────────────
-# STAGE 2 — Produção
-# ──────────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:23
 
-# libs de runtime
-RUN apk add --no-cache \
-  curl \
-  postgresql-client \
-  ca-certificates \
-  netcat-openbsd
+# Bug https://github.com/coollabsio/coolify/issues/1930
+ARG COOKIE_SECRET
+ARG JWT_SECRET
+ARG STORE_CORS
+ARG ADMIN_CORS
+ARG AUTH_CORS
+ARG DISABLE_ADMIN
+ARG WORKER_MODE
+ARG PORT
+ARG DATABASE_URL
+ARG REDIS_URL
+ARG BACKEND_URL
 
-# Usuário não-root
-RUN addgroup -S nodejs && adduser -S medusa -G nodejs
+RUN echo "${PORT}"
 
-WORKDIR /server
+WORKDIR /app/medusa
 
-# Copia artefatos de build e runtime
-COPY --from=builder --chown=medusa:nodejs /server/.medusa /server/.medusa
-COPY --from=builder --chown=medusa:nodejs /server/node_modules /server/node_modules
-COPY --from=builder --chown=medusa:nodejs /server/package.json /server/package.json
-COPY --from=builder --chown=medusa:nodejs /server/yarn.lock /server/yarn.lock
-COPY --from=builder --chown=medusa:nodejs /server/.yarnrc.yml /server/.yarnrc.yml
-COPY --from=builder --chown=medusa:nodejs /server/start.sh /server/start.sh
-COPY --from=builder --chown=medusa:nodejs /server/medusa-config.* /server/
-COPY --from=builder --chown=medusa:nodejs /server/tsconfig.json /server/
-COPY --from=builder --chown=medusa:nodejs /server/src /server/src
+RUN mkdir .medusa
 
-RUN chmod +x /server/start.sh
+# COPY package*.json .yarnrc.yml yarn.lock ./ 
 
-USER medusa
+# COPY medusa-config.ts .
+# COPY tsconfig.json .
 
-ENV NODE_ENV=production
-ENV PORT=9000
+RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
-EXPOSE 9000
+COPY --from=builder /app/medusa/.medusa ./.medusa
+
+WORKDIR /app/medusa/.medusa/server
+
+RUN yarn install --production
 
 
-CMD ["/server/start.sh"]
+# RUN medusa migrations run 
+COPY migrations.sh /app/medusa/.medusa/server/migrations.sh
+RUN chmod +x /app/medusa/.medusa/server/migrations.sh
+RUN /app/medusa/.medusa/server/migrations.sh
+
+RUN rm /app/medusa/.medusa/server/migrations.sh
+
+CMD ["yarn", "run", "start"]

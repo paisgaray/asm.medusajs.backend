@@ -2,25 +2,102 @@ import fs from "fs"
 import path from "path"
 import { loadEnv, defineConfig } from "@medusajs/framework/utils"
 
-// Helper local: resolve caminho apenas se existir
-const resolveIfExists = (p: string) => {
-  const fullPath = path.isAbsolute(p)
-    ? p
-    : path.resolve(process.cwd(), p)
-
-  return fs.existsSync(fullPath) ? fullPath : undefined
-}
-
-// Carrega variáveis de ambiente (.env.<NODE_ENV> / .env)
+// Carrega variáveis de ambiente
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
-// Módulos opcionais (só entram se a pasta existir)
-const optionalModules = [
-  resolveIfExists("bundled-product"),
-  resolveIfExists("wishlist"),
-].filter(Boolean) as string[]
+// Helper: adiciona módulo local se a pasta existir
+const modules: any[] = []
 
-module.exports = defineConfig({
+const addLocalModuleIfExists = (relativePath: string) => {
+  const fullPath = path.resolve(process.cwd(), relativePath)
+
+  if (fs.existsSync(fullPath)) {
+    modules.push({
+      resolve: fullPath,
+    })
+  }
+}
+
+// === Módulos locais (pelo screenshot) ===
+addLocalModuleIfExists("./src/modules/bundled-product")
+addLocalModuleIfExists("./src/modules/wishlist")
+
+// === Redis (cache, event-bus, workflow, locking) – só se REDIS_URL existir ===
+if (process.env.REDIS_URL) {
+  modules.push(
+    {
+      resolve: "@medusajs/medusa/caching",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/caching-redis",
+            id: "caching-redis",
+            is_default: true,
+            options: {
+              redisUrl: process.env.REDIS_URL,
+            },
+          },
+        ],
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/event-bus-redis",
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/workflow-engine-redis",
+      options: {
+        redis: {
+          url: process.env.REDIS_URL,
+        },
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/locking",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/locking-redis",
+            id: "locking-redis",
+            is_default: true,
+            options: {
+              redisUrl: process.env.REDIS_URL,
+            },
+          },
+        ],
+      },
+    }
+  )
+}
+
+// === Files (S3/MinIO) – sempre adiciona, assumindo variáveis de ambiente configuradas ===
+modules.push({
+  resolve: "@medusajs/medusa/file",
+  options: {
+    providers: [
+      {
+        resolve: "@medusajs/medusa/file-s3",
+        id: "s3",
+        options: {
+          file_url: process.env.S3_FILE_URL,
+          access_key_id: process.env.S3_ACCESS_KEY_ID,
+          secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+          region: process.env.S3_REGION,
+          bucket: process.env.S3_BUCKET,
+          endpoint: process.env.S3_ENDPOINT,
+          additional_client_config: {
+            // obrigatório pro MinIO
+            forcePathStyle: true,
+          },
+        },
+      },
+    ],
+  },
+})
+
+export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     http: {
@@ -31,76 +108,5 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
   },
-
-  modules: [
-    // módulos opcionais locais (paths válidos)
-    ...optionalModules,
-
-    // Redis (cache / event-bus / workflow / locking) – só entra se REDIS_URL estiver setada
-    ...(process.env.REDIS_URL
-      ? [
-          {
-            resolve: "@medusajs/medusa/caching",
-            options: {
-              providers: [
-                {
-                  resolve: "@medusajs/caching-redis",
-                  id: "caching-redis",
-                  is_default: true,
-                  options: {
-                    redisUrl: process.env.REDIS_URL,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            resolve: "@medusajs/medusa/event-bus-redis",
-            options: { redisUrl: process.env.REDIS_URL },
-          },
-          {
-            resolve: "@medusajs/medusa/workflow-engine-redis",
-            options: { redis: { url: process.env.REDIS_URL } },
-          },
-          {
-            resolve: "@medusajs/medusa/locking",
-            options: {
-              providers: [
-                {
-                  resolve: "@medusajs/medusa/locking-redis",
-                  id: "locking-redis",
-                  is_default: true,
-                  options: { redisUrl: process.env.REDIS_URL },
-                },
-              ],
-            },
-          },
-        ]
-      : []),
-
-    // Files (S3 / MinIO)
-    {
-      resolve: "@medusajs/medusa/file",
-      options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/file-s3",
-            id: "s3",
-            options: {
-              file_url: process.env.S3_FILE_URL,
-              access_key_id: process.env.S3_ACCESS_KEY_ID,
-              secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
-              region: process.env.S3_REGION,
-              bucket: process.env.S3_BUCKET,
-              endpoint: process.env.S3_ENDPOINT,
-              additional_client_config: {
-                // MinIO precisa disso
-                forcePathStyle: true,
-              },
-            },
-          },
-        ],
-      },
-    },
-  ],
+  modules,
 })

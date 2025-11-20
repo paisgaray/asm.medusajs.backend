@@ -39,7 +39,9 @@ RUN yarn install --production --frozen-lockfile
 COPY start.sh ./start.sh
 RUN chmod +x ./start.sh
 
-# Porta
 EXPOSE 9000
 
 ENTRYPOINT ["./start.sh"]
+CMD ["yarn", "start"]
+
+

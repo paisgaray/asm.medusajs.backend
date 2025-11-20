@@ -1,59 +1,45 @@
-FROM node:23 as builder
+# ==========================
+# 1) BUILDER
+# ==========================
+FROM node:23 AS builder
 
 WORKDIR /app/medusa
 
-COPY . . 
+COPY . .
 
-RUN rm -rf node_modules
-
+# dependências necessárias para sharp / prisma / etc
 RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
-RUN yarn install --loglevel=error
+RUN yarn install --frozen-lockfile
 
-RUN yarn run build
+RUN yarn build
 
 
-FROM node:23
-
-# Bug https://github.com/coollabsio/coolify/issues/1930
-ARG COOKIE_SECRET
-ARG JWT_SECRET
-ARG STORE_CORS
-ARG ADMIN_CORS
-ARG AUTH_CORS
-ARG DISABLE_ADMIN
-ARG WORKER_MODE
-ARG PORT
-ARG DATABASE_URL
-ARG REDIS_URL
-ARG BACKEND_URL
-
-RUN echo "${PORT}"
+# ==========================
+# 2) PRODUCTION IMAGE
+# ==========================
+FROM node:23 AS production
 
 WORKDIR /app/medusa
 
-RUN mkdir .medusa
+ENV NODE_ENV=production
 
-# COPY package*.json .yarnrc.yml yarn.lock ./ 
-
-# COPY medusa-config.ts .
-# COPY tsconfig.json .
-
+# dependências necessárias somente para runtime
 RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
+# Copia resultado do build (JS, migrations, tudo dentro de .medusa)
 COPY --from=builder /app/medusa/.medusa ./.medusa
 
 WORKDIR /app/medusa/.medusa/server
 
-RUN yarn install --production
+# instala somente dependências do servidor compilado
+RUN yarn install --production --frozen-lockfile
 
+# Copia entrypoint
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh
 
-# RUN medusa migrations run 
-COPY start.sh /app/medusa/.medusa/server/start.sh
-RUN chmod +x /app/medusa/.medusa/server/start.sh
-RUN /app/medusa/.medusa/server/start.sh
+# Porta
+EXPOSE 9000
 
-RUN rm /app/medusa/.medusa/server/start.sh
-
-CMD ["yarn", "run", "start"]
-
+ENTRYPOINT ["./start.sh"]

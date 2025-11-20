@@ -34,7 +34,7 @@ if (process.env.REDIS_URL) {
             id: "caching-redis",
             is_default: true,
             options: {
-              redisUrl: process.env.REDIS_URL,
+              redisUrl: process.env.CACHE_REDIS_URL,
             },
           },
         ],
@@ -43,14 +43,14 @@ if (process.env.REDIS_URL) {
     {
       resolve: "@medusajs/medusa/event-bus-redis",
       options: {
-        redisUrl: process.env.REDIS_URL,
+        redisUrl: process.env.EVENTS_REDIS_URL,
       },
     },
     {
       resolve: "@medusajs/medusa/workflow-engine-redis",
       options: {
         redis: {
-          url: process.env.REDIS_URL,
+          url: process.env.WE_REDIS_URL,
         },
       },
     },
@@ -63,7 +63,7 @@ if (process.env.REDIS_URL) {
             id: "locking-redis",
             is_default: true,
             options: {
-              redisUrl: process.env.REDIS_URL,
+              redisUrl: process.env.LOCKING_REDIS_URL,
             },
           },
         ],

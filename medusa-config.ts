@@ -1,6 +1,24 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils';
+import fs from "fs"
+import path from "path"
+import { loadEnv, defineConfig } from "@medusajs/framework/utils"
 
-loadEnv(process.env.NODE_ENV || 'development', process.cwd());
+// Helper local: resolve caminho apenas se existir
+const resolveIfExists = (p: string) => {
+  const fullPath = path.isAbsolute(p)
+    ? p
+    : path.resolve(process.cwd(), p)
+
+  return fs.existsSync(fullPath) ? fullPath : undefined
+}
+
+// Carrega variáveis de ambiente (.env.<NODE_ENV> / .env)
+loadEnv(process.env.NODE_ENV || "development", process.cwd())
+
+// Módulos opcionais (só entram se a pasta existir)
+const optionalModules = [
+  resolveIfExists("bundled-product"),
+  resolveIfExists("wishlist"),
+].filter(Boolean) as string[]
 
 module.exports = defineConfig({
   projectConfig: {
@@ -9,57 +27,58 @@ module.exports = defineConfig({
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
       authCors: process.env.AUTH_CORS!,
-      jwtSecret: process.env.JWT_SECRET || 'supersecret',
-      cookieSecret: process.env.COOKIE_SECRET || 'supersecret',
+      jwtSecret: process.env.JWT_SECRET || "supersecret",
+      cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     },
   },
- modules: [
-  resolveIfExists("bundled-product"),
-  resolveIfExists("wishlist"),
 
-  ...(process.env.REDIS_URL
-    ? [
-        {
-          resolve: "@medusajs/medusa/caching",
-          options: {
-            providers: [
-              {
-                resolve: "@medusajs/caching-redis",
-                id: "caching-redis",
-                is_default: true,
-                options: {
-                  redisUrl: process.env.REDIS_URL,
+  modules: [
+    // módulos opcionais locais (paths válidos)
+    ...optionalModules,
+
+    // Redis (cache / event-bus / workflow / locking) – só entra se REDIS_URL estiver setada
+    ...(process.env.REDIS_URL
+      ? [
+          {
+            resolve: "@medusajs/medusa/caching",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/caching-redis",
+                  id: "caching-redis",
+                  is_default: true,
+                  options: {
+                    redisUrl: process.env.REDIS_URL,
+                  },
                 },
-              },
-            ],
+              ],
+            },
           },
-        },
-        {
-          resolve: "@medusajs/medusa/event-bus-redis",
-          options: { redisUrl: process.env.REDIS_URL },
-        },
-        {
-          resolve: "@medusajs/medusa/workflow-engine-redis",
-          options: { redis: { url: process.env.REDIS_URL } },
-        },
-        {
-          resolve: "@medusajs/medusa/locking",
-          options: {
-            providers: [
-              {
-                resolve: "@medusajs/medusa/locking-redis",
-                id: "locking-redis",
-                is_default: true,
-                options: { redisUrl: process.env.REDIS_URL },
-              },
-            ],
+          {
+            resolve: "@medusajs/medusa/event-bus-redis",
+            options: { redisUrl: process.env.REDIS_URL },
           },
-        },
-      ]
-    : []),
+          {
+            resolve: "@medusajs/medusa/workflow-engine-redis",
+            options: { redis: { url: process.env.REDIS_URL } },
+          },
+          {
+            resolve: "@medusajs/medusa/locking",
+            options: {
+              providers: [
+                {
+                  resolve: "@medusajs/medusa/locking-redis",
+                  id: "locking-redis",
+                  is_default: true,
+                  options: { redisUrl: process.env.REDIS_URL },
+                },
+              ],
+            },
+          },
+        ]
+      : []),
 
-
-    // === Files (S3/MinIO) ===
+    // Files (S3 / MinIO)
     {
       resolve: "@medusajs/medusa/file",
       options: {
@@ -75,7 +94,8 @@ module.exports = defineConfig({
               bucket: process.env.S3_BUCKET,
               endpoint: process.env.S3_ENDPOINT,
               additional_client_config: {
-                forcePathStyle: true, // obrigatório pro MinIO
+                // MinIO precisa disso
+                forcePathStyle: true,
               },
             },
           },

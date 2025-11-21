@@ -2,77 +2,69 @@ import fs from "fs"
 import path from "path"
 import { loadEnv, defineConfig } from "@medusajs/framework/utils"
 
-// Carrega variáveis de ambiente
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
-// Helper: adiciona módulo local se a pasta existir
 const modules: any[] = []
 
 const addLocalModuleIfExists = (relativePath: string) => {
   const fullPath = path.resolve(process.cwd(), relativePath)
-
   if (fs.existsSync(fullPath)) {
-    modules.push({
-      resolve: fullPath,
-    })
+    modules.push({ resolve: fullPath })
   }
 }
 
-// === Módulos locais (pelo screenshot) ===
 addLocalModuleIfExists("./src/modules/bundled-product")
 addLocalModuleIfExists("./src/modules/wishlist")
 
-// === Redis (cache, event-bus, workflow, locking) – só se REDIS_URL existir ===
-if (process.env.REDIS_URL) {
-  modules.push(
-    {
-      resolve: "@medusajs/medusa/caching",
-      options: {
-        providers: [
-          {
-            resolve: "@medusajs/caching-redis",
-            id: "caching-redis",
-            is_default: true,
-            options: {
-              redisUrl: process.env.CACHE_REDIS_URL,
-            },
+// Módulos Redis (caching, event-bus, workflow, locking)
+modules.push(
+  {
+    resolve: "@medusajs/medusa/caching",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/caching-redis",
+          id: "caching-redis",
+          is_default: true,
+          options: {
+            redisUrl: process.env.CACHE_REDIS_URL,
           },
-        ],
-      },
-    },
-    {
-      resolve: "@medusajs/medusa/event-bus-redis",
-      options: {
-        redisUrl: process.env.EVENTS_REDIS_URL,
-      },
-    },
-    {
-      resolve: "@medusajs/medusa/workflow-engine-redis",
-      options: {
-        redis: {
-          url: process.env.WE_REDIS_URL,
         },
+      ],
+    },
+  },
+  {
+    resolve: "@medusajs/medusa/event-bus-redis",
+    options: {
+      redisUrl: process.env.EVENTS_REDIS_URL,
+    },
+  },
+  {
+    resolve: "@medusajs/medusa/workflow-engine-redis",
+    options: {
+      redis: {
+        url: process.env.WE_REDIS_URL,
       },
     },
-    {
-      resolve: "@medusajs/medusa/locking",
-      options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/locking-redis",
-            id: "locking-redis",
-            is_default: true,
-            options: {
-              redisUrl: process.env.LOCKING_REDIS_URL,
-            },
+  },
+  {
+    resolve: "@medusajs/medusa/locking",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/medusa/locking-redis",
+          id: "locking-redis",
+          is_default: true,
+          options: {
+            redisUrl: process.env.LOCKING_REDIS_URL,
           },
-        ],
-      },
-    }
-  )
-}
+        },
+      ],
+    },
+  }
+)
 
-// === Files (S3/MinIO) – sempre adiciona, assumindo variáveis de ambiente configuradas ===
+// Módulo de arquivos (S3/MinIO)
 modules.push({
   resolve: "@medusajs/medusa/file",
   options: {
@@ -88,8 +80,7 @@ modules.push({
           bucket: process.env.S3_BUCKET,
           endpoint: process.env.S3_ENDPOINT,
           additional_client_config: {
-            // obrigatório pro MinIO
-            forcePathStyle: true,
+            forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true",
           },
         },
       },
@@ -100,13 +91,19 @@ modules.push({
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    redisUrl: process.env.REDIS_URL, 
     http: {
-      storeCors: process.env.STORE_CORS!,
-      adminCors: process.env.ADMIN_CORS!,
-      authCors: process.env.AUTH_CORS!,
-      jwtSecret: process.env.JWT_SECRET || "supersecret",
-      cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      storeCors: process.env.STORE_CORS,
+      adminCors: process.env.ADMIN_CORS,
+      authCors: process.env.AUTH_CORS,
+      jwtSecret: process.env.JWT_SECRET,
+      cookieSecret: process.env.COOKIE_SECRET,
     },
+    // Outras configs se necessário
+  },
+  admin: {
+    backendUrl: process.env.MEDUSA_BACKEND_URL,
+    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
   },
   modules,
 })

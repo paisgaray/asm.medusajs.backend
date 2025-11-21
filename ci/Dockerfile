@@ -29,6 +29,8 @@ RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
 # Copia resultado do build (JS, migrations, tudo dentro de .medusa)
 COPY --from=builder /app/medusa/.medusa ./.medusa
+COPY --from=builder /app/medusa/tsconfig.json /app/medusa/.medusa/server/tsconfig.json
+
 
 WORKDIR /app/medusa/.medusa/server
 
@@ -43,5 +45,6 @@ EXPOSE 9000
 
 ENTRYPOINT ["./start.sh"]
 CMD ["yarn", "start"]
+
 
 

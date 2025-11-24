@@ -1,24 +1,109 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils';
+import fs from "fs"
+import path from "path"
+import { loadEnv, defineConfig } from "@medusajs/framework/utils"
 
-loadEnv(process.env.NODE_ENV || 'development', process.cwd());
+loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
-module.exports = defineConfig({
-  projectConfig: {
-    databaseUrl: process.env.DATABASE_URL,
-    http: {
-      storeCors: process.env.STORE_CORS!,
-      adminCors: process.env.ADMIN_CORS!,
-      authCors: process.env.AUTH_CORS!,
-      jwtSecret: process.env.JWT_SECRET || 'supersecret',
-      cookieSecret: process.env.COOKIE_SECRET || 'supersecret',
+const modules: any[] = []
+
+const addLocalModuleIfExists = (relativePath: string) => {
+  const fullPath = path.resolve(process.cwd(), relativePath)
+  if (fs.existsSync(fullPath)) {
+    modules.push({ resolve: fullPath })
+  }
+}
+
+addLocalModuleIfExists("./src/modules/bundled-product")
+addLocalModuleIfExists("./src/modules/wishlist")
+
+// Módulos Redis (caching, event-bus, workflow, locking)
+modules.push(
+  {
+    resolve: "@medusajs/medusa/caching",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/caching-redis",
+          id: "caching-redis",
+          is_default: true,
+          options: {
+            redisUrl: process.env.CACHE_REDIS_URL,
+          },
+        },
+      ],
     },
   },
-  modules: [
-    {
-      resolve: './src/modules/bundled-product',
+  {
+    resolve: "@medusajs/medusa/event-bus-redis",
+    options: {
+      redisUrl: process.env.EVENTS_REDIS_URL,
     },
-    {
-      resolve: './src/modules/wishlist',
+  },
+  {
+    resolve: "@medusajs/medusa/workflow-engine-redis",
+    options: {
+      redis: {
+        url: process.env.WE_REDIS_URL,
+      },
     },
-  ],
-});
+  },
+  {
+    resolve: "@medusajs/medusa/locking",
+    options: {
+      providers: [
+        {
+          resolve: "@medusajs/medusa/locking-redis",
+          id: "locking-redis",
+          is_default: true,
+          options: {
+            redisUrl: process.env.LOCKING_REDIS_URL,
+          },
+        },
+      ],
+    },
+  }
+)
+
+// Módulo de arquivos (S3/MinIO)
+modules.push({
+  resolve: "@medusajs/medusa/file",
+  options: {
+    providers: [
+      {
+        resolve: "@medusajs/medusa/file-s3",
+        id: "s3",
+        options: {
+          file_url: process.env.S3_FILE_URL,
+          access_key_id: process.env.S3_ACCESS_KEY_ID,
+          secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+          region: process.env.S3_REGION,
+          bucket: process.env.S3_BUCKET,
+          endpoint: process.env.S3_ENDPOINT,
+          additional_client_config: {
+            forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true",
+          },
+        },
+      },
+    ],
+  },
+})
+
+export default defineConfig({
+  projectConfig: {
+    databaseUrl: process.env.DATABASE_URL,
+    redisUrl: process.env.REDIS_URL, 
+    http: {
+      storeCors: process.env.STORE_CORS,
+      adminCors: process.env.ADMIN_CORS,
+      authCors: process.env.AUTH_CORS,
+      jwtSecret: process.env.JWT_SECRET,
+      cookieSecret: process.env.COOKIE_SECRET,
+    },
+    // Outras configs se necessário
+  },
+  admin: {
+    backendUrl: process.env.MEDUSA_BACKEND_URL,
+    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
+  },
+  modules,
+})

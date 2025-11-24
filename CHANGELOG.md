@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - refactor(wishlist): alinhar middlewares, rotas e workflows ao padrão Medusa;
+<<<<<<< HEAD
+=======
+- feat: add bundle product update and bundle product item update;
+>>>>>>> origin/develop
 
 ### Fixed
 - fix - medusa.config;

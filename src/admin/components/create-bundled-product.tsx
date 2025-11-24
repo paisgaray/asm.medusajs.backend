@@ -118,7 +118,6 @@ const CreateBundledProduct = () => {
                 <Input
                   value={title}
                   onChange={(e) => {
-                    console.log({ title: e.target.value });
                     setTitle(e.target.value);
                   }}
                 />

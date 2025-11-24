@@ -3,7 +3,7 @@ import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import BundledProductModuleService from '../../../modules/bundled-product/service';
 
-type CreateBundleStepInput = {
+export type CreateBundleStepInput = {
   title: string;
   details: string;
 };

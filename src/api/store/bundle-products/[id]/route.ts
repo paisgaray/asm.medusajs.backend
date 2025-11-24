@@ -40,12 +40,5 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     },
   );
 
-  const bundleTotal = data[0].items.reduce((total, item) => {
-    const price = item?.product?.variants?.[0]?.['calculated_price']?.calculated_amount || 0;
-    return total + price * (item?.quantity || 1);
-  }, 0);
-
-  res.json({
-    bundle_product: Object.assign(data[0], { bundleTotal }),
-  });
+  res.json(data[0]);
 }

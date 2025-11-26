@@ -4,6 +4,7 @@ import { createWishlistStep } from './steps/create-wishlist-step';
 
 type CreateWishlistInput = {
   customer_id: string;
+  name?: string;
 };
 
 export const createWishlistWorkflow = createWorkflow('create-wishlist', (input: CreateWishlistInput) => {

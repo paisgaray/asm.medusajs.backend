@@ -5,10 +5,6 @@ type EnsureBundleItemStepInput = {
   message: string;
 };
 
-export const ensureBundleItemStep = createStep(
-  'ensure-bundle-item-step',
-  (input: EnsureBundleItemStepInput) => {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, input.message);
-  },
-);
-
+export const ensureBundleItemStep = createStep('ensure-bundle-item-step', (input: EnsureBundleItemStepInput) => {
+  throw new MedusaError(MedusaError.Types.INVALID_DATA, input.message);
+});

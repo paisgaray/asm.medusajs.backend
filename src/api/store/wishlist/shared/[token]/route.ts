@@ -8,7 +8,6 @@ export async function GET(req: MedusaRequest<undefined, WishlistItemsListQuery>,
   const selector = {
     ...(query.product_id ? { product_id: query.product_id } : {}),
     ...(query.product_variant_id ? { product_variant_id: query.product_variant_id } : {}),
-    ...(query.bundle_id ? { bundle_id: query.bundle_id } : {}),
   };
 
   const { result } = await getSharedWishlistWorkflow(req.scope).run({

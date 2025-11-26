@@ -13,40 +13,54 @@ export const shareWishlistStep = createStep(
   async (input: ShareWishlistStepInput, { container }) => {
     const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
 
-    const shareToken = randomBytes(32).toString('hex');
+    // Gera um token único de compartilhamento
+    // Verifica se o token já existe e gera um novo se necessário (extremamente raro)
+    let shareToken: string;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    do {
+      shareToken = randomBytes(32).toString('hex');
+      const existingWishlists = await wishlistService.listWishlists({
+        share_token: shareToken,
+      });
+
+      // Se não encontrou wishlist com esse token, podemos usar
+      if (existingWishlists.length === 0) {
+        break;
+      }
+
+      attempts++;
+      if (attempts >= maxAttempts) {
+        throw new Error('Failed to generate unique share token after multiple attempts');
+      }
+    } while (attempts < maxAttempts);
+
+    // Recupera a wishlist atual
     const currentWishlist = await wishlistService.retrieveWishlist(input.wishlist_id);
+
+    // Se a wishlist já tem um share_token, usa ele. Caso contrário, atualiza com o novo token
+    if (currentWishlist.share_token && currentWishlist.share_token.trim() !== '') {
+      shareToken = currentWishlist.share_token;
+    } else {
+      // Atualiza apenas o share_token da wishlist existente usando método customizado
+      await wishlistService.updateWishlistById(input.wishlist_id, {
+        share_token: shareToken,
+      });
+    }
+
+    // Busca a wishlist atualizada com os itens
+    const updatedWishlist = await wishlistService.retrieveWishlist(input.wishlist_id);
     const items = await wishlistService.listWishlistItems({
       wishlist_id: input.wishlist_id,
     });
 
-    await wishlistService.deleteWishlists(input.wishlist_id);
-
-    const newWishlist = await wishlistService.createWishlists({
-      customer_id: currentWishlist.customer_id,
-      share_token: shareToken,
-    });
-
-    for (const item of items) {
-      await wishlistService.createWishlistItems({
-        wishlist_id: newWishlist.id,
-        product_id: item.product_id,
-        product_variant_id: item.product_variant_id || undefined,
-        bundle_id: item.bundle_id || undefined,
-        quantity: item.quantity,
-      });
-    }
-
-    const finalWishlist = await wishlistService.retrieveWishlist(newWishlist.id);
-    const finalItems = await wishlistService.listWishlistItems({
-      wishlist_id: newWishlist.id,
-    });
-
     return new StepResponse({
       share_token: shareToken,
-      wishlist_id: finalWishlist.id,
+      wishlist_id: updatedWishlist.id,
       wishlist: {
-        ...finalWishlist,
-        items: finalItems,
+        ...updatedWishlist,
+        items,
       },
     });
   },

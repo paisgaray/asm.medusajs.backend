@@ -3,6 +3,30 @@ import { z } from 'zod';
 
 const selectParams = createSelectParams();
 
+const WishlistSingleItemSchema = z
+  .object({
+    product_id: z.string(),
+    product_variant_id: z.string(),
+    quantity: z.number().int().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.product_variant_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'product_variant_id is required',
+        path: ['product_variant_id'],
+      });
+    }
+
+    if (!data.product_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'product_id is required when product_variant_id is provided',
+        path: ['product_id'],
+      });
+    }
+  });
+
 export const StoreWishlistListQuerySchema = createFindParams().merge(
   z.object({
     customer_id: z.string(),
@@ -17,6 +41,11 @@ export const StoreWishlistRetrieveQuerySchema = selectParams.merge(
 
 export const StoreWishlistCreateSchema = z.object({
   customer_id: z.string(),
+  name: z.string().optional(),
+});
+
+export const StoreWishlistUpdateSchema = z.object({
+  name: z.string().optional(),
 });
 
 export const WishlistItemsListQuerySchema = createFindParams().merge(
@@ -24,30 +53,25 @@ export const WishlistItemsListQuerySchema = createFindParams().merge(
     customer_id: z.string().optional(),
     product_id: z.string().optional(),
     product_variant_id: z.string().optional(),
-    bundle_id: z.string().optional(),
   }),
 );
 
 export const WishlistItemCreateSchema = z
   .object({
+    items: z.array(WishlistSingleItemSchema).optional(),
     product_id: z.string().optional(),
     product_variant_id: z.string().optional(),
-    bundle_id: z.string().optional(),
     quantity: z.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.product_variant_id && !data.bundle_id) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Either product_variant_id or bundle_id is required',
-        path: ['product_variant_id'],
-      });
+    if (data.items && data.items.length > 0) {
+      return;
     }
 
-    if (data.product_variant_id && data.bundle_id) {
+    if (!data.product_variant_id) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Cannot provide both product_variant_id and bundle_id',
+        message: 'product_variant_id is required',
         path: ['product_variant_id'],
       });
     }
@@ -61,28 +85,86 @@ export const WishlistItemCreateSchema = z
     }
   });
 
+export const WishlistItemsUpdateSchema = z.object({
+  items: z
+    .array(
+      z
+        .object({
+          id: z.string().optional(),
+          item_id: z.string().optional(),
+          quantity: z.number().int().min(0),
+        })
+        .superRefine((data, ctx) => {
+          if (!data.id && !data.item_id) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Either id or item_id is required',
+              path: ['id'],
+            });
+          }
+        })
+        .transform((data) => ({
+          item_id: data.item_id || data.id!,
+          quantity: data.quantity,
+        })),
+    )
+    .min(1, 'At least one item must be provided'),
+});
+
 export const WishlistAddToCartBodySchema = z.object({
   cart_id: z.string().optional(),
 });
 
 export const WishlistItemAddToCartBodySchema = WishlistAddToCartBodySchema;
 
-export const WishlistBundleAddToCartBodySchema = WishlistAddToCartBodySchema.extend({
-  items: z
-    .array(
-      z.object({
-        item_id: z.string(),
-        variant_id: z.string(),
-      }),
-    )
-    .optional(),
-});
-
 export type StoreWishlistListQuery = z.infer<typeof StoreWishlistListQuerySchema>;
 export type StoreWishlistRetrieveQuery = z.infer<typeof StoreWishlistRetrieveQuerySchema>;
 export type StoreWishlistCreateBody = z.infer<typeof StoreWishlistCreateSchema>;
+export type StoreWishlistUpdateBody = z.infer<typeof StoreWishlistUpdateSchema>;
 export type WishlistItemsListQuery = z.infer<typeof WishlistItemsListQuerySchema>;
+
+export const WishlistItemAddToWishlistSchema = z
+  .object({
+    wishlist_id: z.string().optional(),
+    customer_id: z.string().optional(),
+    name: z.string().optional(),
+    items: z.array(WishlistSingleItemSchema).optional(),
+    product_id: z.string().optional(),
+    product_variant_id: z.string().optional(),
+    quantity: z.number().int().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.wishlist_id && !data.customer_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Either wishlist_id or customer_id is required',
+        path: ['customer_id'],
+      });
+    }
+
+    if (data.items && data.items.length > 0) {
+      return;
+    }
+
+    if (!data.product_variant_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'product_variant_id is required',
+        path: ['product_variant_id'],
+      });
+    }
+
+    if (data.product_variant_id && !data.product_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'product_id is required when product_variant_id is provided',
+        path: ['product_id'],
+      });
+    }
+  });
+
 export type WishlistItemCreateBody = z.infer<typeof WishlistItemCreateSchema>;
+export type WishlistItemsUpdateBody = z.infer<typeof WishlistItemsUpdateSchema>;
+export type WishlistItemAddToWishlistBody = z.infer<typeof WishlistItemAddToWishlistSchema>;
 export type WishlistAddToCartBody = z.infer<typeof WishlistAddToCartBodySchema>;
 export type WishlistItemAddToCartBody = z.infer<typeof WishlistItemAddToCartBodySchema>;
-export type WishlistBundleAddToCartBody = z.infer<typeof WishlistBundleAddToCartBodySchema>;

@@ -4,31 +4,80 @@ import Wishlist from './models/wishlist';
 import WishlistItem from './models/wishlist-item';
 
 type WishlistItemFilterInput = {
-  bundle_id?: string | null;
   product_variant_id?: string | null;
+};
+
+type UpdateWishlistData = {
+  name?: string | null;
+  share_token?: string;
 };
 
 class WishlistService extends MedusaService({
   Wishlist,
   WishlistItem,
 }) {
-  buildItemFilter(input: WishlistItemFilterInput): { bundle_id?: string; product_variant_id?: string } {
-    const bundleId = input.bundle_id ?? undefined;
+  buildItemFilter(input: WishlistItemFilterInput): { product_variant_id?: string } {
     const variantId = input.product_variant_id ?? undefined;
 
-    if (bundleId && variantId) {
-      throw new Error('Provide only bundle_id or product_variant_id, not both');
+    if (!variantId) {
+      throw new Error('product_variant_id must be provided');
     }
 
-    if (bundleId) {
-      return { bundle_id: bundleId };
+    return { product_variant_id: variantId };
+  }
+
+  /**
+   * Método customizado para atualizar uma wishlist por ID
+   * Usa o repositório diretamente para garantir a atualização
+   */
+  async updateWishlistById(id: string, data: UpdateWishlistData): Promise<void> {
+    // Acessa o repositório diretamente via __container__
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const manager = (this as any).__container__.manager;
+
+    // Prepara os campos para atualização
+    const setFields: string[] = [];
+    const params: (string | null)[] = [];
+
+    if (data.name !== undefined) {
+      setFields.push(`"name" = ?`);
+      params.push(data.name);
     }
 
-    if (variantId) {
-      return { product_variant_id: variantId };
+    if (data.share_token !== undefined) {
+      setFields.push(`"share_token" = ?`);
+      params.push(data.share_token);
     }
 
-    throw new Error('Either bundle_id or product_variant_id must be provided');
+    if (setFields.length === 0) {
+      return;
+    }
+
+    // Adiciona updated_at
+    setFields.push(`"updated_at" = NOW()`);
+
+    // Adiciona o ID como último parâmetro
+    params.push(id);
+
+    const query = `UPDATE "wishlist" SET ${setFields.join(', ')} WHERE "id" = ?`;
+
+    await manager.execute(query, params);
+  }
+
+  /**
+   * Método customizado para atualizar um item da wishlist por ID
+   * Usa SQL direto para garantir que a atualização seja persistida corretamente
+   */
+  async updateWishlistItemById(id: string, data: { quantity?: number }): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const manager = (this as any).__container__.manager;
+
+    if (data.quantity === undefined) {
+      return;
+    }
+
+    const query = `UPDATE "wishlist_item" SET "quantity" = ?, "updated_at" = NOW() WHERE "id" = ?`;
+    await manager.execute(query, [data.quantity, id]);
   }
 }
 

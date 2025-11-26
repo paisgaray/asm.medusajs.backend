@@ -16,6 +16,17 @@ export const countWishlistItemsStep = createStep(
       wishlist_id: input.wishlist_id,
     });
 
-    return new StepResponse(items.length);
+    const uniqueKeys = new Set<string>();
+
+    for (const item of items) {
+      if (item.product_variant_id) {
+        uniqueKeys.add(`variant:${item.product_variant_id}`);
+        continue;
+      }
+
+      uniqueKeys.add(`item:${item.id}`);
+    }
+
+    return new StepResponse(uniqueKeys.size);
   },
 );

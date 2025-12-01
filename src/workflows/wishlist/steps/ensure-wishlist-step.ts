@@ -14,13 +14,11 @@ export const ensureWishlistStep = createStep(
   async (input: EnsureWishlistStepInput, { container }) => {
     const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
 
-    // Se wishlist_id foi fornecido, retorna a wishlist existente
     if (input.wishlist_id) {
       const wishlist = await wishlistService.retrieveWishlist(input.wishlist_id);
       return new StepResponse(wishlist);
     }
 
-    // Se não forneceu wishlist_id mas forneceu customer_id, cria nova wishlist
     if (input.customer_id) {
       const wishlist = await wishlistService.createWishlists({
         customer_id: input.customer_id,

@@ -40,8 +40,6 @@ export async function upsertWishlistItem(
   let item;
 
   if (existingItem && existingItem.id && existingItem.id.trim() !== '') {
-    // Já existe o produto X na wishlist Y:
-    // soma a quantidade atual (Q) com a nova quantidade enviada (Z) => Q + Z
     const currentQuantity = typeof existingItem.quantity === 'number' ? existingItem.quantity : 0;
     const newQuantity = currentQuantity + deltaQuantity;
 
@@ -51,7 +49,6 @@ export async function upsertWishlistItem(
 
     item = await wishlistService.retrieveWishlistItem(existingItem.id);
   } else {
-    // Não existe ainda o produto X na wishlist Y: cria com a quantidade enviada
     item = await wishlistService.createWishlistItems({
       wishlist_id: input.wishlist_id,
       product_id: input.product_id || undefined,

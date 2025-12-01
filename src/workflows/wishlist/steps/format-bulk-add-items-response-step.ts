@@ -23,9 +23,8 @@ type FormattedItem = {
 export const formatBulkAddItemsResponseStep = createStep(
   'format-bulk-add-items-response-step',
   async (input: FormatBulkAddItemsResponseStepInput) => {
-    // Formata os itens para retornar apenas os campos necessários
     const formattedItems: FormattedItem[] = input.items
-      .filter((item) => item && item.id) // Filtra itens inválidos
+      .filter((item) => item && item.id)
       .map((item) => ({
         id: item.id,
         product_id: item.product_id || null,

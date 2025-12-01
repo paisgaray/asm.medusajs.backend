@@ -13,19 +13,15 @@ export const updateWishlistStep = createStep(
   async (input: UpdateWishlistStepInput, { container }) => {
     const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
 
-    // Se name foi fornecido, processa o valor
     if (input.name !== undefined) {
-      // Trim e valida: se vazio após trim, define como null, senão usa o valor trimmed
       const trimmedName = input.name.trim();
       const nameValue = trimmedName === '' ? null : trimmedName;
 
-      // Atualiza a wishlist usando o método customizado que passa o ID diretamente
       await wishlistService.updateWishlistById(input.wishlist_id, {
         name: nameValue,
       });
     }
 
-    // Recupera a wishlist atualizada para garantir que temos os dados corretos
     const wishlist = await wishlistService.retrieveWishlist(input.wishlist_id);
 
     return new StepResponse(wishlist);

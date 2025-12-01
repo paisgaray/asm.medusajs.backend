@@ -13,12 +13,10 @@ type BulkAddWishlistItemsStepInput = {
 export const bulkAddWishlistItemsStep = createStep(
   'bulk-add-wishlist-items-step',
   async (input: BulkAddWishlistItemsStepInput, { container }) => {
-    // Validação: verifica se há pelo menos um item válido
     if (!input.items || input.items.length === 0) {
       throw new MedusaError(MedusaError.Types.INVALID_DATA, 'At least one item must be provided to add to wishlist');
     }
 
-    // Verifica se pelo menos um item tem product_variant_id
     const hasValidItem = input.items.some((item) => item?.product_variant_id);
 
     if (!hasValidItem) {
@@ -30,17 +28,13 @@ export const bulkAddWishlistItemsStep = createStep(
 
     const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
 
-    // Consolida itens duplicados no array somando as quantidades
-    // Se o mesmo produto aparecer múltiplas vezes no array, a quantidade final será a soma de todas
     const consolidatedItems = new Map<string, UpsertWishlistItemInput>();
 
     for (const item of input.items) {
-      // Pula itens inválidos (sem variant_id)
       if (!item.product_variant_id) {
         continue;
       }
 
-      // Cria uma chave única para identificar o produto (variant)
       const itemKey = `variant_${item.product_variant_id}`;
 
       const existing = consolidatedItems.get(itemKey);
@@ -48,7 +42,6 @@ export const bulkAddWishlistItemsStep = createStep(
       const accumulatedQuantity =
         existing?.quantity !== undefined && existing.quantity !== null ? existing.quantity : 0;
 
-      // Soma a quantidade anterior (do mesmo payload) com a nova quantidade
       consolidatedItems.set(itemKey, {
         wishlist_id: input.wishlist_id,
         product_id: item.product_id ?? existing?.product_id,
@@ -57,8 +50,6 @@ export const bulkAddWishlistItemsStep = createStep(
       });
     }
 
-    // Processa cada item consolidado usando upsert
-    // Se o produto já existe na wishlist, será sobrescrito com a nova quantidade
     const addedItems = [];
 
     for (const item of consolidatedItems.values()) {

@@ -54,7 +54,6 @@ export const enrichWishlistItemsStep = createStep(
               itemData.variant = variantResult.data[0];
             }
           } catch {
-            // Ignore errors when fetching variant
           }
         }
 

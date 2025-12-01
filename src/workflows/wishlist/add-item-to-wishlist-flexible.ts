@@ -32,14 +32,12 @@ export const addItemToWishlistFlexibleWorkflow = createWorkflow(
         return input.items;
       }
 
-      // Se não tem items array, verifica se tem item único
       const singleItem = {
         product_id: input.product_id,
         product_variant_id: input.product_variant_id,
         quantity: input.quantity,
       };
 
-      // Verifica se tem product_variant_id
       if (!singleItem.product_variant_id) {
         return [];
       }

@@ -40,7 +40,6 @@ export const updateWishlistItemsStep = createStep(
         continue;
       }
 
-      // Usa método customizado para garantir que a atualização seja persistida
       await wishlistService.updateWishlistItemById(item.item_id, {
         quantity: item.quantity,
       });

@@ -15,6 +15,7 @@ const addLocalModuleIfExists = (relativePath: string) => {
 
 addLocalModuleIfExists("./src/modules/bundled-product")
 addLocalModuleIfExists("./src/modules/wishlist")
+
 // Módulos Redis (caching, event-bus, workflow, locking)
 modules.push(
   {

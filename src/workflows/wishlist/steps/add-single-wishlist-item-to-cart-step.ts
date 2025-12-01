@@ -47,7 +47,6 @@ function extractErrorMessage(error: unknown): string {
         return parsed.message;
       }
     } catch {
-      // Ignore parsing errors
     }
     return error.message;
   }

@@ -33,4 +33,3 @@ export const removeWishlistBundleWorkflow = createWorkflow(
     return new WorkflowResponse(response);
   },
 );
-

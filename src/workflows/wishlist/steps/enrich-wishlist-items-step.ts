@@ -6,7 +6,6 @@ type WishlistItemRecord = {
   wishlist_id: string;
   product_id: string | null;
   product_variant_id: string | null;
-  bundle_id: string | null;
   quantity: number;
   [key: string]: unknown;
 };
@@ -24,24 +23,8 @@ type ProductVariantEntry = {
   product?: ProductEntry | null;
 };
 
-type BundleItemEntry = {
-  id: string;
-  product?: {
-    id?: string;
-    title?: string | null;
-    variants?: ProductVariantEntry[];
-  } | null;
-};
-
-type BundleEntry = {
-  id: string;
-  title?: string | null;
-  items?: BundleItemEntry[];
-};
-
 type WishlistItemWithRelations = WishlistItemRecord & {
   variant?: ProductVariantEntry;
-  bundle?: BundleEntry;
 };
 
 type EnrichWishlistItemsStepInput = {
@@ -71,25 +54,6 @@ export const enrichWishlistItemsStep = createStep(
               itemData.variant = variantResult.data[0];
             }
           } catch {
-            // Ignore errors when fetching variant
-          }
-        }
-
-        if (item.bundle_id) {
-          try {
-            const bundleResult = (await query.graph({
-              entity: 'bundle',
-              fields: ['id', 'title', 'items.*', 'items.product.*', 'items.product.variants.*'],
-              filters: {
-                id: item.bundle_id,
-              },
-            })) as { data?: BundleEntry[] };
-
-            if (bundleResult.data && bundleResult.data.length > 0) {
-              itemData.bundle = bundleResult.data[0];
-            }
-          } catch {
-            // Ignore errors when fetching bundle
           }
         }
 

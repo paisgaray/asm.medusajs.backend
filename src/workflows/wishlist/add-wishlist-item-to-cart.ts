@@ -1,7 +1,6 @@
 import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 import { addToCartWorkflow, useQueryGraphStep } from '@medusajs/medusa/core-flows';
 
-import { removeItemFromWishlistStep } from './steps/remove-item-from-wishlist-step';
 import { validateVariantStep } from './steps/validate-variant-step';
 
 type AddWishlistItemToCartInput = {
@@ -47,13 +46,6 @@ export const addWishlistItemToCartWorkflow = createWorkflow(
       fields: ['*', 'items.*'],
       filters: { id: input.cart_id },
     }).config({ name: 'refetch-cart' });
-
-    if (input.wishlist_id && input.item_id) {
-      removeItemFromWishlistStep({
-        wishlist_id: input.wishlist_id,
-        item_id: input.item_id,
-      });
-    }
 
     return new WorkflowResponse({
       cart: updatedCart[0],

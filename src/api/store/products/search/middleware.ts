@@ -10,4 +10,3 @@ export const productSearchMiddlewares: MiddlewareRoute[] = [
     middlewares: [validateAndTransformBody(StoreProductSearchBodySchema)],
   },
 ];
-

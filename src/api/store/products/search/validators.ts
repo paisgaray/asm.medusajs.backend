@@ -5,4 +5,3 @@ export const StoreProductSearchBodySchema = z.object({
 });
 
 export type StoreProductSearchBody = z.infer<typeof StoreProductSearchBodySchema>;
-

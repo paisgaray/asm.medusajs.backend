@@ -1,5 +1,7 @@
 import { algoliasearch, SearchClient } from 'algoliasearch';
 
+import type { AlgoliaProduct, AlgoliaSearchResponse, ProductInput } from './types';
+
 type AlgoliaOptions = {
   apiKey: string;
   appId: string;
@@ -12,9 +14,11 @@ export default class AlgoliaModuleService {
   private client: SearchClient;
   private options: AlgoliaOptions;
 
-  constructor({}, options: AlgoliaOptions) {
+  constructor(_container: unknown, options: AlgoliaOptions) {
     if (!options.appId || !options.apiKey || !options.productIndexName) {
-      throw new Error('Algolia configuration is incomplete. Please check ALGOLIA_APP_ID, ALGOLIA_ADMIN_API_KEY, and ALGOLIA_PRODUCT_INDEX_NAME environment variables.');
+      throw new Error(
+        'Algolia configuration is incomplete. Please check ALGOLIA_APP_ID, ALGOLIA_ADMIN_API_KEY, and ALGOLIA_PRODUCT_INDEX_NAME environment variables.',
+      );
     }
 
     this.client = algoliasearch(options.appId, options.apiKey);
@@ -30,25 +34,22 @@ export default class AlgoliaModuleService {
     }
   }
 
-  async indexData(data: Record<string, unknown>[], type: AlgoliaIndexType = 'product'): Promise<void> {
+  async indexData(data: AlgoliaProduct[], type: AlgoliaIndexType = 'product'): Promise<void> {
     const indexName = await this.getIndexName(type);
-    
+
     if (!data || data.length === 0) {
       return;
     }
 
     await this.client.saveObjects({
       indexName,
-      objects: data.map((item) => ({
-        ...item,
-        objectID: item.id as string,
-      })),
+      objects: data,
     });
   }
 
   async retrieveFromIndex(objectIDs: string[], type: AlgoliaIndexType = 'product') {
     const indexName = await this.getIndexName(type);
-    
+
     if (!objectIDs || objectIDs.length === 0) {
       return { results: [] };
     }
@@ -63,7 +64,7 @@ export default class AlgoliaModuleService {
 
   async deleteFromIndex(objectIDs: string[], type: AlgoliaIndexType = 'product'): Promise<void> {
     const indexName = await this.getIndexName(type);
-    
+
     if (!objectIDs || objectIDs.length === 0) {
       return;
     }
@@ -74,24 +75,64 @@ export default class AlgoliaModuleService {
     });
   }
 
-  async search(query: string, type: AlgoliaIndexType = 'product') {
-    try {
-      const indexName = await this.getIndexName(type);
-      
-      const result = await this.client.search({
-        requests: [
-          {
-            indexName,
-            query: query || '',
-          },
-        ],
-      });
+  async search(query: string, type: AlgoliaIndexType = 'product'): Promise<AlgoliaSearchResponse> {
+    const indexName = await this.getIndexName(type);
 
-      return result;
-    } catch (error) {
-      console.error('Algolia search error:', error);
-      throw new Error(`Algolia search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return (await this.client.search({
+      requests: [
+        {
+          indexName,
+          query: query || '',
+        },
+      ],
+    })) as unknown as AlgoliaSearchResponse;
+  }
+
+  transformProductForIndexing(product: ProductInput, language: string = 'pt'): AlgoliaProduct {
+    const tagValues =
+      product.tags && Array.isArray(product.tags)
+        ? product.tags.map((tag) => (typeof tag === 'string' ? tag : tag.value || tag.name || ''))
+        : [];
+
+    const collectionIds: string[] = [];
+    if (product.collection_id) {
+      collectionIds.push(product.collection_id);
     }
+    if (product.collections && Array.isArray(product.collections)) {
+      const ids = product.collections.map((col) => (typeof col === 'string' ? col : col.id || '')).filter((id) => id);
+      collectionIds.push(...ids);
+    }
+
+    return {
+      objectID: product.id,
+      title: product.title || '',
+      description: product.description || '',
+      handle: product.handle || '',
+      thumbnail: product.thumbnail || '',
+      language,
+      variants:
+        product.variants && Array.isArray(product.variants)
+          ? product.variants.map((variant) => ({
+              id: variant.id || '',
+              title: variant.title || '',
+              sku: variant.sku || '',
+            }))
+          : [],
+      sku: product.variants?.[0]?.sku || '',
+      tags: tagValues,
+      regional_tags: tagValues.filter((t) => t.startsWith('sp-') || t.startsWith('rj-') || t.startsWith('mg-')),
+      collections: [...new Set(collectionIds)],
+      prices_by_region: product.prices_by_region || {},
+    };
+  }
+
+  async indexProducts(products: ProductInput[], language: string = 'pt'): Promise<void> {
+    if (!products || products.length === 0) {
+      return;
+    }
+
+    const transformedProducts = products.map((product) => this.transformProductForIndexing(product, language));
+
+    await this.indexData(transformedProducts, 'product');
   }
 }
-

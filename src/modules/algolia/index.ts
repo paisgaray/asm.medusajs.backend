@@ -8,3 +8,4 @@ export default Module(ALGOLIA_MODULE, {
   service: AlgoliaModuleService,
 });
 
+export type { AlgoliaProduct, AlgoliaSearchHit, AlgoliaSearchResponse, ProductInput } from './types';

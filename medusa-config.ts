@@ -43,7 +43,7 @@ module.exports = defineConfig({
       resolve: './src/modules/wishlist',
     },
     {
-      resolve: "./src/modules/algolia",
+      resolve: './src/modules/algolia',
       options: {
         appId: process.env.ALGOLIA_APP_ID!,
         apiKey: process.env.ALGOLIA_API_KEY!,

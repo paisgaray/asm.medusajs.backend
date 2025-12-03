@@ -2,15 +2,10 @@ import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
 
 import { deleteProductFromIndexWorkflow } from '../workflows/algolia';
 
-export default async function productDeletedHandler({
-  event: { data },
-  container,
-}: SubscriberArgs<{ id: string }>) {
-  const productId = data.id;
-
+export default async function productDeletedHandler({ event: { data }, container }: SubscriberArgs<{ id: string }>) {
   await deleteProductFromIndexWorkflow(container).run({
     input: {
-      product_id: productId,
+      product_id: data.id,
     },
   });
 }
@@ -18,4 +13,3 @@ export default async function productDeletedHandler({
 export const config: SubscriberConfig = {
   event: 'product.deleted',
 };
-

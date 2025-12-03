@@ -10,4 +10,3 @@ export const indexProductWorkflow = createWorkflow('index-product', (input: Inde
   const productData = indexProductStep(input);
   return new WorkflowResponse({ product: productData });
 });
-

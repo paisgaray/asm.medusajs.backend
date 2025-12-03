@@ -13,4 +13,3 @@ export const deleteProductFromIndexWorkflow = createWorkflow(
     return new WorkflowResponse({ deleted: result });
   },
 );
-

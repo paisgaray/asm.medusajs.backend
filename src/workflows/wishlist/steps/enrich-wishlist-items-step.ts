@@ -53,8 +53,7 @@ export const enrichWishlistItemsStep = createStep(
             if (variantResult.data && variantResult.data.length > 0) {
               itemData.variant = variantResult.data[0];
             }
-          } catch {
-          }
+          } catch {}
         }
 
         return itemData;

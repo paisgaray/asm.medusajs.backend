@@ -17,4 +17,3 @@ export const deleteProductFromIndexStep = createStep(
     return new StepResponse({ deleted: true });
   },
 );
-

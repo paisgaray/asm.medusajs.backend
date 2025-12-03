@@ -10,4 +10,3 @@ export const searchProductsWorkflow = createWorkflow('search-products', (input: 
   const results = searchProductsStep(input);
   return new WorkflowResponse({ products: results });
 });
-

@@ -42,8 +42,7 @@ function extractErrorMessage(error: unknown): string {
       if (parsed && typeof parsed.message === 'string') {
         return parsed.message;
       }
-    } catch {
-    }
+    } catch {}
     return error.message;
   }
 

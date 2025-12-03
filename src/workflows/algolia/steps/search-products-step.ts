@@ -5,6 +5,10 @@ import AlgoliaModuleService from '../../../modules/algolia/service';
 
 type SearchProductsStepInput = {
   query: string;
+  filters?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
 };
 
 export const searchProductsStep = createStep(
@@ -12,14 +16,46 @@ export const searchProductsStep = createStep(
   async (input: SearchProductsStepInput, { container }) => {
     const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
 
-    const result = await algoliaService.search(input.query, 'product');
+    const page = input.page ?? 0;
+    const limit = input.limit ?? 20;
+
+    const result = await algoliaService.searchProducts(input.query, input.filters || '', page, limit, input.sortBy);
 
     if (!result?.results?.[0]) {
-      return new StepResponse<AlgoliaSearchHit[]>([]);
+      return new StepResponse<{
+        products: AlgoliaSearchHit[];
+        total: number;
+        page: number;
+        nbHits: number;
+        nbPages: number;
+        query: string;
+      }>({
+        products: [],
+        total: 0,
+        page: 0,
+        nbHits: 0,
+        nbPages: 0,
+        query: input.query,
+      });
     }
 
-    const hits = result.results[0].hits || [];
+    const firstResult = result.results[0];
+    const hits = firstResult.hits || [];
 
-    return new StepResponse<AlgoliaSearchHit[]>(hits);
+    return new StepResponse<{
+      products: AlgoliaSearchHit[];
+      total: number;
+      page: number;
+      nbHits: number;
+      nbPages: number;
+      query: string;
+    }>({
+      products: hits,
+      total: firstResult.nbHits || 0,
+      page: firstResult.page || 0,
+      nbHits: firstResult.nbHits || 0,
+      nbPages: firstResult.nbPages || 0,
+      query: input.query,
+    });
   },
 );

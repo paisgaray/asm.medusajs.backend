@@ -12,7 +12,7 @@ export const deleteProductFromIndexStep = createStep(
   async (input: DeleteProductFromIndexStepInput, { container }) => {
     const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
 
-    await algoliaService.deleteFromIndex([input.product_id], 'product');
+    await algoliaService.deleteFromIndex([input.product_id]);
 
     return new StepResponse({ deleted: true });
   },

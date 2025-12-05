@@ -48,6 +48,12 @@ module.exports = defineConfig({
         appId: process.env.ALGOLIA_APP_ID!,
         apiKey: process.env.ALGOLIA_API_KEY!,
         productIndexName: process.env.ALGOLIA_PRODUCT_INDEX_NAME!,
+        regionalTagPrefixes: process.env.ALGOLIA_REGIONAL_TAG_PREFIXES
+          ? process.env.ALGOLIA_REGIONAL_TAG_PREFIXES.split(',').map((p) => p.trim())
+          : undefined,
+        supportedLanguages: process.env.ALGOLIA_SUPPORTED_LANGUAGES
+          ? process.env.ALGOLIA_SUPPORTED_LANGUAGES.split(',').map((l) => l.trim())
+          : undefined,
       },
     },
   ],

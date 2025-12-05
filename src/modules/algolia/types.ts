@@ -16,6 +16,8 @@ export type AlgoliaProduct = {
   collections: string[];
   prices_by_region: Record<string, number>;
   price: number;
+  created_at: number;
+  popularity: number;
 };
 
 export type ProductInput = {
@@ -25,10 +27,12 @@ export type ProductInput = {
   handle?: string | null;
   thumbnail?: string | null;
   collection_id?: string | null;
+  created_at?: Date | string | number;
   variants?: {
     id?: string;
     title?: string;
     sku?: string;
+    sales_count?: number;
     calculated_price?: {
       calculated_amount?: number;
       currency_code?: string;

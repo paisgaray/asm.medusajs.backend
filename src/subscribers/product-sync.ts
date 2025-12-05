@@ -1,13 +1,11 @@
 import { SubscriberArgs, type SubscriberConfig } from '@medusajs/framework';
 
-import { syncProductsWorkflow } from '../workflows/algolia/sync-products';
+import { indexProductWorkflow } from '../workflows/algolia/index-product';
 
 export default async function handleProductEvents({ event: { data }, container }: SubscriberArgs<{ id: string }>) {
-  await syncProductsWorkflow(container).run({
+  await indexProductWorkflow(container).run({
     input: {
-      filters: {
-        id: data.id,
-      },
+      product_id: data.id,
     },
   });
 }

@@ -1,8 +1,72 @@
-import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { QueryContext, Modules } from '@medusajs/framework/utils';
+import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { ALGOLIA_MODULE, type ProductInput } from '../../../modules/algolia';
 import AlgoliaModuleService from '../../../modules/algolia/service';
+
+async function enrichProductsWithRegionalPrices(
+  products: ProductInput[],
+  regions: Array<{ id: string; currency_code: string }>,
+  container: { resolve: (name: string) => unknown },
+): Promise<ProductInput[]> {
+  if (!products || products.length === 0 || !regions || regions.length === 0) {
+    return products;
+  }
+
+  try {
+    const pricingModuleService = container.resolve('pricing') as {
+      listPrices?: (filters: {
+        variant_id: string[];
+        region_id?: string;
+      }) => Promise<Array<{ variant_id: string; amount: number }>>;
+    };
+
+    if (!pricingModuleService?.listPrices) {
+      return products;
+    }
+
+    return Promise.all(
+      products.map(async (product) => {
+        if (!product.variants || product.variants.length === 0) {
+          return product;
+        }
+
+        const pricesByRegion: Record<string, number> = {};
+        const variantIds = product.variants.map((v) => v.id || '').filter(Boolean);
+
+        if (variantIds.length === 0) {
+          return product;
+        }
+
+        for (const region of regions) {
+          try {
+            const prices = await pricingModuleService.listPrices({
+              variant_id: variantIds,
+              region_id: region.id,
+            });
+
+            if (prices && Array.isArray(prices) && prices.length > 0) {
+              const firstVariantPrice = prices.find((p) => variantIds.includes(p.variant_id));
+              if (firstVariantPrice?.amount) {
+                const regionKey = region.currency_code.toLowerCase();
+                pricesByRegion[regionKey] = firstVariantPrice.amount;
+              }
+            }
+          } catch {
+            // Se falhar ao buscar preço da região, continua sem esse preço
+          }
+        }
+
+        return {
+          ...product,
+          prices_by_region: Object.keys(pricesByRegion).length > 0 ? pricesByRegion : product.prices_by_region,
+        };
+      }),
+    );
+  } catch {
+    return products;
+  }
+}
 
 type IndexProductStepInput = {
   product_id: string;
@@ -19,17 +83,22 @@ export const indexProductStep = createStep(
     const currencyCode = input.currency_code || 'usd';
 
     let regionId = input.region_id;
+    let allRegions: Array<{ id: string; currency_code: string }> = [];
 
-    if (!regionId) {
-      try {
-        const regionModuleService = container.resolve(Modules.REGION);
-        const regions = await regionModuleService.listRegions({});
-        if (regions && regions.length > 0) {
+    try {
+      const regionModuleService = container.resolve(Modules.REGION);
+      const regions = await regionModuleService.listRegions({});
+      if (regions && regions.length > 0) {
+        allRegions = regions.map((r: { id: string; currency_code: string }) => ({
+          id: r.id,
+          currency_code: r.currency_code || currencyCode,
+        }));
+        if (!regionId) {
           regionId = regions[0].id;
         }
-      } catch {
-        // Se não conseguir buscar região, continua sem region_id
       }
+    } catch {
+      // Se não conseguir buscar regiões, continua sem region_id
     }
 
     const context: Record<string, unknown> = {};
@@ -49,9 +118,11 @@ export const indexProductStep = createStep(
           '*',
           'variants.*',
           'variants.calculated_price.*',
+          'variants.sales_count',
           'tags.*',
           'collection.*',
           'images.*',
+          'created_at',
         ],
         filters: {
           id: input.product_id,
@@ -64,7 +135,13 @@ export const indexProductStep = createStep(
     );
 
     if (data && data.length > 0) {
-      await algoliaService.indexProducts(data as unknown as ProductInput[]);
+      let productsWithPrices = data as unknown as ProductInput[];
+
+      if (allRegions.length > 0) {
+        productsWithPrices = await enrichProductsWithRegionalPrices(productsWithPrices, allRegions, container);
+      }
+
+      await algoliaService.indexProducts(productsWithPrices);
     }
 
     return new StepResponse({ indexed: true, product_id: input.product_id });

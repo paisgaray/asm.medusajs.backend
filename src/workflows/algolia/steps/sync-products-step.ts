@@ -52,9 +52,7 @@ async function enrichProductsWithRegionalPrices(
                 pricesByRegion[regionKey] = firstVariantPrice.amount;
               }
             }
-          } catch {
-            // Se falhar ao buscar preço da região, continua sem esse preço
-          }
+          } catch {}
         }
 
         return {
@@ -76,6 +74,7 @@ type SyncProductsStepInput = {
   };
   region_id?: string;
   currency_code?: string;
+  language?: string;
 };
 
 export const syncProductsStep = createStep(
@@ -87,6 +86,7 @@ export const syncProductsStep = createStep(
     const limit = input.limit || 50;
     const offset = input.offset || 0;
     const currencyCode = input.currency_code || 'usd';
+    const language = algoliaService.validateLanguage(input.language);
 
     let regionId = input.region_id;
     let allRegions: Array<{ id: string; currency_code: string }> = [];
@@ -103,9 +103,7 @@ export const syncProductsStep = createStep(
           regionId = regions[0].id;
         }
       }
-    } catch {
-      // Se não conseguir buscar regiões, continua sem region_id
-    }
+    } catch {}
 
     const filters: Record<string, unknown> = {};
     if (input.filters?.id) {
@@ -154,7 +152,7 @@ export const syncProductsStep = createStep(
         productsWithPrices = await enrichProductsWithRegionalPrices(productsWithPrices, allRegions, container);
       }
 
-      await algoliaService.indexProducts(productsWithPrices);
+      await algoliaService.indexProducts(productsWithPrices, language);
     }
 
     const count = metadata?.count || products?.length || 0;

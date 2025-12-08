@@ -4,6 +4,7 @@ import { indexProductStep } from './steps/index-product-step';
 
 type IndexProductInput = {
   product_id: string;
+  language?: string;
 };
 
 export const indexProductWorkflow = createWorkflow('index-product', (input: IndexProductInput) => {

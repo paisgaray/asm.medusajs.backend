@@ -6,6 +6,7 @@ type AutocompleteInput = {
   query: string;
   limit?: number;
   filters?: string;
+  language?: string;
 };
 
 export const autocompleteWorkflow = createWorkflow('autocomplete', (input: AutocompleteInput) => {

@@ -9,6 +9,7 @@ type SearchProductsStepInput = {
   page?: number;
   limit?: number;
   sortBy?: string;
+  language?: string;
 };
 
 export const searchProductsStep = createStep(
@@ -18,8 +19,16 @@ export const searchProductsStep = createStep(
 
     const page = input.page ?? 0;
     const limit = input.limit ?? 20;
+    const validatedLanguage = algoliaService.validateLanguage(input.language);
 
-    const result = await algoliaService.searchProducts(input.query, input.filters || '', page, limit, input.sortBy);
+    const result = await algoliaService.searchProducts(
+      input.query,
+      input.filters || '',
+      page,
+      limit,
+      input.sortBy,
+      validatedLanguage,
+    );
 
     if (!result?.results?.[0]) {
       return new StepResponse<{

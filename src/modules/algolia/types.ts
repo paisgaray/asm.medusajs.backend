@@ -28,6 +28,7 @@ export type ProductInput = {
   thumbnail?: string | null;
   collection_id?: string | null;
   created_at?: Date | string | number;
+  metadata?: Record<string, string | number | boolean | null>;
   variants?: {
     id?: string;
     title?: string;

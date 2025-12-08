@@ -8,6 +8,7 @@ type SearchProductsInput = {
   page?: number;
   limit?: number;
   sortBy?: string;
+  language?: string;
 };
 
 export const searchProductsWorkflow = createWorkflow('search-products', (input: SearchProductsInput) => {

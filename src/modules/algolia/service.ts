@@ -7,7 +7,10 @@ type AlgoliaOptions = {
   appId: string;
   productIndexName: string;
   regionalTagPrefixes?: string[];
+  supportedLanguages?: string[];
 };
+
+export type AlgoliaIndexType = 'product';
 
 export default class AlgoliaModuleService {
   private client: SearchClient;
@@ -22,17 +25,49 @@ export default class AlgoliaModuleService {
     this.options = options;
   }
 
-  async getIndexName(language?: string): Promise<string> {
-    const baseIndexName = this.options.productIndexName;
-    return language && language !== 'pt' ? `${baseIndexName}_${language}` : baseIndexName;
+  getSupportedLanguages(): string[] {
+    return this.options.supportedLanguages || ['pt'];
   }
 
-  async deleteFromIndex(objectIDs: string[]): Promise<void> {
+  isLanguageSupported(language: string): boolean {
+    const supported = this.getSupportedLanguages();
+    return supported.includes(language.toLowerCase());
+  }
+
+  validateLanguage(language?: string): string {
+    if (!language) {
+      return 'pt';
+    }
+
+    const normalized = language.toLowerCase();
+    if (this.isLanguageSupported(normalized)) {
+      return normalized;
+    }
+
+    return 'pt';
+  }
+
+  async getIndexName(type: AlgoliaIndexType = 'product', language?: string): Promise<string> {
+    const baseIndexName = this.options.productIndexName;
+
+    if (language && language !== 'pt') {
+      return `${baseIndexName}_${language}`;
+    }
+
+    switch (type) {
+      case 'product':
+        return baseIndexName;
+      default:
+        throw new Error(`Invalid index type: ${type}`);
+    }
+  }
+
+  async deleteFromIndex(objectIDs: string[], language?: string): Promise<void> {
     if (!objectIDs || objectIDs.length === 0) {
       return;
     }
 
-    const indexName = await this.getIndexName();
+    const indexName = await this.getIndexName('product', language);
     await this.client.deleteObjects({
       indexName,
       objectIDs,
@@ -45,8 +80,9 @@ export default class AlgoliaModuleService {
     page = 0,
     hitsPerPage = 20,
     sortBy?: string,
+    language?: string,
   ): Promise<AlgoliaSearchResponse> {
-    const baseIndexName = await this.getIndexName();
+    const baseIndexName = await this.getIndexName('product', language);
     const indexName = sortBy ? `${baseIndexName}_${sortBy}` : baseIndexName;
 
     try {
@@ -86,8 +122,8 @@ export default class AlgoliaModuleService {
     }
   }
 
-  async autocomplete(query: string, hitsPerPage = 5, filters = ''): Promise<AlgoliaSearchResponse> {
-    const indexName = await this.getIndexName();
+  async autocomplete(query: string, hitsPerPage = 5, filters = '', language?: string): Promise<AlgoliaSearchResponse> {
+    const indexName = await this.getIndexName('product', language);
 
     const searchParams: Record<string, unknown> = {
       query: query || '',
@@ -125,6 +161,18 @@ export default class AlgoliaModuleService {
   }
 
   transformProductForIndexing(product: ProductInput, language: string = 'pt'): AlgoliaProduct {
+    const metadata = (product.metadata || {}) as Record<string, string>;
+
+    let title = product.title || '';
+    let description = product.description || '';
+    let handle = product.handle || '';
+
+    if (language !== 'pt') {
+      title = metadata[`title_${language}`] || title;
+      description = metadata[`description_${language}`] || description;
+      handle = metadata[`handle_${language}`] || handle;
+    }
+
     const tagValues = Array.isArray(product.tags)
       ? product.tags.map((tag) => (typeof tag === 'string' ? tag : tag.value || tag.name || ''))
       : [];
@@ -171,9 +219,9 @@ export default class AlgoliaModuleService {
 
     return {
       objectID: product.id,
-      title: product.title || '',
-      description: product.description || '',
-      handle: product.handle || '',
+      title,
+      description,
+      handle,
       thumbnail: product.thumbnail || '',
       language,
       variants: Array.isArray(product.variants)
@@ -199,12 +247,26 @@ export default class AlgoliaModuleService {
       return;
     }
 
-    const indexName = indexNameOverride || (await this.getIndexName(language));
-    const transformedProducts = products.map((product) => this.transformProductForIndexing(product, language));
+    const validatedLanguage = this.validateLanguage(language);
+    const indexName = indexNameOverride || (await this.getIndexName('product', validatedLanguage));
+    const transformedProducts = products.map((product) => this.transformProductForIndexing(product, validatedLanguage));
 
-    await this.client.saveObjects({
-      indexName,
-      objects: transformedProducts,
-    });
+    try {
+      await this.client.saveObjects({
+        indexName,
+        objects: transformedProducts,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStatus =
+        error && typeof error === 'object' && 'status' in error ? (error as { status?: number }).status : undefined;
+      const enhancedError = new Error(
+        `Failed to index products in Algolia index '${indexName}' (language: ${validatedLanguage}): ${errorMessage}${errorStatus ? ` [Status: ${errorStatus}]` : ''}`,
+      );
+      if (error instanceof Error) {
+        enhancedError.stack = error.stack;
+      }
+      throw enhancedError;
+    }
   }
 }

@@ -52,9 +52,7 @@ async function enrichProductsWithRegionalPrices(
                 pricesByRegion[regionKey] = firstVariantPrice.amount;
               }
             }
-          } catch {
-            // Se falhar ao buscar preço da região, continua sem esse preço
-          }
+          } catch {}
         }
 
         return {
@@ -72,6 +70,7 @@ type IndexProductStepInput = {
   product_id: string;
   region_id?: string;
   currency_code?: string;
+  language?: string;
 };
 
 export const indexProductStep = createStep(
@@ -81,6 +80,7 @@ export const indexProductStep = createStep(
     const query = container.resolve('query');
 
     const currencyCode = input.currency_code || 'usd';
+    const language = algoliaService.validateLanguage(input.language);
 
     let regionId = input.region_id;
     let allRegions: Array<{ id: string; currency_code: string }> = [];
@@ -97,9 +97,7 @@ export const indexProductStep = createStep(
           regionId = regions[0].id;
         }
       }
-    } catch {
-      // Se não conseguir buscar regiões, continua sem region_id
-    }
+    } catch {}
 
     const context: Record<string, unknown> = {};
     if (regionId) {
@@ -141,7 +139,14 @@ export const indexProductStep = createStep(
         productsWithPrices = await enrichProductsWithRegionalPrices(productsWithPrices, allRegions, container);
       }
 
-      await algoliaService.indexProducts(productsWithPrices);
+      try {
+        await algoliaService.indexProducts(productsWithPrices, language);
+      } catch (error) {
+        const logger = container.resolve('logger');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to index product ${input.product_id} in language ${language}: ${errorMessage}`);
+        throw error;
+      }
     }
 
     return new StepResponse({ indexed: true, product_id: input.product_id });

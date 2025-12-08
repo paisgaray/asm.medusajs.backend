@@ -1,12 +1,21 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { ALGOLIA_MODULE, type ProductInput } from '../../../../../modules/algolia';
+import { ALGOLIA_MODULE } from '../../../../../modules/algolia';
 import AlgoliaModuleService from '../../../../../modules/algolia/service';
 import { syncProductsWorkflow } from '../../../../../workflows/algolia/sync-products';
 
 export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   const { language } = req.params;
   const algoliaService: AlgoliaModuleService = req.scope.resolve(ALGOLIA_MODULE);
+
+  const validatedLanguage = algoliaService.validateLanguage(language);
+
+  if (language && !algoliaService.isLanguageSupported(language)) {
+    res.status(400).json({
+      message: `Language '${language}' is not supported. Supported languages: ${algoliaService.getSupportedLanguages().join(', ')}`,
+    });
+    return;
+  }
 
   let hasMore = true;
   let offset = 0;
@@ -21,12 +30,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         input: {
           limit,
           offset,
+          language: validatedLanguage,
         },
       });
 
       if (products && products.length > 0) {
-        const indexName = language && language !== 'pt' ? `products_${language}` : 'products';
-        await algoliaService.indexProducts(products as unknown as ProductInput[], language || 'pt', indexName);
         totalIndexed += products.length;
       }
 
@@ -35,9 +43,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     }
 
     res.json({
-      message: `Successfully indexed ${totalIndexed} products in language: ${language || 'pt'}`,
+      message: `Successfully indexed ${totalIndexed} products in language: ${validatedLanguage}`,
       totalIndexed,
-      language: language || 'pt',
+      language: validatedLanguage,
     });
   } catch (error) {
     res.status(500).json({

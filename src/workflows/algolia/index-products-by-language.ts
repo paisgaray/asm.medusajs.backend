@@ -14,6 +14,7 @@ export const indexProductsByLanguageWorkflow = createWorkflow(
     const result = syncProductsStep({
       limit: input.limit,
       offset: input.offset,
+      language: input.language,
     });
     return new WorkflowResponse(result);
   },

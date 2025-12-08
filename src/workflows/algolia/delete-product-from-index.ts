@@ -4,6 +4,7 @@ import { deleteProductFromIndexStep } from './steps/delete-product-from-index-st
 
 type DeleteProductFromIndexInput = {
   product_id: string;
+  language?: string;
 };
 
 export const deleteProductFromIndexWorkflow = createWorkflow(

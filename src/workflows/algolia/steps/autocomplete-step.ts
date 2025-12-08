@@ -7,6 +7,7 @@ type AutocompleteStepInput = {
   query: string;
   limit?: number;
   filters?: string;
+  language?: string;
 };
 
 export const autocompleteStep = createStep('autocomplete-step', async (input: AutocompleteStepInput, { container }) => {
@@ -14,7 +15,8 @@ export const autocompleteStep = createStep('autocomplete-step', async (input: Au
 
   const hitsPerPage = input.limit || 5;
   const filters = input.filters || '';
-  const result = await algoliaService.autocomplete(input.query, hitsPerPage, filters);
+  const validatedLanguage = algoliaService.validateLanguage(input.language);
+  const result = await algoliaService.autocomplete(input.query, hitsPerPage, filters, validatedLanguage);
 
   if (!result?.results?.[0]) {
     return new StepResponse<AlgoliaSearchHit[]>([]);

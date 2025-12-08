@@ -8,6 +8,7 @@ type SyncProductsInput = {
   filters?: {
     id?: string;
   };
+  language?: string;
 };
 
 export const syncProductsWorkflow = createWorkflow('sync-products', (input: SyncProductsInput) => {

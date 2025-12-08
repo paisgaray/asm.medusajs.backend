@@ -5,6 +5,7 @@ import AlgoliaModuleService from '../../../modules/algolia/service';
 
 type DeleteProductFromIndexStepInput = {
   product_id: string;
+  language?: string;
 };
 
 export const deleteProductFromIndexStep = createStep(
@@ -12,7 +13,7 @@ export const deleteProductFromIndexStep = createStep(
   async (input: DeleteProductFromIndexStepInput, { container }) => {
     const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
 
-    await algoliaService.deleteFromIndex([input.product_id]);
+    await algoliaService.deleteFromIndex([input.product_id], input.language);
 
     return new StepResponse({ deleted: true });
   },

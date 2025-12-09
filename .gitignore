@@ -23,3 +23,4 @@ build
 .env.*.local
 .cursor/
 .cursor
+start.sh

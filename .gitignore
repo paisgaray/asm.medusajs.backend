@@ -21,4 +21,6 @@ build
 *.log
 .env.local
 .env.*.local
+.cursor/
+.cursor
 start.sh

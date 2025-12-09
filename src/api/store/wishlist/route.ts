@@ -27,6 +27,7 @@ export async function POST(req: MedusaRequest<StoreWishlistCreateBody>, res: Med
   const { result } = await createWishlistWorkflow(req.scope).run({
     input: {
       customer_id: body.customer_id,
+      name: body.name,
     },
   });
 

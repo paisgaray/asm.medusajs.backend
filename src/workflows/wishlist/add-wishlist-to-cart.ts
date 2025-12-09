@@ -38,7 +38,7 @@ export const addWishlistToCartWorkflow = createWorkflow(
         cart: processingResult.cart,
         added_items: processingResult.added_items,
         errors: processingResult.errors.length > 0 ? processingResult.errors : undefined,
-        message: `Added ${addedCount} item(s) to cart and removed from wishlist`,
+        message: `Added ${addedCount} item(s) from wishlist to cart`,
       };
     });
 

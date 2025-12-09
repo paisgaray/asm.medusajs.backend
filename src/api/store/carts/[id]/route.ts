@@ -77,7 +77,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
               bundle: bundle ?? { id: bundleId },
               items: [],
             });
-          } catch (error) {
+          } catch {
             bundleGroups.set(bundleId, {
               bundle: { id: bundleId },
               items: [],

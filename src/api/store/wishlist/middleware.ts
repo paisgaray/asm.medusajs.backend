@@ -9,25 +9,27 @@ import {
   StoreWishlistCreateSchema,
   StoreWishlistListQuerySchema,
   StoreWishlistRetrieveQuerySchema,
+  StoreWishlistUpdateSchema,
   WishlistAddToCartBodySchema,
-  WishlistBundleAddToCartBodySchema,
+  WishlistItemAddToWishlistSchema,
   WishlistItemCreateSchema,
   WishlistItemsListQuerySchema,
+  WishlistItemsUpdateSchema,
   type StoreWishlistRetrieveQuery,
 } from './validators';
 
 const wishlistListQueryConfig = {
-  defaults: ['id', 'customer_id', 'share_token'],
+  defaults: ['id', 'customer_id', 'share_token', 'name'],
   defaultLimit: 20,
   isList: true,
 };
 
 const wishlistRetrieveQueryConfig = {
-  defaults: ['id', 'customer_id', 'share_token'],
+  defaults: ['id', 'customer_id', 'share_token', 'name'],
 };
 
 const wishlistItemsListQueryConfig = {
-  defaults: ['id', 'wishlist_id', 'product_id', 'product_variant_id', 'bundle_id', 'quantity'],
+  defaults: ['id', 'wishlist_id', 'product_id', 'product_variant_id', 'quantity'],
   defaultLimit: 50,
   isList: true,
 };
@@ -87,8 +89,13 @@ export const wishlistMiddlewares: MiddlewareRoute[] = [
     middlewares: [validateAndTransformBody(StoreWishlistCreateSchema)],
   },
   {
+    matcher: '/store/wishlist/items',
+    methods: ['POST'],
+    middlewares: [validateAndTransformBody(WishlistItemAddToWishlistSchema)],
+  },
+  {
     matcher: '/store/wishlist/:id',
-    methods: ['GET', 'DELETE'],
+    methods: ['GET'],
     middlewares: [
       validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
       ensureWishlistOwnership,
@@ -96,7 +103,16 @@ export const wishlistMiddlewares: MiddlewareRoute[] = [
   },
   {
     matcher: '/store/wishlist/:id',
-    methods: ['POST'],
+    methods: ['PUT'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+      validateAndTransformBody(StoreWishlistUpdateSchema),
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id',
+    methods: ['DELETE'],
     middlewares: [
       validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
       ensureWishlistOwnership,
@@ -117,6 +133,15 @@ export const wishlistMiddlewares: MiddlewareRoute[] = [
       validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
       ensureWishlistOwnership,
       validateAndTransformBody(WishlistItemCreateSchema),
+    ],
+  },
+  {
+    matcher: '/store/wishlist/:id/items',
+    methods: ['PUT'],
+    middlewares: [
+      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
+      ensureWishlistOwnership,
+      validateAndTransformBody(WishlistItemsUpdateSchema),
     ],
   },
   {
@@ -145,7 +170,7 @@ export const wishlistMiddlewares: MiddlewareRoute[] = [
   },
   {
     matcher: '/store/wishlist/:id/share',
-    methods: ['POST'],
+    methods: ['GET', 'POST'],
     middlewares: [
       validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
       ensureWishlistOwnership,
@@ -167,23 +192,6 @@ export const wishlistMiddlewares: MiddlewareRoute[] = [
       validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
       ensureWishlistItemOwnership,
       validateAndTransformBody(WishlistAddToCartBodySchema),
-    ],
-  },
-  {
-    matcher: '/store/wishlist/:id/items/:itemId/add-bundle-to-cart',
-    methods: ['POST'],
-    middlewares: [
-      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
-      ensureWishlistItemOwnership,
-      validateAndTransformBody(WishlistBundleAddToCartBodySchema),
-    ],
-  },
-  {
-    matcher: '/store/wishlist/:id/items/:itemId/remove-bundle',
-    methods: ['DELETE'],
-    middlewares: [
-      validateAndTransformQuery(StoreWishlistRetrieveQuerySchema, wishlistRetrieveQueryConfig),
-      ensureWishlistItemOwnership,
     ],
   },
   {

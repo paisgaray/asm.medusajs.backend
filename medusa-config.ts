@@ -1,109 +1,60 @@
-import fs from "fs"
-import path from "path"
-import { loadEnv, defineConfig } from "@medusajs/framework/utils"
+import { loadEnv, defineConfig } from '@medusajs/framework/utils';
 
-loadEnv(process.env.NODE_ENV || "development", process.cwd())
+loadEnv(process.env.NODE_ENV || 'development', process.cwd());
 
-const modules: any[] = []
+const buildDatabaseUrl = () => {
+  const { DATABASE_URL, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_FORCE_COMPONENTS } = process.env;
 
-const addLocalModuleIfExists = (relativePath: string) => {
-  const fullPath = path.resolve(process.cwd(), relativePath)
-  if (fs.existsSync(fullPath)) {
-    modules.push({ resolve: fullPath })
+  const useComponentConfig = DB_FORCE_COMPONENTS !== 'false';
+
+  const host = DB_HOST || 'localhost';
+  const port = DB_PORT || '5432';
+  const user = DB_USER || 'postgres';
+  const password = DB_PASSWORD || 'postgres';
+  const database = DB_NAME || 'medusa';
+
+  if (!useComponentConfig && DATABASE_URL && DATABASE_URL.trim().length) {
+    return DATABASE_URL;
   }
-}
 
-addLocalModuleIfExists("./src/modules/bundled-product")
-addLocalModuleIfExists("./src/modules/wishlist")
+  const normalizedUrl = `postgres://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
 
-// Módulos Redis (caching, event-bus, workflow, locking)
-modules.push(
-  {
-    resolve: "@medusajs/medusa/caching",
-    options: {
-      providers: [
-        {
-          resolve: "@medusajs/caching-redis",
-          id: "caching-redis",
-          is_default: true,
-          options: {
-            redisUrl: process.env.CACHE_REDIS_URL,
-          },
-        },
-      ],
-    },
-  },
-  {
-    resolve: "@medusajs/medusa/event-bus-redis",
-    options: {
-      redisUrl: process.env.EVENTS_REDIS_URL,
-    },
-  },
-  {
-    resolve: "@medusajs/medusa/workflow-engine-redis",
-    options: {
-      redis: {
-        url: process.env.WE_REDIS_URL,
-      },
-    },
-  },
-  {
-    resolve: "@medusajs/medusa/locking",
-    options: {
-      providers: [
-        {
-          resolve: "@medusajs/medusa/locking-redis",
-          id: "locking-redis",
-          is_default: true,
-          options: {
-            redisUrl: process.env.LOCKING_REDIS_URL,
-          },
-        },
-      ],
-    },
-  }
-)
+  process.env.DATABASE_URL = normalizedUrl;
 
-// Módulo de arquivos (S3/MinIO)
-modules.push({
-  resolve: "@medusajs/medusa/file",
-  options: {
-    providers: [
-      {
-        resolve: "@medusajs/medusa/file-s3",
-        id: "s3",
-        options: {
-          file_url: process.env.S3_FILE_URL,
-          access_key_id: process.env.S3_ACCESS_KEY_ID,
-          secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
-          region: process.env.S3_REGION,
-          bucket: process.env.S3_BUCKET,
-          endpoint: process.env.S3_ENDPOINT,
-          additional_client_config: {
-            forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true",
-          },
-        },
-      },
-    ],
-  },
-})
+  return normalizedUrl;
+};
 
-export default defineConfig({
+module.exports = defineConfig({
   projectConfig: {
-    databaseUrl: process.env.DATABASE_URL,
-    redisUrl: process.env.REDIS_URL, 
+    databaseUrl: buildDatabaseUrl(),
     http: {
-      storeCors: process.env.STORE_CORS,
-      adminCors: process.env.ADMIN_CORS,
-      authCors: process.env.AUTH_CORS,
-      jwtSecret: process.env.JWT_SECRET,
-      cookieSecret: process.env.COOKIE_SECRET,
+      storeCors: process.env.STORE_CORS || 'http://localhost:8000,http://localhost:5173',
+      adminCors: process.env.ADMIN_CORS || 'http://localhost:7000,http://localhost:5173',
+      authCors: process.env.AUTH_CORS || 'http://localhost:7000,http://localhost:5173',
+      jwtSecret: process.env.JWT_SECRET || 'supersecret',
+      cookieSecret: process.env.COOKIE_SECRET || 'supersecret',
     },
-    // Outras configs se necessário
   },
-  admin: {
-    backendUrl: process.env.MEDUSA_BACKEND_URL,
-    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
-  },
-  modules,
-})
+  modules: [
+    {
+      resolve: './src/modules/bundled-product',
+    },
+    {
+      resolve: './src/modules/wishlist',
+    },
+    {
+      resolve: './src/modules/algolia',
+      options: {
+        appId: process.env.ALGOLIA_APP_ID!,
+        apiKey: process.env.ALGOLIA_API_KEY!,
+        productIndexName: process.env.ALGOLIA_PRODUCT_INDEX_NAME!,
+        regionalTagPrefixes: process.env.ALGOLIA_REGIONAL_TAG_PREFIXES
+          ? process.env.ALGOLIA_REGIONAL_TAG_PREFIXES.split(',').map((p) => p.trim())
+          : undefined,
+        supportedLanguages: process.env.ALGOLIA_SUPPORTED_LANGUAGES
+          ? process.env.ALGOLIA_SUPPORTED_LANGUAGES.split(',').map((l) => l.trim())
+          : undefined,
+      },
+    },
+  ],
+});

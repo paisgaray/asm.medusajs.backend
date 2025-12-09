@@ -21,3 +21,5 @@ build
 *.log
 .env.local
 .env.*.local
+.cursor/
+.cursor

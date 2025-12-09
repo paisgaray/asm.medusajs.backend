@@ -21,3 +21,4 @@ build
 *.log
 .env.local
 .env.*.local
+start.sh

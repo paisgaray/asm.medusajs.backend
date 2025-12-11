@@ -1,6 +1,14 @@
 import { algoliasearch, SearchClient } from 'algoliasearch';
 
-import type { AlgoliaProduct, AlgoliaSearchResponse, ProductInput } from './types';
+import type {
+  AlgoliaProduct,
+  AlgoliaSearchRequest,
+  AlgoliaSearchResponse,
+  ProductInput,
+  AlgoliaError,
+  SalesChannel,
+  SalesChannelMetadata,
+} from './types';
 
 type AlgoliaOptions = {
   apiKey: string;
@@ -12,11 +20,15 @@ type AlgoliaOptions = {
 
 export type AlgoliaIndexType = 'product';
 
+const COMMON_SUFFIXES = ['BR', '001', '002', '003', '01', '02', '03', '1121', '00x'];
+
+type Container = Record<string, never>;
+
 export default class AlgoliaModuleService {
   private client: SearchClient;
   private options: AlgoliaOptions;
 
-  constructor(_container: unknown, options: AlgoliaOptions) {
+  constructor(_container: Container, options: AlgoliaOptions) {
     if (!options.appId || !options.apiKey || !options.productIndexName) {
       throw new Error('Algolia configuration is incomplete');
     }
@@ -30,48 +42,101 @@ export default class AlgoliaModuleService {
   }
 
   isLanguageSupported(language: string): boolean {
-    const supported = this.getSupportedLanguages();
-    return supported.includes(language.toLowerCase());
+    return this.getSupportedLanguages().includes(language.toLowerCase());
   }
 
   validateLanguage(language?: string): string {
-    if (!language) {
-      return 'pt';
+    if (!language) return 'pt';
+    const normalized = language.toLowerCase();
+    return this.isLanguageSupported(normalized) ? normalized : 'pt';
+  }
+
+  mapRegionalTagToLanguage(regionalTag: string): string {
+    if (!regionalTag || typeof regionalTag !== 'string') return 'pt';
+
+    const tag = regionalTag.trim().toLowerCase();
+    const match = tag.match(/^([a-z]{2,3})(?:[-_]|$)/);
+
+    if (match?.[1] && this.isLanguageSupported(match[1])) {
+      return match[1];
     }
 
-    const normalized = language.toLowerCase();
-    if (this.isLanguageSupported(normalized)) {
-      return normalized;
+    if (tag.length >= 2) {
+      const twoLetter = tag.substring(0, 2);
+      if (this.isLanguageSupported(twoLetter)) {
+        return twoLetter;
+      }
     }
 
     return 'pt';
   }
 
+  extractLanguageFromRegionalTags(regionalTags: string[]): string {
+    if (!regionalTags?.length) return 'pt';
+
+    for (const tag of regionalTags) {
+      const lang = this.mapRegionalTagToLanguage(tag);
+      if (lang !== 'pt' || tag.toLowerCase().startsWith('pt')) {
+        return lang;
+      }
+    }
+
+    return regionalTags.length > 0 ? this.mapRegionalTagToLanguage(regionalTags[0]) : 'pt';
+  }
+
   async getIndexName(type: AlgoliaIndexType = 'product', language?: string): Promise<string> {
-    const baseIndexName = this.options.productIndexName;
-
+    const base = this.options.productIndexName;
     if (language && language !== 'pt') {
-      return `${baseIndexName}_${language}`;
+      return `${base}_${language}`;
     }
-
-    switch (type) {
-      case 'product':
-        return baseIndexName;
-      default:
-        throw new Error(`Invalid index type: ${type}`);
-    }
+    return type === 'product' ? base : base;
   }
 
   async deleteFromIndex(objectIDs: string[], language?: string): Promise<void> {
-    if (!objectIDs || objectIDs.length === 0) {
-      return;
+    if (!objectIDs?.length) return;
+    const indexName = await this.getIndexName('product', language);
+    await this.client.deleteObjects({ indexName, objectIDs });
+  }
+
+  private buildRegionalTagFilters(lang: string): string[] {
+    const lower = lang.toLowerCase();
+    const filters = [`regional_tags:${lower}`];
+
+    for (const suffix of COMMON_SUFFIXES) {
+      filters.push(`regional_tags:${lower}-${suffix}`);
     }
 
-    const indexName = await this.getIndexName('product', language);
-    await this.client.deleteObjects({
+    return filters;
+  }
+
+  private buildFilterString(filters: string[], regionalFilters: string[]): string {
+    const parts: string[] = [];
+    if (filters.length > 0) parts.push(...filters);
+    if (regionalFilters.length > 0) {
+      parts.push(`(${regionalFilters.join(' OR ')})`);
+    }
+    return parts.join(' AND ');
+  }
+
+  private createSearchRequest(
+    indexName: string,
+    query: string,
+    page: number,
+    hitsPerPage: number,
+    filterString?: string,
+  ): AlgoliaSearchRequest {
+    const request: AlgoliaSearchRequest['requests'][number] = {
       indexName,
-      objectIDs,
-    });
+      query,
+      page,
+      hitsPerPage,
+    };
+
+    if (filterString) {
+      request.filters = filterString;
+    }
+
+    return { requests: [request] };
   }
 
   async searchProducts(
@@ -82,41 +147,34 @@ export default class AlgoliaModuleService {
     sortBy?: string,
     language?: string,
   ): Promise<AlgoliaSearchResponse> {
-    const baseIndexName = await this.getIndexName('product', language);
-    const indexName = sortBy ? `${baseIndexName}_${sortBy}` : baseIndexName;
+    const baseIndex = await this.getIndexName('product', language);
+    const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
+
+    const filterParts = filters ? [filters] : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const filterString = this.buildFilterString(filterParts, regionalFilters);
+
+    const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);
 
     try {
-      return (await this.client.search({
-        requests: [
-          {
-            indexName,
-            query: query || '',
-            filters,
-            page,
-            hitsPerPage,
-          },
-        ],
-      })) as unknown as AlgoliaSearchResponse;
-    } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'message' in error &&
-        typeof error.message === 'string' &&
-        error.message.includes('does not exist') &&
-        sortBy
-      ) {
-        return (await this.client.search({
-          requests: [
-            {
-              indexName: baseIndexName,
-              query: query || '',
-              filters,
-              page,
-              hitsPerPage,
-            },
-          ],
-        })) as unknown as AlgoliaSearchResponse;
+      return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+    } catch (error) {
+      const algoliaError = this.normalizeError(error);
+      const isIndexError = algoliaError.message.includes('does not exist');
+
+      if (isIndexError && sortBy) {
+        const fallbackFilters = filters ? [filters] : [];
+        const fallbackRegional = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+        const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
+
+        const fallbackRequest = this.createSearchRequest(
+          baseIndex,
+          query || '',
+          page,
+          hitsPerPage,
+          fallbackFilterString,
+        );
+        return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
       }
       throw error;
     }
@@ -124,24 +182,70 @@ export default class AlgoliaModuleService {
 
   async autocomplete(query: string, hitsPerPage = 5, filters = '', language?: string): Promise<AlgoliaSearchResponse> {
     const indexName = await this.getIndexName('product', language);
+    const filterParts = filters ? [filters] : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const filterString = this.buildFilterString(filterParts, regionalFilters);
 
-    const searchParams: Record<string, unknown> = {
-      query: query || '',
-      hitsPerPage,
-    };
+    const searchRequest = this.createSearchRequest(indexName, query || '', 0, hitsPerPage, filterString);
+    return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+  }
 
-    if (filters) {
-      searchParams.filters = filters;
+  private normalizeError(error: unknown): AlgoliaError {
+    if (error instanceof Error) {
+      return {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      };
     }
 
-    return (await this.client.search({
-      requests: [
-        {
-          indexName,
-          ...searchParams,
-        },
-      ],
-    })) as unknown as AlgoliaSearchResponse;
+    if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+      return {
+        message: error.message,
+        status: 'status' in error && typeof error.status === 'number' ? error.status : undefined,
+      };
+    }
+
+    return {
+      message: 'Unknown error',
+    };
+  }
+
+  private extractTagsFromMetadata(metadata: SalesChannelMetadata): string[] {
+    const tags: string[] = [];
+    const regionalTags = metadata.regional_tags;
+
+    if (Array.isArray(regionalTags)) {
+      regionalTags.forEach((tag) => {
+        if (typeof tag === 'string' && tag.trim()) {
+          tags.push(tag.trim());
+        }
+      });
+    } else if (typeof regionalTags === 'string') {
+      regionalTags.split(',').forEach((tag) => {
+        const trimmed = tag.trim();
+        if (trimmed) tags.push(trimmed);
+      });
+    }
+
+    return tags;
+  }
+
+  private getRegionalTagsFromSalesChannels(salesChannels?: SalesChannel[]): string[] {
+    if (!salesChannels?.length) return [];
+
+    const tags = new Set<string>();
+
+    for (const sc of salesChannels) {
+      if (sc.metadata) {
+        this.extractTagsFromMetadata(sc.metadata).forEach((tag) => tags.add(tag));
+      }
+      if (sc.metadata?.regional_tags) {
+        this.extractTagsFromMetadata({ regional_tags: sc.metadata.regional_tags }).forEach((tag) => tags.add(tag));
+      }
+    }
+
+    return Array.from(tags);
   }
 
   private getRegionalTags(tagValues: string[]): string[] {
@@ -149,28 +253,63 @@ export default class AlgoliaModuleService {
 
     if (prefixes.length > 0) {
       return tagValues.filter((t) => {
-        const lowerTag = t.toLowerCase();
-        return prefixes.some((prefix) => lowerTag.startsWith(prefix.toLowerCase()));
+        const lower = t.toLowerCase();
+        return prefixes.some((p) => lower.startsWith(p.toLowerCase()));
       });
     }
 
     return tagValues.filter((t) => {
-      const lowerTag = t.toLowerCase();
-      return (lowerTag.includes('-') || lowerTag.includes('_')) && /^[a-z]{2,3}[-_]/.test(lowerTag);
+      const lower = t.toLowerCase();
+      return (lower.includes('-') || lower.includes('_')) && /^[a-z]{2,3}[-_]/.test(lower);
     });
   }
 
-  transformProductForIndexing(product: ProductInput, language: string = 'pt'): AlgoliaProduct {
-    const metadata = (product.metadata || {}) as Record<string, string>;
+  private getProductPrice(product: ProductInput): number {
+    const pricesByRegion = product.prices_by_region || {};
+    if (Object.keys(pricesByRegion).length > 0) {
+      const values = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
+      if (values.length > 0) return values[0];
+    }
 
+    const firstVariant = product.variants?.[0];
+    if (!firstVariant) return 0;
+
+    const calculatedPrice = firstVariant.calculated_price;
+    if (calculatedPrice?.calculated_amount != null) {
+      return calculatedPrice.calculated_amount;
+    }
+
+    if (Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
+      return firstVariant.prices[0].amount || 0;
+    }
+
+    return 0;
+  }
+
+  private getCreatedAtIndex(createdAt?: Date | string | number): number {
+    if (!createdAt) return Date.now();
+    if (typeof createdAt === 'number') return createdAt;
+    if (typeof createdAt === 'string') {
+      const date = new Date(createdAt);
+      return isNaN(date.getTime()) ? Date.now() : date.getTime();
+    }
+    return createdAt.getTime();
+  }
+
+  transformProductForIndexing(product: ProductInput, language: string = 'pt'): AlgoliaProduct {
+    const metadata = product.metadata || {};
     let title = product.title || '';
     let description = product.description || '';
     let handle = product.handle || '';
 
     if (language !== 'pt') {
-      title = metadata[`title_${language}`] || title;
-      description = metadata[`description_${language}`] || description;
-      handle = metadata[`handle_${language}`] || handle;
+      const titleKey = `title_${language}`;
+      const descKey = `description_${language}`;
+      const handleKey = `handle_${language}`;
+
+      if (typeof metadata[titleKey] === 'string') title = metadata[titleKey];
+      if (typeof metadata[descKey] === 'string') description = metadata[descKey];
+      if (typeof metadata[handleKey] === 'string') handle = metadata[handleKey];
     }
 
     const tagValues = Array.isArray(product.tags)
@@ -178,44 +317,15 @@ export default class AlgoliaModuleService {
       : [];
 
     const collectionIds: string[] = [];
-    if (product.collection_id) {
-      collectionIds.push(product.collection_id);
-    }
+    if (product.collection_id) collectionIds.push(product.collection_id);
     if (Array.isArray(product.collections)) {
       const ids = product.collections.map((col) => (typeof col === 'string' ? col : col.id || '')).filter(Boolean);
       collectionIds.push(...ids);
     }
 
-    const pricesByRegion = product.prices_by_region || {};
-    let defaultPrice = 0;
-
-    if (Object.keys(pricesByRegion).length > 0) {
-      const priceValues = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
-      defaultPrice = priceValues[0] || 0;
-    } else if (Array.isArray(product.variants) && product.variants.length > 0) {
-      const firstVariant = product.variants[0];
-      const calculatedPrice = firstVariant.calculated_price as { calculated_amount?: number } | undefined;
-
-      if (calculatedPrice?.calculated_amount != null) {
-        defaultPrice = calculatedPrice.calculated_amount;
-      } else if (Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
-        defaultPrice = firstVariant.prices[0].amount || 0;
-      }
-    }
-
-    let createdAtIndex: number;
-    if (product.created_at) {
-      if (typeof product.created_at === 'string') {
-        const date = new Date(product.created_at);
-        createdAtIndex = isNaN(date.getTime()) ? Date.now() : date.getTime();
-      } else if (typeof product.created_at === 'number') {
-        createdAtIndex = product.created_at;
-      } else {
-        createdAtIndex = product.created_at.getTime();
-      }
-    } else {
-      createdAtIndex = Date.now();
-    }
+    const regionalTagsFromSC = this.getRegionalTagsFromSalesChannels(product.sales_channels);
+    const regionalTagsFromProduct = this.getRegionalTags(tagValues);
+    const regionalTags = regionalTagsFromSC.length > 0 ? regionalTagsFromSC : regionalTagsFromProduct;
 
     return {
       objectID: product.id,
@@ -225,48 +335,41 @@ export default class AlgoliaModuleService {
       thumbnail: product.thumbnail || '',
       language,
       variants: Array.isArray(product.variants)
-        ? product.variants.map((variant) => ({
-            id: variant.id || '',
-            title: variant.title || '',
-            sku: variant.sku || '',
+        ? product.variants.map((v) => ({
+            id: v.id || '',
+            title: v.title || '',
+            sku: v.sku || '',
           }))
         : [],
       sku: product.variants?.[0]?.sku || '',
       tags: tagValues,
-      regional_tags: this.getRegionalTags(tagValues),
+      regional_tags: regionalTags,
       collections: [...new Set(collectionIds)],
-      prices_by_region: pricesByRegion,
-      price: defaultPrice,
-      created_at: createdAtIndex,
-      popularity: (product.variants?.[0]?.sales_count as number | undefined) || 0,
+      prices_by_region: product.prices_by_region || {},
+      price: this.getProductPrice(product),
+      created_at: this.getCreatedAtIndex(product.created_at),
+      popularity: product.variants?.[0]?.sales_count || 0,
     };
   }
 
   async indexProducts(products: ProductInput[], language: string = 'pt', indexNameOverride?: string): Promise<void> {
-    if (!products || products.length === 0) {
-      return;
-    }
+    if (!products?.length) return;
 
     const validatedLanguage = this.validateLanguage(language);
     const indexName = indexNameOverride || (await this.getIndexName('product', validatedLanguage));
-    const transformedProducts = products.map((product) => this.transformProductForIndexing(product, validatedLanguage));
+    const transformed = products.map((p) => this.transformProductForIndexing(p, validatedLanguage));
 
     try {
-      await this.client.saveObjects({
-        indexName,
-        objects: transformedProducts,
-      });
+      await this.client.saveObjects({ indexName, objects: transformed });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const errorStatus =
-        error && typeof error === 'object' && 'status' in error ? (error as { status?: number }).status : undefined;
-      const enhancedError = new Error(
-        `Failed to index products in Algolia index '${indexName}' (language: ${validatedLanguage}): ${errorMessage}${errorStatus ? ` [Status: ${errorStatus}]` : ''}`,
+      const algoliaError = this.normalizeError(error);
+      const err = new Error(
+        `Failed to index products in Algolia index '${indexName}' (language: ${validatedLanguage}): ${algoliaError.message}${algoliaError.status ? ` [Status: ${algoliaError.status}]` : ''}`,
       );
-      if (error instanceof Error) {
-        enhancedError.stack = error.stack;
+      if (algoliaError.stack) {
+        err.stack = algoliaError.stack;
       }
-      throw enhancedError;
+      throw err;
     }
   }
 }

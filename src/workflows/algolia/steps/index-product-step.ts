@@ -120,6 +120,8 @@ export const indexProductStep = createStep(
           'tags.*',
           'collection.*',
           'images.*',
+          'sales_channels.*',
+          'sales_channels.metadata.*',
           'created_at',
         ],
         filters: {

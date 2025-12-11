@@ -131,6 +131,8 @@ export const syncProductsStep = createStep(
           'tags.*',
           'collection.*',
           'images.*',
+          'sales_channels.*',
+          'sales_channels.metadata.*',
           'created_at',
         ],
         filters,

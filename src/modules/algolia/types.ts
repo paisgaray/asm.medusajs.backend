@@ -20,6 +20,100 @@ export type AlgoliaProduct = {
   popularity: number;
 };
 
+export type AlgoliaHighlightResult = {
+  value: string;
+  matchLevel: 'none' | 'partial' | 'full';
+  fullyHighlighted?: boolean;
+  matchedWords: string[];
+};
+
+export type AlgoliaSnippetResult = {
+  value: string;
+  matchLevel: 'none' | 'partial' | 'full';
+};
+
+export type AlgoliaRankingInfo = {
+  nbTypos: number;
+  firstMatchedWord: number;
+  proximityDistance?: number;
+  userScore: number;
+  geoDistance?: number;
+  geoPrecision?: number;
+  nbExactWords: number;
+  words: number;
+  filters: number;
+};
+
+export type AlgoliaSearchHit = AlgoliaProduct & {
+  _highlightResult?: {
+    title?: AlgoliaHighlightResult;
+    description?: AlgoliaHighlightResult;
+    handle?: AlgoliaHighlightResult;
+    [key: string]: AlgoliaHighlightResult | undefined;
+  };
+  _snippetResult?: {
+    title?: AlgoliaSnippetResult;
+    description?: AlgoliaSnippetResult;
+    [key: string]: AlgoliaSnippetResult | undefined;
+  };
+  _rankingInfo?: AlgoliaRankingInfo;
+};
+
+export type AlgoliaSearchResult = {
+  hits: AlgoliaSearchHit[];
+  nbHits: number;
+  page: number;
+  nbPages: number;
+  hitsPerPage: number;
+  processingTimeMS?: number;
+  query?: string;
+  params?: string;
+  exhaustiveNbHits?: boolean;
+  exhaustiveTypo?: boolean;
+  index?: string;
+  queryID?: string;
+};
+
+export type AlgoliaSearchResponse = {
+  results: AlgoliaSearchResult[];
+};
+
+export type ProductVariantPrice = {
+  amount?: number;
+  currency_code?: string;
+};
+
+export type ProductVariantCalculatedPrice = {
+  calculated_amount?: number;
+  currency_code?: string;
+};
+
+export type ProductVariant = {
+  id?: string;
+  title?: string;
+  sku?: string;
+  sales_count?: number;
+  calculated_price?: ProductVariantCalculatedPrice;
+  prices?: ProductVariantPrice[];
+};
+
+export type ProductTag = {
+  value?: string;
+  name?: string;
+};
+
+export type ProductCollection = {
+  id?: string;
+};
+
+export type SalesChannelMetadata = Record<string, string | number | boolean | null>;
+
+export type SalesChannel = {
+  id?: string;
+  name?: string;
+  metadata?: SalesChannelMetadata;
+};
+
 export type ProductInput = {
   id: string;
   title?: string | null;
@@ -29,55 +123,28 @@ export type ProductInput = {
   collection_id?: string | null;
   created_at?: Date | string | number;
   metadata?: Record<string, string | number | boolean | null>;
-  variants?: {
-    id?: string;
-    title?: string;
-    sku?: string;
-    sales_count?: number;
-    calculated_price?: {
-      calculated_amount?: number;
-      currency_code?: string;
-      [key: string]: unknown;
-    };
-    prices?: Array<{
-      amount?: number;
-      currency_code?: string;
-      [key: string]: unknown;
-    }>;
-    [key: string]: unknown;
-  }[];
-  tags?: (
-    | string
-    | {
-        value?: string;
-        name?: string;
-        [key: string]: unknown;
-      }
-  )[];
-  collections?: (
-    | string
-    | {
-        id?: string;
-        [key: string]: unknown;
-      }
-  )[];
+  variants?: ProductVariant[];
+  tags?: (string | ProductTag)[];
+  collections?: (string | ProductCollection)[];
+  sales_channels?: SalesChannel[];
   prices_by_region?: Record<string, number>;
-  [key: string]: unknown;
 };
 
-export type AlgoliaSearchHit = AlgoliaProduct & {
-  _highlightResult?: Record<string, unknown>;
-  _snippetResult?: Record<string, unknown>;
-  _rankingInfo?: Record<string, unknown>;
+export type AlgoliaSearchRequest = {
+  requests: Array<{
+    indexName: string;
+    query: string;
+    page?: number;
+    hitsPerPage?: number;
+    filters?: string;
+    attributesToRetrieve?: string[];
+    [key: string]: string | number | string[] | undefined;
+  }>;
 };
 
-export type AlgoliaSearchResponse = {
-  results: {
-    hits: AlgoliaSearchHit[];
-    nbHits: number;
-    page: number;
-    nbPages: number;
-    hitsPerPage: number;
-    [key: string]: unknown;
-  }[];
+export type AlgoliaError = {
+  message: string;
+  status?: number;
+  name?: string;
+  stack?: string;
 };

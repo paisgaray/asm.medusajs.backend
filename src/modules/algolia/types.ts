@@ -78,6 +78,19 @@ export type AlgoliaSearchResponse = {
   results: AlgoliaSearchResult[];
 };
 
+export type AlgoliaRecentSearch = {
+  search: string;
+  timestamp: number;
+  nbHits: number;
+};
+
+export type AlgoliaRecentSearchesResponse = {
+  searches: AlgoliaRecentSearch[];
+  total: number;
+  indexName: string;
+  language?: string;
+};
+
 export type ProductVariantPrice = {
   amount?: number;
   currency_code?: string;

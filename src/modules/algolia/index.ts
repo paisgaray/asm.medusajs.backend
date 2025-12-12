@@ -13,6 +13,8 @@ export type {
   AlgoliaSearchHit,
   AlgoliaSearchResponse,
   AlgoliaSearchRequest,
+  AlgoliaRecentSearchesResponse,
+  AlgoliaRecentSearch,
   ProductInput,
   SalesChannel,
   SalesChannelMetadata,

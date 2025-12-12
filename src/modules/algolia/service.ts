@@ -4,6 +4,8 @@ import type {
   AlgoliaProduct,
   AlgoliaSearchRequest,
   AlgoliaSearchResponse,
+  AlgoliaRecentSearchesResponse,
+  AlgoliaRecentSearch,
   ProductInput,
   AlgoliaError,
   SalesChannel,
@@ -23,6 +25,21 @@ export type AlgoliaIndexType = 'product';
 const COMMON_SUFFIXES = ['BR', '001', '002', '003', '01', '02', '03', '1121', '00x'];
 
 type Container = Record<string, never>;
+
+type AlgoliaLogEntry = {
+  timestamp: string;
+  method: string;
+  answer_code: string | number;
+  query_body: string;
+  answer: string;
+  url: string;
+  ip: string;
+  query_headers: string;
+  sha1: string;
+  index_name?: string;
+  query_params?: string;
+  [key: string]: unknown;
+};
 
 export default class AlgoliaModuleService {
   private client: SearchClient;
@@ -188,6 +205,124 @@ export default class AlgoliaModuleService {
 
     const searchRequest = this.createSearchRequest(indexName, query || '', 0, hitsPerPage, filterString);
     return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+  }
+
+  private extractQueryFromLog(log: AlgoliaLogEntry): string | null {
+    if (log.method !== 'POST' && log.method !== 'GET') return null;
+
+    try {
+      if (log.query_body) {
+        const body = JSON.parse(log.query_body) as { query?: string; requests?: Array<{ query?: string }> };
+        if (body.query) return body.query;
+        if (body.requests && body.requests.length > 0 && body.requests[0].query) {
+          return body.requests[0].query;
+        }
+      }
+
+      if (log.query_params) {
+        const params = new URLSearchParams(log.query_params);
+        const query = params.get('query');
+        if (query) return query;
+      }
+
+      if (log.url && log.url.includes('query=')) {
+        const urlParams = new URLSearchParams(log.url.split('?')[1]);
+        const query = urlParams.get('query');
+        if (query) return decodeURIComponent(query);
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  async getRecentSearches(language?: string, limit: number = 5): Promise<AlgoliaRecentSearchesResponse> {
+    const indexName = await this.getIndexName('product', language);
+
+    try {
+      const client = this.client as SearchClient & {
+        getLogs?: (params?: { offset?: number; length?: number; type?: string }) => Promise<{
+          logs: AlgoliaLogEntry[];
+        }>;
+      };
+
+      if (typeof client.getLogs === 'function') {
+        const logsResponse = await client.getLogs({
+          offset: 0,
+          length: limit * 20,
+          type: 'query',
+        });
+
+        const logs = (logsResponse.logs || []) as unknown as AlgoliaLogEntry[];
+        const searchQueries = new Map<string, AlgoliaRecentSearch>();
+
+        for (const log of logs) {
+          const logIndexName = (log as Record<string, unknown>).index_name as string | undefined;
+          if (logIndexName && logIndexName !== indexName) continue;
+
+          const query = this.extractQueryFromLog(log);
+          if (!query || query.trim().length === 0) continue;
+
+          const queryLower = query.trim().toLowerCase();
+          if (!searchQueries.has(queryLower)) {
+            try {
+              const answer = JSON.parse(log.answer) as { nbHits?: number };
+              let timestamp: number;
+              if (typeof log.timestamp === 'string') {
+                const parsed = Number.parseInt(log.timestamp, 10);
+                timestamp = Number.isNaN(parsed) ? Date.now() : parsed;
+              } else if (typeof log.timestamp === 'number') {
+                timestamp = log.timestamp;
+              } else {
+                timestamp = Date.now();
+              }
+              searchQueries.set(queryLower, {
+                search: query.trim(),
+                timestamp,
+                nbHits: answer.nbHits || 0,
+              });
+            } catch {
+              let timestamp: number;
+              if (typeof log.timestamp === 'string') {
+                const parsed = Number.parseInt(log.timestamp, 10);
+                timestamp = Number.isNaN(parsed) ? Date.now() : parsed;
+              } else if (typeof log.timestamp === 'number') {
+                timestamp = log.timestamp;
+              } else {
+                timestamp = Date.now();
+              }
+              searchQueries.set(queryLower, {
+                search: query.trim(),
+                timestamp,
+                nbHits: 0,
+              });
+            }
+          }
+        }
+
+        const recentSearches: AlgoliaRecentSearch[] = Array.from(searchQueries.values())
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, limit);
+
+        return {
+          searches: recentSearches,
+          total: recentSearches.length,
+          indexName,
+          language,
+        };
+      }
+
+      return {
+        searches: [],
+        total: 0,
+        indexName,
+        language,
+      };
+    } catch (error) {
+      const algoliaError = this.normalizeError(error);
+      throw new Error(`Failed to get recent searches: ${algoliaError.message}`);
+    }
   }
 
   private normalizeError(error: unknown): AlgoliaError {

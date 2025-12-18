@@ -1,10 +1,18 @@
+import { algoliasearch, SearchClient } from 'algoliasearch';
+
 import AlgoliaModuleService from '../service';
+
+type TestAlgoliaOptions = {
+  apiKey: string;
+  appId: string;
+  productIndexName: string;
+  regionalTagPrefixes?: string[];
+  supportedLanguages?: string[];
+};
 
 jest.mock('algoliasearch', () => ({
   algoliasearch: jest.fn(),
 }));
-
-import { algoliasearch, SearchClient } from 'algoliasearch';
 
 describe('AlgoliaModuleService', () => {
   let service: AlgoliaModuleService;
@@ -54,33 +62,35 @@ describe('AlgoliaModuleService', () => {
     });
 
     it('lança erro sem credenciais', () => {
-      expect(() => {
-        new AlgoliaModuleService({}, {});
-      }).toThrow('Algolia configuration is incomplete');
+      const createService = (): AlgoliaModuleService => {
+        // eslint-disable-next-line no-new
+        return new AlgoliaModuleService({}, {} as TestAlgoliaOptions);
+      };
+      expect(createService).toThrow('Algolia configuration is incomplete');
     });
 
     it('lança erro sem appId', () => {
-      expect(() => {
-        new AlgoliaModuleService(
-          {},
-          {
-            apiKey: 'test-api-key',
-            productIndexName: 'test_products',
-          },
-        );
-      }).toThrow('Algolia configuration is incomplete');
+      const invalidOptions: TestAlgoliaOptions = {
+        apiKey: 'test-api-key',
+        productIndexName: 'test_products',
+      } as TestAlgoliaOptions;
+      const createService = (): AlgoliaModuleService => {
+        // eslint-disable-next-line no-new
+        return new AlgoliaModuleService({}, invalidOptions);
+      };
+      expect(createService).toThrow('Algolia configuration is incomplete');
     });
 
     it('lança erro sem apiKey', () => {
-      expect(() => {
-        new AlgoliaModuleService(
-          {},
-          {
-            appId: 'test-app-id',
-            productIndexName: 'test_products',
-          },
-        );
-      }).toThrow('Algolia configuration is incomplete');
+      const invalidOptions: TestAlgoliaOptions = {
+        appId: 'test-app-id',
+        productIndexName: 'test_products',
+      } as TestAlgoliaOptions;
+      const createService = (): AlgoliaModuleService => {
+        // eslint-disable-next-line no-new
+        return new AlgoliaModuleService({}, invalidOptions);
+      };
+      expect(createService).toThrow('Algolia configuration is incomplete');
     });
   });
 
@@ -190,8 +200,8 @@ describe('AlgoliaModuleService', () => {
           {
             id: 'sc_1',
             metadata: {
-              regional_tags: ['pt-BR', 'pt-001'],
-            },
+              regional_tags: 'pt-BR,pt-001',
+            } as Record<string, string | number | boolean | null>,
           },
         ],
       };
@@ -388,4 +398,3 @@ describe('AlgoliaModuleService', () => {
     });
   });
 });
-

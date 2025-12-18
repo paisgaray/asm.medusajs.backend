@@ -23,6 +23,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   let totalIndexed = 0;
 
   try {
+    await algoliaService.clearIndex(validatedLanguage);
+
     while (hasMore) {
       const {
         result: { products, metadata },

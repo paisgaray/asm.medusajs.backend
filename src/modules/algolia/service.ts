@@ -115,6 +115,66 @@ export default class AlgoliaModuleService {
     await this.client.deleteObjects({ indexName, objectIDs });
   }
 
+  async clearIndex(language?: string): Promise<void> {
+    const indexName = await this.getIndexName('product', language);
+
+    try {
+      const allObjectIDs: string[] = [];
+      let page = 0;
+      const hitsPerPage = 1000;
+      let totalHits = 0;
+      let hasMore = true;
+      const maxPages = 1000;
+
+      while (hasMore && page < maxPages) {
+        const searchRequest: AlgoliaSearchRequest = {
+          requests: [
+            {
+              indexName,
+              query: '',
+              page,
+              hitsPerPage,
+              attributesToRetrieve: ['objectID'],
+            },
+          ],
+        };
+
+        const result = (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+        const firstResult = result.results?.[0];
+        const hits = firstResult?.hits || [];
+        const nbHits = firstResult?.nbHits || 0;
+
+        if (page === 0) {
+          totalHits = nbHits;
+          if (totalHits === 0) {
+            return;
+          }
+        }
+
+        if (hits.length > 0) {
+          const objectIDs = hits.map((hit) => hit.objectID).filter((id): id is string => typeof id === 'string');
+          allObjectIDs.push(...objectIDs);
+        }
+
+        hasMore = hits.length === hitsPerPage && allObjectIDs.length < totalHits;
+        page++;
+      }
+
+      if (allObjectIDs.length > 0) {
+        const batchSize = 1000;
+        for (let i = 0; i < allObjectIDs.length; i += batchSize) {
+          const batch = allObjectIDs.slice(i, i + batchSize);
+          await this.client.deleteObjects({ indexName, objectIDs: batch });
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      const algoliaError = this.normalizeError(error);
+      throw new Error(`Failed to clear Algolia index '${indexName}': ${algoliaError.message}`);
+    }
+  }
+
   private buildRegionalTagFilters(lang: string): string[] {
     const lower = lang.toLowerCase();
     const filters = [`regional_tags:${lower}`];
@@ -460,7 +520,16 @@ export default class AlgoliaModuleService {
 
     const regionalTagsFromSC = this.getRegionalTagsFromSalesChannels(product.sales_channels);
     const regionalTagsFromProduct = this.getRegionalTags(tagValues);
-    const regionalTags = regionalTagsFromSC.length > 0 ? regionalTagsFromSC : regionalTagsFromProduct;
+    let regionalTags = regionalTagsFromSC.length > 0 ? regionalTagsFromSC : regionalTagsFromProduct;
+
+    if (!regionalTags || regionalTags.length === 0) {
+      const defaultTag = `${language}-001`;
+      regionalTags = [defaultTag, language];
+    }
+
+    if (!Array.isArray(regionalTags)) {
+      regionalTags = [String(regionalTags)];
+    }
 
     return {
       objectID: product.id,

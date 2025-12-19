@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const StoreProductSearchBodySchema = z.object({
-  query: z.string().min(1, 'Query is required'),
+  query: z.string().min(0), // String vazia "" retorna todos os produtos
   language: z.string().optional(),
   filters: z.string().optional(),
   page: z.number().optional(),

@@ -80,8 +80,9 @@ type SyncProductsStepInput = {
 export const syncProductsStep = createStep(
   'sync-products-step',
   async (input: SyncProductsStepInput, { container }) => {
-    const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
-    const query = container.resolve('query');
+    try {
+      const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
+      const query = container.resolve('query');
 
     const limit = input.limit || 50;
     const offset = input.offset || 0;
@@ -120,32 +121,48 @@ export const syncProductsStep = createStep(
       };
     }
 
-    const { data: products, metadata } = await query.graph(
-      {
-        entity: 'product',
-        fields: [
-          '*',
-          'variants.*',
-          'variants.calculated_price.*',
-          'variants.sales_count',
-          'tags.*',
-          'collection.*',
-          'images.*',
-          'sales_channels.*',
-          'sales_channels.metadata.*',
-          'created_at',
-        ],
-        filters,
-        pagination: {
-          take: limit,
-          skip: offset,
+    let products: unknown[] = [];
+    let metadata: { count?: number } = {};
+
+    try {
+      const queryResult = await query.graph(
+        {
+          entity: 'product',
+          fields: [
+            '*',
+            'variants.*',
+            'variants.calculated_price.*',
+            'variants.sales_count',
+            'tags.*',
+            'collection.*',
+            'images.*',
+            'sales_channels.*',
+            'sales_channels.metadata.*',
+            'created_at',
+          ],
+          filters,
+          pagination: {
+            take: limit,
+            skip: offset,
+          },
+          context,
         },
-        context,
-      },
-      {
-        throwIfKeyNotFound: false,
-      },
-    );
+        {
+          throwIfKeyNotFound: false,
+        },
+      );
+
+      products = queryResult?.data || [];
+      metadata = queryResult?.metadata || {};
+    } catch (queryError) {
+      const errorMessage =
+        queryError instanceof Error
+          ? queryError.message
+          : queryError && typeof queryError === 'object'
+            ? JSON.stringify(queryError)
+            : String(queryError);
+      throw new Error(`Failed to query products: ${errorMessage}`);
+    }
 
     if (products && products.length > 0) {
       let productsWithPrices = products as unknown as ProductInput[];
@@ -159,13 +176,22 @@ export const syncProductsStep = createStep(
 
     const count = metadata?.count || products?.length || 0;
 
-    return new StepResponse({
-      products: products || [],
-      metadata: {
-        count,
-        limit,
-        offset,
-      },
-    });
+      return new StepResponse({
+        products: products || [],
+        metadata: {
+          count,
+          limit,
+          offset,
+        },
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : error && typeof error === 'object'
+            ? JSON.stringify(error)
+            : String(error);
+      throw new Error(`Sync products step failed: ${errorMessage}`);
+    }
   },
 );

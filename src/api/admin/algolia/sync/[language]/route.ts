@@ -72,11 +72,19 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         hasMore = offset + limit < (metadata?.count ?? 0);
         offset += limit;
       } catch (workflowError) {
-        throw new Error(
-          `Error in sync workflow at offset ${offset}: ${
-            workflowError instanceof Error ? workflowError.message : String(workflowError)
-          }`,
-        );
+        let errorMsg = 'Unknown workflow error';
+        if (workflowError instanceof Error) {
+          errorMsg = workflowError.message;
+        } else if (workflowError && typeof workflowError === 'object') {
+          try {
+            errorMsg = JSON.stringify(workflowError);
+          } catch {
+            errorMsg = String(workflowError);
+          }
+        } else {
+          errorMsg = String(workflowError);
+        }
+        throw new Error(`Error in sync workflow at offset ${offset}: ${errorMsg}`);
       }
     }
 

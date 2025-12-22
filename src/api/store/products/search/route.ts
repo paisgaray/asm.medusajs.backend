@@ -57,48 +57,70 @@ function extractLanguageFromSalesChannel(
 }
 
 export async function POST(req: MedusaRequest<StoreProductSearchBody>, res: MedusaResponse): Promise<void> {
-  const body = req.validatedBody as StoreProductSearchBody;
-  const algoliaService: AlgoliaModuleService = req.scope.resolve(ALGOLIA_MODULE);
+  try {
+    const body = req.validatedBody as StoreProductSearchBody;
+    const algoliaService: AlgoliaModuleService = req.scope.resolve(ALGOLIA_MODULE);
 
-  let language: string | undefined;
+    let language: string | undefined;
 
-  if (body.language) {
-    if (!algoliaService.isLanguageSupported(body.language)) {
-      res.status(400).json({
-        message: `Language '${body.language}' is not supported. Supported languages: ${algoliaService.getSupportedLanguages().join(', ')}`,
-      });
-      return;
-    }
-    language = algoliaService.validateLanguage(body.language);
-  } else {
-    try {
-      const salesChannel = await getSalesChannelFromRequest(req);
-      if (salesChannel) {
-        language = extractLanguageFromSalesChannel(salesChannel, algoliaService);
+    if (body.language) {
+      if (!algoliaService.isLanguageSupported(body.language)) {
+        res.status(400).json({
+          message: `Language '${body.language}' is not supported. Supported languages: ${algoliaService.getSupportedLanguages().join(', ')}`,
+        });
+        return;
       }
-    } catch {
-      language = 'pt';
+      language = algoliaService.validateLanguage(body.language);
+    } else {
+      try {
+        const salesChannel = await getSalesChannelFromRequest(req);
+        if (salesChannel) {
+          language = extractLanguageFromSalesChannel(salesChannel, algoliaService);
+        }
+      } catch {
+        language = 'pt';
+      }
     }
+
+    const input: {
+      query: string;
+      language?: string;
+      filters?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+    } = {
+      query: body.query,
+      language,
+    };
+
+    if (body.filters) input.filters = body.filters;
+    if (body.page !== undefined) input.page = body.page;
+    if (body.limit !== undefined) input.limit = body.limit;
+    if (body.sortBy) input.sortBy = body.sortBy;
+
+    const { result } = await searchProductsWorkflow(req.scope).run({ input });
+
+    res.json(result || { products: [], total: 0, page: 0, nbHits: 0, nbPages: 0, query: body.query });
+  } catch (error) {
+    let errorMessage = 'An unknown error occurred.';
+
+    if (error instanceof Error) {
+      errorMessage = error.message || errorMessage;
+    } else if (error && typeof error === 'object') {
+      if ('message' in error && typeof error.message === 'string') {
+        errorMessage = error.message;
+      } else if ('error' in error && typeof error.error === 'string') {
+        errorMessage = error.error;
+      } else {
+        errorMessage = JSON.stringify(error);
+      }
+    }
+
+    res.status(500).json({
+      code: 'unknown_error',
+      type: 'unknown_error',
+      message: errorMessage,
+    });
   }
-
-  const input: {
-    query: string;
-    language?: string;
-    filters?: string;
-    page?: number;
-    limit?: number;
-    sortBy?: string;
-  } = {
-    query: body.query,
-    language,
-  };
-
-  if (body.filters) input.filters = body.filters;
-  if (body.page !== undefined) input.page = body.page;
-  if (body.limit !== undefined) input.limit = body.limit;
-  if (body.sortBy) input.sortBy = body.sortBy;
-
-  const { result } = await searchProductsWorkflow(req.scope).run({ input });
-
-  res.json(result || { products: [], total: 0, page: 0, nbHits: 0, nbPages: 0, query: body.query });
 }

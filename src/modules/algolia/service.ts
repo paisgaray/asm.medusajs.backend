@@ -237,22 +237,59 @@ export default class AlgoliaModuleService {
       return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
     } catch (error) {
       const algoliaError = this.normalizeError(error);
-      const isIndexError = algoliaError.message.includes('does not exist');
+      const errorMessage = algoliaError.message.toLowerCase();
+      const isIndexError =
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('index not found') ||
+        errorMessage.includes('invalid index name');
 
+      // Se o índice não existe e há sortBy, tenta buscar no índice base
       if (isIndexError && sortBy) {
-        const fallbackFilters = filters ? [filters] : [];
-        const fallbackRegional = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
-        const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
+        try {
+          const fallbackFilters = filters ? [filters] : [];
+          const fallbackRegional = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+          const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
 
-        const fallbackRequest = this.createSearchRequest(
-          baseIndex,
-          query || '',
-          page,
-          hitsPerPage,
-          fallbackFilterString,
-        );
-        return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
+          const fallbackRequest = this.createSearchRequest(
+            baseIndex,
+            query || '',
+            page,
+            hitsPerPage,
+            fallbackFilterString,
+          );
+          return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
+        } catch {
+          // Se o fallback também falhar, retorna resultado vazio
+          return {
+            results: [
+              {
+                hits: [],
+                nbHits: 0,
+                page: 0,
+                nbPages: 0,
+                hitsPerPage,
+              },
+            ],
+          } as AlgoliaSearchResponse;
+        }
       }
+
+      // Se o índice não existe e não há sortBy, retorna resultado vazio
+      if (isIndexError) {
+        return {
+          results: [
+            {
+              hits: [],
+              nbHits: 0,
+              page: 0,
+              nbPages: 0,
+              hitsPerPage,
+            },
+          ],
+        } as AlgoliaSearchResponse;
+      }
+
+      // Para outros erros (incluindo bloqueio), relança a exceção
       throw error;
     }
   }

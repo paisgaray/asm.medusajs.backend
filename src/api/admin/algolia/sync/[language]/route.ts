@@ -9,6 +9,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   const algoliaService: AlgoliaModuleService = req.scope.resolve(ALGOLIA_MODULE);
 
   const validatedLanguage = algoliaService.validateLanguage(language);
+  const skipClear =
+    req.query.skipClear === 'true' ||
+    (req.body && typeof req.body === 'object' && 'skipClear' in req.body && req.body.skipClear === true);
 
   if (language && !algoliaService.isLanguageSupported(language)) {
     res.status(400).json({
@@ -21,9 +24,30 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
   let offset = 0;
   const limit = 50;
   let totalIndexed = 0;
+  let clearSkipped = false;
 
   try {
-    await algoliaService.clearIndex(validatedLanguage);
+    if (!skipClear) {
+      try {
+        await algoliaService.clearIndex(validatedLanguage);
+      } catch (clearError) {
+        const errorMessage = clearError instanceof Error ? clearError.message : String(clearError);
+        const lowerMessage = errorMessage.toLowerCase();
+        const isBlocked =
+          lowerMessage.includes('blocked') ||
+          lowerMessage.includes('cannot be processed') ||
+          lowerMessage.includes('contact us to unblock') ||
+          lowerMessage.includes('contact algolia support');
+
+        if (isBlocked) {
+          clearSkipped = true;
+        } else {
+          throw clearError;
+        }
+      }
+    } else {
+      clearSkipped = true;
+    }
 
     while (hasMore) {
       const {
@@ -44,15 +68,37 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       offset += limit;
     }
 
+    const message = clearSkipped
+      ? `Successfully indexed ${totalIndexed} products in language: ${validatedLanguage} (index clear was skipped)`
+      : `Successfully indexed ${totalIndexed} products in language: ${validatedLanguage}`;
+
     res.json({
-      message: `Successfully indexed ${totalIndexed} products in language: ${validatedLanguage}`,
+      message,
       totalIndexed,
       language: validatedLanguage,
+      clearSkipped,
     });
   } catch (error) {
-    res.status(500).json({
-      message: 'Error during Algolia sync',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const lowerMessage = errorMessage.toLowerCase();
+    const isBlocked =
+      lowerMessage.includes('blocked') ||
+      lowerMessage.includes('cannot be processed') ||
+      lowerMessage.includes('contact us to unblock') ||
+      lowerMessage.includes('contact algolia support');
+
+    if (isBlocked) {
+      res.status(503).json({
+        message: 'Algolia application is blocked',
+        error: errorMessage,
+        suggestion:
+          'Please contact Algolia support to unblock your application. You can also try syncing with ?skipClear=true to skip clearing the index.',
+      });
+    } else {
+      res.status(500).json({
+        message: 'Error during Algolia sync',
+        error: errorMessage,
+      });
+    }
   }
 }

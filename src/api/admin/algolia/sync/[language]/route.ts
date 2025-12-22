@@ -50,22 +50,34 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     }
 
     while (hasMore) {
-      const {
-        result: { products, metadata },
-      } = await syncProductsWorkflow(req.scope).run({
-        input: {
-          limit,
-          offset,
-          language: validatedLanguage,
-        },
-      });
+      try {
+        const workflowResult = await syncProductsWorkflow(req.scope).run({
+          input: {
+            limit,
+            offset,
+            language: validatedLanguage,
+          },
+        });
 
-      if (products && products.length > 0) {
-        totalIndexed += products.length;
+        if (!workflowResult?.result) {
+          throw new Error('Workflow returned no result');
+        }
+
+        const { products, metadata } = workflowResult.result;
+
+        if (products && products.length > 0) {
+          totalIndexed += products.length;
+        }
+
+        hasMore = offset + limit < (metadata?.count ?? 0);
+        offset += limit;
+      } catch (workflowError) {
+        throw new Error(
+          `Error in sync workflow at offset ${offset}: ${
+            workflowError instanceof Error ? workflowError.message : String(workflowError)
+          }`,
+        );
       }
-
-      hasMore = offset + limit < (metadata?.count ?? 0);
-      offset += limit;
     }
 
     const message = clearSkipped
@@ -79,7 +91,22 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       clearSkipped,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    let errorMessage = 'Unknown error';
+    let errorStack: string | undefined;
+
+    if (error instanceof Error) {
+      errorMessage = error.message || errorMessage;
+      errorStack = error.stack;
+    } else if (error && typeof error === 'object') {
+      if ('message' in error && typeof error.message === 'string') {
+        errorMessage = error.message;
+      } else if ('error' in error && typeof error.error === 'string') {
+        errorMessage = error.error;
+      } else {
+        errorMessage = JSON.stringify(error);
+      }
+    }
+
     const lowerMessage = errorMessage.toLowerCase();
     const isBlocked =
       lowerMessage.includes('blocked') ||
@@ -98,6 +125,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       res.status(500).json({
         message: 'Error during Algolia sync',
         error: errorMessage,
+        stack: errorStack,
       });
     }
   }

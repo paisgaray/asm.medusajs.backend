@@ -1,5 +1,5 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
+import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 type CartLineItem = {
   id: string;
@@ -23,22 +23,50 @@ type BundleGroup = {
   items: CartLineItem[];
 };
 
-export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
+export async function GET(
+  req: MedusaRequest,
+  res: MedusaResponse
+): Promise<void> {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
   const cartId = req.params.id as string;
 
   try {
     const cartResult = (await query.graph({
-      entity: 'cart',
+      entity: "cart",
       fields: [
-        '*',
-        'items.*',
-        'items.variant.*',
-        'items.product.*',
-        'region.*',
-        'shipping_methods.*',
-        'shipping_address.*',
-        'billing_address.*',
+        "id",
+        "currency_code",
+        "total",
+        "subtotal",
+        "tax_total",
+        "discount_total",
+        "discount_subtotal",
+        "discount_tax_total",
+        "original_total",
+        "original_tax_total",
+        "item_total",
+        "item_subtotal",
+        "item_tax_total",
+        "original_item_total",
+        "original_item_subtotal",
+        "original_item_tax_total",
+        "shipping_total",
+        "shipping_subtotal",
+        "shipping_tax_total",
+        "original_shipping_tax_total",
+        "original_shipping_subtotal",
+        "original_shipping_total",
+        "credit_line_subtotal",
+        "credit_line_tax_total",
+        "credit_line_total",
+        // relations
+        "items.*",
+        "items.variant.*",
+        "items.product.*",
+        "region.*",
+        "shipping_methods.*",
+        "shipping_address.*",
+        "billing_address.*",
       ],
       filters: {
         id: cartId,
@@ -48,7 +76,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     const cart = cartResult.data?.[0];
 
     if (!cart) {
-      res.status(404).json({ message: 'Cart not found' });
+      res.status(404).json({ message: "Cart not found" });
       return;
     }
 
@@ -58,14 +86,23 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     for (const item of cart.items || []) {
       const metadata = (item.metadata ?? {}) as Record<string, unknown>;
       const rawBundleId = metadata.bundle_id;
-      const bundleId = typeof rawBundleId === 'string' && rawBundleId.length > 0 ? rawBundleId : null;
+      const bundleId =
+        typeof rawBundleId === "string" && rawBundleId.length > 0
+          ? rawBundleId
+          : null;
 
       if (bundleId) {
         if (!bundleGroups.has(bundleId)) {
           try {
             const bundleResult = (await query.graph({
-              entity: 'bundle',
-              fields: ['id', 'title', 'items.*', 'items.product.*', 'items.product.variants.*'],
+              entity: "bundle",
+              fields: [
+                "id",
+                "title",
+                "items.*",
+                "items.product.*",
+                "items.product.variants.*",
+              ],
               filters: {
                 id: bundleId,
               },
@@ -113,8 +150,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     });
   } catch (error: unknown) {
     res.status(500).json({
-      message: 'Failed to retrieve cart',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      message: "Failed to retrieve cart",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 }

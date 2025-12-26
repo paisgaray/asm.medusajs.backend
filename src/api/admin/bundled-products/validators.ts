@@ -25,6 +25,13 @@ export const UpdateBundledProductQuerySchema = z.object({
 export const UpdateBundledProductSchema = z.object({
   title: z.string(),
   details: z.string().optional(),
+  items: z.array(
+    z.object({
+      product_id: z.string(),
+      details: z.string().optional(),
+      quantity: z.number(),
+    }),
+  ),
 });
 
 export const UpdateBundledProductItemQuerySchema = z.object({

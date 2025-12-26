@@ -9,13 +9,15 @@ export const CreateBundledProductsSchema = z.object({
   title: z.string(),
   details: z.string().optional(),
   product: AdminCreateProduct(),
-  items: z.array(
-    z.object({
-      product_id: z.string(),
-      details: z.string().optional(),
-      quantity: z.number(),
-    }),
-  ),
+  items: z
+    .array(
+      z.object({
+        product_id: z.string(),
+        details: z.string().optional(),
+        quantity: z.number().int().min(1),
+      }),
+    )
+    .min(1),
 });
 
 export const UpdateBundledProductQuerySchema = z.object({

@@ -6,6 +6,7 @@ import { createProductsWorkflow, createRemoteLinkStep, useQueryGraphStep } from 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import { createBundleStep } from '../steps/create-bundle';
 import { createBundleItemsStep } from '../steps/create-bundle-items';
+import { minimumValidBundle } from '../steps/minimum-valid-bundle';
 
 export type CreateBundledProductWorkflowInput = {
   bundle: {
@@ -23,6 +24,8 @@ export type CreateBundledProductWorkflowInput = {
 export const createBundledProductWorkflow = createWorkflow(
   'create-bundled-product',
   ({ bundle: bundleData }: CreateBundledProductWorkflowInput) => {
+    minimumValidBundle({ bundledProductItems: bundleData.items });
+
     const bundle = createBundleStep({ title: bundleData.title, details: bundleData.details });
 
     const bundleItems = createBundleItemsStep({ bundle_id: bundle.id, items: bundleData.items });

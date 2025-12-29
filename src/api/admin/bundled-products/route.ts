@@ -8,7 +8,7 @@ import type { CreateBundledProductsSchema } from './validators';
 
 export async function POST(req: AuthenticatedMedusaRequest<CreateBundledProductsSchema>, res: MedusaResponse) {
   const { result: bundledProduct } = await createBundledProductWorkflow(req.scope).run({
-    input: { bundle: req.body } as CreateBundledProductWorkflowInput,
+    input: { bundle: req.validatedBody } as CreateBundledProductWorkflowInput,
   });
 
   res.json({

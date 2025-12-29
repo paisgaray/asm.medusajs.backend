@@ -33,7 +33,7 @@ export const minimumValidBundle = createStep('minimum-valid-bundle-step', async 
 
   const bundledProduct = bundledProducts[0];
 
-  if (bundledProduct.items.length <= 2) {
+  if (bundledProduct?.items.length <= 2) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, 'The minimum number of bundled products together must be 2.');
   }
 

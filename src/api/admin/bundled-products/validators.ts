@@ -17,7 +17,7 @@ export const CreateBundledProductsSchema = z.object({
         quantity: z.number().int().min(1),
       }),
     )
-    .min(1),
+    .min(2),
 });
 
 export const UpdateBundledProductQuerySchema = z.object({

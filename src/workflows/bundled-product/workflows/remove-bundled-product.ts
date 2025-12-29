@@ -1,6 +1,6 @@
-import { Modules } from '@medusajs/framework/utils';
+import { DeleteEntityInput } from '@medusajs/framework/modules-sdk';
 import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
-import { dismissRemoteLinkStep, useQueryGraphStep } from '@medusajs/medusa/core-flows';
+import { deleteProductsWorkflow, removeRemoteLinkStep, useQueryGraphStep } from '@medusajs/medusa/core-flows';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import { removeBundleStep } from '../steps/remove-bundle';
@@ -15,21 +15,24 @@ export const removeBundledProductWorkflow = createWorkflow(
   ({ id }: RemoveBundledProductWorkflowInput) => {
     const { data } = useQueryGraphStep({
       entity: 'bundle',
-      fields: ['*', 'items.*', 'items.product.*'],
+      fields: ['*', 'product.*', 'items.*', 'items.product.*'],
       filters: { id },
       options: { throwIfKeyNotFound: true },
     });
 
-    const bundleProductLinks = transform({ bundleItems: data[0] }, (data) => {
-      return data.bundleItems.items.map((item) => ({
-        [BUNDLED_PRODUCT_MODULE]: { bundle_item_id: item?.id },
-        [Modules.PRODUCT]: { product_id: item?.product?.id },
-      }));
+    removeRemoteLinkStep([{ [BUNDLED_PRODUCT_MODULE]: { bundle_id: id } }]).config({
+      name: 'delete-bundle-product-links',
     });
 
-    dismissRemoteLinkStep(bundleProductLinks);
-
     removeBundleItemsStep({ id });
+
+    const deleteInputs = transform({ bundles: data[0] }, (data): DeleteEntityInput[] => {
+      return data.bundles.items.map((item) => ({ [BUNDLED_PRODUCT_MODULE]: { bundle_item_id: item.id } }));
+    });
+
+    removeRemoteLinkStep(deleteInputs).config({ name: 'delete-bundle-product-items-links' });
+
+    deleteProductsWorkflow.runAsStep({ input: { ids: [data[0].product.id] } });
 
     const bundleDeleted = removeBundleStep({ id });
 

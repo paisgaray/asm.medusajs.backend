@@ -12,7 +12,7 @@ export const removeBundleItemsStep = createStep(
   async ({ id }: RemoveBundledItemsStepInput, { container }) => {
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    await bundledProductModuleService.deleteBundleItems({ bundle_id: id });
+    await bundledProductModuleService.softDeleteBundleItems({ bundle_id: id });
 
     return new StepResponse({
       bundle_id: id,

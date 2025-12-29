@@ -1,6 +1,10 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework';
 
 import {
+  addBundledProductItemWorkflow,
+  AddBundledProductItemWorkflowInput,
+} from '../../../../workflows/bundled-product/workflows/add-bundled-product-item';
+import {
   removeBundledProductWorkflow,
   RemoveBundledProductWorkflowInput,
 } from '../../../../workflows/bundled-product/workflows/remove-bundled-product';
@@ -8,7 +12,20 @@ import {
   updateBundledProductWorkflow,
   UpdateBundledProductWorkflowInput,
 } from '../../../../workflows/bundled-product/workflows/update-bundled-product';
-import { UpdateBundledProductSchema } from '../validators';
+import { AddBundledProductItemSchema, UpdateBundledProductSchema } from '../validators';
+
+export async function POST(req: AuthenticatedMedusaRequest<AddBundledProductItemSchema>, res: MedusaResponse) {
+  const { result: bundledProduct } = await addBundledProductItemWorkflow(req.scope).run({
+    input: {
+      bundle_id: req.params.id,
+      item: req.validatedBody,
+    } as AddBundledProductItemWorkflowInput,
+  });
+
+  res.json({
+    bundled_product: bundledProduct,
+  });
+}
 
 export async function PUT(req: AuthenticatedMedusaRequest<UpdateBundledProductSchema>, res: MedusaResponse) {
   const { result: bundledProduct } = await updateBundledProductWorkflow(req.scope).run({

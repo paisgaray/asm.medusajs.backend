@@ -6,7 +6,7 @@ export const selectParams = createSelectParams();
 export const findParams = createFindParams();
 
 export const CreateBundledProductsSchema = z.object({
-  title: z.string(),
+  title: z.string().nonempty(),
   details: z.string().optional(),
   product: AdminCreateProduct(),
   items: z
@@ -21,32 +21,32 @@ export const CreateBundledProductsSchema = z.object({
 });
 
 export const UpdateBundledProductQuerySchema = z.object({
-  id: z.string(),
+  id: z.string().nonempty(),
 });
 
 export const UpdateBundledProductSchema = z.object({
-  title: z.string(),
+  title: z.string().nonempty(),
   details: z.string().optional(),
 });
 
 export const AddBundledProductItemQuerySchema = z.object({
-  id: z.string(),
+  id: z.string().nonempty(),
 });
 
 export const AddBundledProductItemSchema = z.object({
-  product_id: z.string(),
+  product_id: z.string().nonempty(),
   details: z.string().optional(),
-  quantity: z.number(),
+  quantity: z.number().int().min(1),
 });
 
 export const UpdateBundledProductItemQuerySchema = z.object({
-  id: z.string(),
-  itemId: z.string(),
+  id: z.string().nonempty(),
+  itemId: z.string().nonempty(),
 });
 
 export const UpdateBundledProductItemSchema = z.object({
   details: z.string().optional(),
-  quantity: z.number(),
+  quantity: z.number().int().min(1),
 });
 
 export type CreateBundledProductsSchema = z.infer<typeof CreateBundledProductsSchema>;

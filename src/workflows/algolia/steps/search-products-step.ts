@@ -67,7 +67,7 @@ export const searchProductsStep = createStep(
         nbPages: firstResult.nbPages || 0,
         query: input.query,
       });
-    } catch (error) {
+    } catch {
       return new StepResponse<{
         products: AlgoliaSearchHit[];
         total: number;

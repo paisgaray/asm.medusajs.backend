@@ -1,15 +1,34 @@
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
 
 import { ALGOLIA_MODULE } from '../modules/algolia';
+import { areSubscribersEnabled } from '../modules/algolia/feature-flags';
+import {
+  isOperationIdempotent,
+  markOperationAsExecuted,
+  recordAlgoliaRequest,
+  shouldFailFast,
+} from '../modules/algolia/guards';
 import AlgoliaModuleService from '../modules/algolia/service';
 import { deleteProductFromIndexWorkflow } from '../workflows/algolia';
 
 export default async function productDeletedHandler({ event: { data }, container }: SubscriberArgs<{ id: string }>) {
+  if (!areSubscribersEnabled()) {
+    return;
+  }
+
+  if (await shouldFailFast(container)) {
+    return;
+  }
+
   const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
-  const logger = container.resolve('logger');
   const supportedLanguages = algoliaService.getSupportedLanguages();
 
   for (const language of supportedLanguages) {
+    const isIdempotent = await isOperationIdempotent(container, data.id, language, 'delete');
+    if (isIdempotent) {
+      continue;
+    }
+
     try {
       await deleteProductFromIndexWorkflow(container).run({
         input: {
@@ -17,9 +36,11 @@ export default async function productDeletedHandler({ event: { data }, container
           language,
         },
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Failed to delete product ${data.id} from index in language ${language}: ${errorMessage}`);
+
+      await markOperationAsExecuted(container, data.id, language, 'delete');
+      await recordAlgoliaRequest(container, 'delete', 1);
+    } catch {
+      // ignore
     }
   }
 }

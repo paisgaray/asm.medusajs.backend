@@ -1,16 +1,45 @@
 import { SubscriberArgs, type SubscriberConfig } from '@medusajs/framework';
 
+import { ALGOLIA_MODULE } from '../modules/algolia';
+import { areSubscribersEnabled } from '../modules/algolia/feature-flags';
+import {
+  acquireLock,
+  releaseLock,
+  canExecuteSync,
+  recordAlgoliaRequest,
+  shouldFailFast,
+} from '../modules/algolia/guards';
+import AlgoliaModuleService from '../modules/algolia/service';
 import { syncProductsWorkflow } from '../workflows/algolia/sync-products';
 
 export default async function algoliaSyncHandler({ container }: SubscriberArgs) {
-  const logger = container.resolve('logger');
+  if (!areSubscribersEnabled()) {
+    return;
+  }
 
+  if (await shouldFailFast(container)) {
+    return;
+  }
+
+  const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
+  const defaultLanguage = algoliaService.getSupportedLanguages()[0] || 'pt';
+
+  const rateLimitResult = await canExecuteSync(container, defaultLanguage);
+  if (!rateLimitResult.allowed) {
+    return;
+  }
+
+  const lockKey = `sync:${defaultLanguage}`;
+  const lockResult = await acquireLock(container, lockKey);
+
+  if (!lockResult.acquired) {
+    return;
+  }
+
+  const ownerId = lockResult.ownerId;
   let hasMore = true;
   let offset = 0;
-  const limit = 50;
-  let totalIndexed = 0;
-
-  logger.info('Starting product indexing...');
+  const limit = 100;
 
   try {
     while (hasMore) {
@@ -20,20 +49,19 @@ export default async function algoliaSyncHandler({ container }: SubscriberArgs) 
         input: {
           limit,
           offset,
+          language: defaultLanguage,
         },
       });
 
+      if (products && products.length > 0) {
+        await recordAlgoliaRequest(container, 'index', 1);
+      }
+
       hasMore = offset + limit < (metadata?.count ?? 0);
       offset += limit;
-      totalIndexed += products?.length || 0;
-
-      logger.info(`Indexed ${products?.length || 0} products (total: ${totalIndexed})`);
     }
-
-    logger.info(`Successfully indexed ${totalIndexed} products`);
-  } catch (error) {
-    logger.error('Error during Algolia sync:', error);
-    throw error;
+  } finally {
+    await releaseLock(container, lockKey, ownerId);
   }
 }
 

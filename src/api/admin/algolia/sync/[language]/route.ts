@@ -1,12 +1,37 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
 import { ALGOLIA_MODULE } from '../../../../../modules/algolia';
+import { isSyncEnabled, isClearIndexEnabled } from '../../../../../modules/algolia/feature-flags';
+import {
+  acquireLock,
+  releaseLock,
+  canExecuteSync,
+  recordAlgoliaRequest,
+  shouldFailFast,
+} from '../../../../../modules/algolia/guards';
 import AlgoliaModuleService from '../../../../../modules/algolia/service';
 import { syncProductsWorkflow } from '../../../../../workflows/algolia/sync-products';
 
 export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<void> {
   const { language } = req.params;
   const algoliaService: AlgoliaModuleService = req.scope.resolve(ALGOLIA_MODULE);
+
+  if (!isSyncEnabled()) {
+    res.status(503).json({
+      message: 'Sync is disabled',
+      error: 'Algolia sync is currently disabled via feature flag.',
+    });
+    return;
+  }
+
+  if (await shouldFailFast(req.scope)) {
+    res.status(503).json({
+      message: 'Service temporarily unavailable',
+      error: 'Algolia request rate exceeded threshold. Please try again later.',
+      retryAfter: 60,
+    });
+    return;
+  }
 
   const validatedLanguage = algoliaService.validateLanguage(language);
   const skipClear =
@@ -20,34 +45,59 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     return;
   }
 
-  let hasMore = true;
-  let offset = 0;
-  const limit = 50;
+  const rateLimitResult = await canExecuteSync(req.scope, validatedLanguage);
+  if (!rateLimitResult.allowed) {
+    res.status(429).json({
+      message: 'Rate limit exceeded',
+      error: `Sync for language '${validatedLanguage}' was executed recently. Please wait at least 1 minute between syncs.`,
+      retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000),
+      resetAt: new Date(rateLimitResult.resetAt).toISOString(),
+    });
+    return;
+  }
+
+  const lockKey = `sync:${validatedLanguage}`;
+  const lockResult = await acquireLock(req.scope, lockKey);
+
+  if (!lockResult.acquired) {
+    res.status(409).json({
+      message: 'Sync already in progress',
+      error: `A sync operation for language '${validatedLanguage}' is already running. Please wait for it to complete.`,
+    });
+    return;
+  }
+
+  const ownerId = lockResult.ownerId;
+
+  const syncStartTime = Date.now();
+  let totalRequests = 0;
   let totalIndexed = 0;
   let clearSkipped = false;
 
   try {
-    if (!skipClear) {
-      try {
-        await algoliaService.clearIndex(validatedLanguage);
-      } catch (clearError) {
-        const errorMessage = clearError instanceof Error ? clearError.message : String(clearError);
-        const lowerMessage = errorMessage.toLowerCase();
-        const isBlocked =
-          lowerMessage.includes('blocked') ||
-          lowerMessage.includes('cannot be processed') ||
-          lowerMessage.includes('contact us to unblock') ||
-          lowerMessage.includes('contact algolia support');
+    if (!skipClear && isClearIndexEnabled()) {
+      const clearLockKey = `clear:${await algoliaService.getIndexName('product', validatedLanguage)}`;
+      const clearLockResult = await acquireLock(req.scope, clearLockKey);
 
-        if (isBlocked) {
-          clearSkipped = true;
-        } else {
-          throw clearError;
+      if (!clearLockResult.acquired) {
+        clearSkipped = true;
+      } else {
+        const clearOwnerId = clearLockResult.ownerId;
+        try {
+          await algoliaService.clearIndex(validatedLanguage);
+          totalRequests += 1;
+          await recordAlgoliaRequest(req.scope, 'clear', 1);
+        } finally {
+          await releaseLock(req.scope, clearLockKey, clearOwnerId);
         }
       }
     } else {
       clearSkipped = true;
     }
+
+    let hasMore = true;
+    let offset = 0;
+    const limit = 100;
 
     while (hasMore) {
       try {
@@ -67,6 +117,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
 
         if (products && products.length > 0) {
           totalIndexed += products.length;
+          totalRequests += 1;
+          await recordAlgoliaRequest(req.scope, 'index', 1);
         }
 
         hasMore = offset + limit < (metadata?.count ?? 0);
@@ -97,8 +149,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       totalIndexed,
       language: validatedLanguage,
       clearSkipped,
+      totalRequests,
+      duration: Date.now() - syncStartTime,
     });
   } catch (error) {
+    await releaseLock(req.scope, lockKey, ownerId);
+
     let errorMessage = 'Unknown error';
     let errorStack: string | undefined;
 
@@ -136,5 +192,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
         stack: errorStack,
       });
     }
+  } finally {
+    await releaseLock(req.scope, lockKey, ownerId);
   }
 }

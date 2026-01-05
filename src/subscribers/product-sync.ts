@@ -1,15 +1,34 @@
 import { SubscriberArgs, type SubscriberConfig } from '@medusajs/framework';
 
 import { ALGOLIA_MODULE } from '../modules/algolia';
+import { areSubscribersEnabled } from '../modules/algolia/feature-flags';
+import {
+  isOperationIdempotent,
+  markOperationAsExecuted,
+  recordAlgoliaRequest,
+  shouldFailFast,
+} from '../modules/algolia/guards';
 import AlgoliaModuleService from '../modules/algolia/service';
 import { indexProductWorkflow } from '../workflows/algolia/index-product';
 
 export default async function handleProductEvents({ event: { data }, container }: SubscriberArgs<{ id: string }>) {
+  if (!areSubscribersEnabled()) {
+    return;
+  }
+
+  if (await shouldFailFast(container)) {
+    return;
+  }
+
   const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
-  const logger = container.resolve('logger');
   const supportedLanguages = algoliaService.getSupportedLanguages();
 
   for (const language of supportedLanguages) {
+    const isIdempotent = await isOperationIdempotent(container, data.id, language, 'index');
+    if (isIdempotent) {
+      continue;
+    }
+
     try {
       await indexProductWorkflow(container).run({
         input: {
@@ -17,9 +36,11 @@ export default async function handleProductEvents({ event: { data }, container }
           language,
         },
       });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Failed to index product ${data.id} in language ${language}: ${errorMessage}`);
+
+      await markOperationAsExecuted(container, data.id, language, 'index');
+      await recordAlgoliaRequest(container, 'index', 1);
+    } catch {
+      // ignore
     }
   }
 }

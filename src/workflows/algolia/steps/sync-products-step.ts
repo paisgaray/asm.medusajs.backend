@@ -84,97 +84,97 @@ export const syncProductsStep = createStep(
       const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
       const query = container.resolve('query');
 
-    const limit = input.limit || 50;
-    const offset = input.offset || 0;
-    const currencyCode = input.currency_code || 'usd';
-    const language = algoliaService.validateLanguage(input.language);
+      const limit = input.limit || 100;
+      const offset = input.offset || 0;
+      const currencyCode = input.currency_code || 'usd';
+      const language = algoliaService.validateLanguage(input.language);
 
-    let regionId = input.region_id;
-    let allRegions: Array<{ id: string; currency_code: string }> = [];
+      let regionId = input.region_id;
+      let allRegions: Array<{ id: string; currency_code: string }> = [];
 
-    try {
-      const regionModuleService = container.resolve(Modules.REGION);
-      const regions = await regionModuleService.listRegions({});
-      if (regions && regions.length > 0) {
-        allRegions = regions.map((r: { id: string; currency_code: string }) => ({
-          id: r.id,
-          currency_code: r.currency_code || currencyCode,
-        }));
-        if (!regionId) {
-          regionId = regions[0].id;
+      try {
+        const regionModuleService = container.resolve(Modules.REGION);
+        const regions = await regionModuleService.listRegions({});
+        if (regions && regions.length > 0) {
+          allRegions = regions.map((r: { id: string; currency_code: string }) => ({
+            id: r.id,
+            currency_code: r.currency_code || currencyCode,
+          }));
+          if (!regionId) {
+            regionId = regions[0].id;
+          }
         }
+      } catch {}
+
+      const filters: Record<string, unknown> = {};
+      if (input.filters?.id) {
+        filters.id = input.filters.id;
       }
-    } catch {}
 
-    const filters: Record<string, unknown> = {};
-    if (input.filters?.id) {
-      filters.id = input.filters.id;
-    }
+      const context: Record<string, unknown> = {};
+      if (regionId) {
+        context.variants = {
+          calculated_price: QueryContext({
+            region_id: regionId,
+            currency_code: currencyCode,
+          }),
+        };
+      }
 
-    const context: Record<string, unknown> = {};
-    if (regionId) {
-      context.variants = {
-        calculated_price: QueryContext({
-          region_id: regionId,
-          currency_code: currencyCode,
-        }),
-      };
-    }
+      let products: unknown[] = [];
+      let metadata: { count?: number } = {};
 
-    let products: unknown[] = [];
-    let metadata: { count?: number } = {};
-
-    try {
-      const queryResult = await query.graph(
-        {
-          entity: 'product',
-          fields: [
-            '*',
-            'variants.*',
-            'variants.calculated_price.*',
-            'variants.sales_count',
-            'tags.*',
-            'collection.*',
-            'images.*',
-            'sales_channels.*',
-            'sales_channels.metadata.*',
-            'created_at',
-          ],
-          filters,
-          pagination: {
-            take: limit,
-            skip: offset,
+      try {
+        const queryResult = await query.graph(
+          {
+            entity: 'product',
+            fields: [
+              '*',
+              'variants.*',
+              'variants.calculated_price.*',
+              'variants.sales_count',
+              'tags.*',
+              'collection.*',
+              'images.*',
+              'sales_channels.*',
+              'sales_channels.metadata.*',
+              'created_at',
+            ],
+            filters,
+            pagination: {
+              take: limit,
+              skip: offset,
+            },
+            context,
           },
-          context,
-        },
-        {
-          throwIfKeyNotFound: false,
-        },
-      );
+          {
+            throwIfKeyNotFound: false,
+          },
+        );
 
-      products = queryResult?.data || [];
-      metadata = queryResult?.metadata || {};
-    } catch (queryError) {
-      const errorMessage =
-        queryError instanceof Error
-          ? queryError.message
-          : queryError && typeof queryError === 'object'
-            ? JSON.stringify(queryError)
-            : String(queryError);
-      throw new Error(`Failed to query products: ${errorMessage}`);
-    }
-
-    if (products && products.length > 0) {
-      let productsWithPrices = products as unknown as ProductInput[];
-
-      if (allRegions.length > 0) {
-        productsWithPrices = await enrichProductsWithRegionalPrices(productsWithPrices, allRegions, container);
+        products = queryResult?.data || [];
+        metadata = queryResult?.metadata || {};
+      } catch (queryError) {
+        const errorMessage =
+          queryError instanceof Error
+            ? queryError.message
+            : queryError && typeof queryError === 'object'
+              ? JSON.stringify(queryError)
+              : String(queryError);
+        throw new Error(`Failed to query products: ${errorMessage}`);
       }
 
-      await algoliaService.indexProducts(productsWithPrices, language);
-    }
+      if (products && products.length > 0) {
+        let productsWithPrices = products as unknown as ProductInput[];
 
-    const count = metadata?.count || products?.length || 0;
+        if (allRegions.length > 0) {
+          productsWithPrices = await enrichProductsWithRegionalPrices(productsWithPrices, allRegions, container);
+        }
+
+        await algoliaService.indexProducts(productsWithPrices, language);
+      }
+
+      const count = metadata?.count || products?.length || 0;
 
       return new StepResponse({
         products: products || [],

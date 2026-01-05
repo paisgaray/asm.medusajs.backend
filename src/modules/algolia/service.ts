@@ -50,8 +50,27 @@ export default class AlgoliaModuleService {
       throw new Error('Algolia configuration is incomplete');
     }
 
-    this.client = algoliasearch(options.appId, options.apiKey);
-    this.options = options;
+    const appId = options.appId.trim();
+    const apiKey = options.apiKey.trim();
+
+    try {
+      this.client = algoliasearch(appId, apiKey, {
+        timeouts: {
+          connect: 10,
+          read: 10,
+          write: 10,
+        },
+      });
+      this.options = {
+        ...options,
+        appId,
+        apiKey,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to initialize Algolia client: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
   }
 
   getSupportedLanguages(): string[] {
@@ -117,60 +136,39 @@ export default class AlgoliaModuleService {
 
   async clearIndex(language?: string): Promise<void> {
     const indexName = await this.getIndexName('product', language);
+    const appId = this.options.appId;
+    const apiKey = this.options.apiKey;
+    const url = `https://${appId}.algolia.net/1/indexes/${encodeURIComponent(indexName)}/clear`;
 
     try {
-      const allObjectIDs: string[] = [];
-      let page = 0;
-      const hitsPerPage = 1000;
-      let totalHits = 0;
-      let hasMore = true;
-      const maxPages = 1000;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Algolia-Application-Id': appId,
+          'X-Algolia-API-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      while (hasMore && page < maxPages) {
-        const searchRequest: AlgoliaSearchRequest = {
-          requests: [
-            {
-              indexName,
-              query: '',
-              page,
-              hitsPerPage,
-              attributesToRetrieve: ['objectID'],
-            },
-          ],
-        };
-
-        const result = (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
-        const firstResult = result.results?.[0];
-        const hits = firstResult?.hits || [];
-        const nbHits = firstResult?.nbHits || 0;
-
-        if (page === 0) {
-          totalHits = nbHits;
-          if (totalHits === 0) {
-            return;
-          }
-        }
-
-        if (hits.length > 0) {
-          const objectIDs = hits.map((hit) => hit.objectID).filter((id): id is string => typeof id === 'string');
-          allObjectIDs.push(...objectIDs);
-        }
-
-        hasMore = hits.length === hitsPerPage && allObjectIDs.length < totalHits;
-        page++;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Algolia API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      if (allObjectIDs.length > 0) {
-        const batchSize = 1000;
-        for (let i = 0; i < allObjectIDs.length; i += batchSize) {
-          const batch = allObjectIDs.slice(i, i + batchSize);
-          await this.client.deleteObjects({ indexName, objectIDs: batch });
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (error) {
       const algoliaError = this.normalizeError(error);
+      const errorMessage = algoliaError.message.toLowerCase();
+      const isBlocked =
+        errorMessage.includes('blocked') ||
+        errorMessage.includes('cannot be processed') ||
+        errorMessage.includes('contact us to unblock') ||
+        errorMessage.includes('contact algolia support');
+
+      if (isBlocked) {
+        return;
+      }
+
       throw new Error(`Failed to clear Algolia index '${indexName}': ${algoliaError.message}`);
     }
   }
@@ -238,12 +236,33 @@ export default class AlgoliaModuleService {
     } catch (error) {
       const algoliaError = this.normalizeError(error);
       const errorMessage = algoliaError.message.toLowerCase();
+
+      const isNetworkError =
+        errorMessage.includes('unreachable hosts') ||
+        errorMessage.includes('fetch failed') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('eai_again');
+
+      if (isNetworkError) {
+        return {
+          results: [
+            {
+              hits: [],
+              nbHits: 0,
+              page: 0,
+              nbPages: 0,
+              hitsPerPage,
+            },
+          ],
+        } as AlgoliaSearchResponse;
+      }
+
       const isIndexError =
         errorMessage.includes('does not exist') ||
         errorMessage.includes('index not found') ||
         errorMessage.includes('invalid index name');
 
-      // Se o índice não existe e há sortBy, tenta buscar no índice base
       if (isIndexError && sortBy) {
         try {
           const fallbackFilters = filters ? [filters] : [];
@@ -259,7 +278,6 @@ export default class AlgoliaModuleService {
           );
           return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
         } catch {
-          // Se o fallback também falhar, retorna resultado vazio
           return {
             results: [
               {
@@ -274,7 +292,6 @@ export default class AlgoliaModuleService {
         }
       }
 
-      // Se o índice não existe e não há sortBy, retorna resultado vazio
       if (isIndexError) {
         return {
           results: [
@@ -289,7 +306,6 @@ export default class AlgoliaModuleService {
         } as AlgoliaSearchResponse;
       }
 
-      // Para outros erros (incluindo bloqueio), relança a exceção
       throw error;
     }
   }
@@ -301,7 +317,55 @@ export default class AlgoliaModuleService {
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', 0, hitsPerPage, filterString);
-    return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+
+    try {
+      return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+    } catch (error) {
+      const algoliaError = this.normalizeError(error);
+      const errorMessage = algoliaError.message.toLowerCase();
+
+      const isNetworkError =
+        errorMessage.includes('unreachable hosts') ||
+        errorMessage.includes('fetch failed') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('eai_again');
+
+      if (isNetworkError) {
+        return {
+          results: [
+            {
+              hits: [],
+              nbHits: 0,
+              page: 0,
+              nbPages: 0,
+              hitsPerPage,
+            },
+          ],
+        } as AlgoliaSearchResponse;
+      }
+
+      const isIndexError =
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('index not found') ||
+        errorMessage.includes('invalid index name');
+
+      if (isIndexError) {
+        return {
+          results: [
+            {
+              hits: [],
+              nbHits: 0,
+              page: 0,
+              nbPages: 0,
+              hitsPerPage,
+            },
+          ],
+        } as AlgoliaSearchResponse;
+      }
+
+      throw error;
+    }
   }
 
   private extractQueryFromLog(log: AlgoliaLogEntry): string | null {
@@ -593,24 +657,127 @@ export default class AlgoliaModuleService {
     };
   }
 
+  private async indexProductsViaREST(
+    objects: AlgoliaProduct[],
+    indexName: string,
+    appId: string,
+    apiKey: string,
+  ): Promise<void> {
+    const url = `https://${appId}.algolia.net/1/indexes/${encodeURIComponent(indexName)}/batch`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Algolia-Application-Id': appId,
+          'X-Algolia-API-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: objects.map((obj) => ({
+            action: 'addObject',
+            body: obj,
+          })),
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Algolia REST API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          `REST fallback timeout: Unable to connect to Algolia. This is likely a DNS/network issue in WSL. Please check your network configuration.`,
+        );
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to index via REST fallback: ${errorMessage}`);
+    }
+  }
+
   async indexProducts(products: ProductInput[], language: string = 'pt', indexNameOverride?: string): Promise<void> {
     if (!products?.length) return;
 
     const validatedLanguage = this.validateLanguage(language);
     const indexName = indexNameOverride || (await this.getIndexName('product', validatedLanguage));
     const transformed = products.map((p) => this.transformProductForIndexing(p, validatedLanguage));
+    const appId = this.options.appId.trim();
+    const apiKey = this.options.apiKey.trim();
 
-    try {
-      await this.client.saveObjects({ indexName, objects: transformed });
-    } catch (error) {
-      const algoliaError = this.normalizeError(error);
-      const err = new Error(
-        `Failed to index products in Algolia index '${indexName}' (language: ${validatedLanguage}): ${algoliaError.message}${algoliaError.status ? ` [Status: ${algoliaError.status}]` : ''}`,
-      );
-      if (algoliaError.stack) {
-        err.stack = algoliaError.stack;
+    const batchSize = 100;
+    const delayBetweenBatches = 1000;
+    const totalBatches = Math.ceil(transformed.length / batchSize);
+
+    for (let i = 0; i < transformed.length; i += batchSize) {
+      const batch = transformed.slice(i, i + batchSize);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+
+      try {
+        await this.client.saveObjects({ indexName, objects: batch });
+
+        if (i + batchSize < transformed.length) {
+          await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+        }
+      } catch (error) {
+        const algoliaError = this.normalizeError(error);
+        const errorMessage = algoliaError.message.toLowerCase();
+        const errorName = algoliaError.name?.toLowerCase() || '';
+
+        const isBlocked =
+          errorMessage.includes('blocked') ||
+          errorMessage.includes('cannot be processed') ||
+          errorMessage.includes('contact us to unblock') ||
+          errorMessage.includes('contact algolia support');
+
+        if (isBlocked) {
+          throw new Error(
+            `Algolia application is blocked. Cannot index products. Please contact Algolia support to unblock your application. Original error: ${algoliaError.message}`,
+          );
+        }
+
+        const isNetworkError =
+          errorMessage.includes('unreachable hosts') ||
+          errorMessage.includes('fetch failed') ||
+          errorMessage.includes('network') ||
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('eai_again') ||
+          errorMessage.includes('retryerror') ||
+          errorName.includes('retry') ||
+          errorName.includes('network') ||
+          errorName.includes('timeout');
+
+        if (isNetworkError) {
+          try {
+            await this.indexProductsViaREST(batch, indexName, appId, apiKey);
+            if (i + batchSize < transformed.length) {
+              await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+            }
+            continue;
+          } catch (restError) {
+            const restErrorMessage = restError instanceof Error ? restError.message : 'Unknown error';
+            throw new Error(
+              `Failed to index products via SDK and REST fallback. Network issue detected. Please check DNS/network configuration. SDK error: ${algoliaError.message}. REST error: ${restErrorMessage}`,
+            );
+          }
+        }
+
+        const err = new Error(
+          `Failed to index products in Algolia index '${indexName}' (language: ${validatedLanguage}) at batch ${batchNumber}/${totalBatches}: ${algoliaError.message}${algoliaError.status ? ` [Status: ${algoliaError.status}]` : ''}`,
+        );
+        if (algoliaError.stack) {
+          err.stack = algoliaError.stack;
+        }
+        throw err;
       }
-      throw err;
     }
   }
 }

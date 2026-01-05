@@ -65,7 +65,15 @@ export default class AlgoliaModuleService {
         ...options,
         appId,
         apiKey,
+        productIndexName: options.productIndexName.trim(),
       };
+
+      // TODO: Verificar configurações do índice no Algolia Dashboard:
+      // - Se busca vazia retorna 0 resultados, verificar:
+      //   1. Searchable Attributes: garantir que pelo menos 'title' ou 'objectID' esteja configurado
+      //   2. Ranking & Sorting: verificar se há configurações de ranking que bloqueiam resultados sem query
+      //   3. Replicas: se usar replicas para sorting, garantir que a busca vazia funcione
+      //   4. Facets: verificar se 'regional_tags' está configurado como facetable para filtros funcionarem
     } catch (error) {
       throw new Error(
         `Failed to initialize Algolia client: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -190,7 +198,7 @@ export default class AlgoliaModuleService {
     if (regionalFilters.length > 0) {
       parts.push(`(${regionalFilters.join(' OR ')})`);
     }
-    return parts.join(' AND ');
+    return parts.length > 0 ? parts.join(' AND ') : '';
   }
 
   private createSearchRequest(
@@ -202,12 +210,12 @@ export default class AlgoliaModuleService {
   ): AlgoliaSearchRequest {
     const request: AlgoliaSearchRequest['requests'][number] = {
       indexName,
-      query,
+      query: query || '',
       page,
       hitsPerPage,
     };
 
-    if (filterString) {
+    if (filterString && filterString.trim()) {
       request.filters = filterString;
     }
 
@@ -226,13 +234,36 @@ export default class AlgoliaModuleService {
     const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters = language && query.trim() ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
+
+    console.log('[Algolia Search Debug]', {
+      indexName,
+      baseIndex,
+      query: query || '(empty)',
+      language: language || '(none)',
+      regionalFilters,
+      filterString: filterString || '(none)',
+      filterParts,
+    });
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);
 
+    console.log('[Algolia Search Request]', {
+      indexName: searchRequest.requests[0].indexName,
+      query: searchRequest.requests[0].query,
+      filters: searchRequest.requests[0].filters || '(none)',
+      page: searchRequest.requests[0].page,
+      hitsPerPage: searchRequest.requests[0].hitsPerPage,
+    });
+
     try {
-      return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
+      const result = await this.client.search(searchRequest);
+      console.log('[Algolia Search Result]', {
+        nbHits: result.results?.[0]?.nbHits || 0,
+        hitsCount: result.results?.[0]?.hits?.length || 0,
+      });
+      return result as AlgoliaSearchResponse;
     } catch (error) {
       const algoliaError = this.normalizeError(error);
       const errorMessage = algoliaError.message.toLowerCase();
@@ -313,7 +344,7 @@ export default class AlgoliaModuleService {
   async autocomplete(query: string, hitsPerPage = 5, filters = '', language?: string): Promise<AlgoliaSearchResponse> {
     const indexName = await this.getIndexName('product', language);
     const filterParts = filters ? [filters] : [];
-    const regionalFilters = language && query.trim() ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', 0, hitsPerPage, filterString);

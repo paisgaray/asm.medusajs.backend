@@ -1,9 +1,11 @@
 import { algoliasearch, SearchClient } from 'algoliasearch';
+import { MedusaError } from '@medusajs/framework/utils';
 
 import type {
   AlgoliaProduct,
   AlgoliaSearchRequest,
   AlgoliaSearchResponse,
+  AlgoliaSearchResult,
   AlgoliaRecentSearchesResponse,
   AlgoliaRecentSearch,
   ProductInput,
@@ -47,37 +49,35 @@ export default class AlgoliaModuleService {
 
   constructor(_container: Container, options: AlgoliaOptions) {
     if (!options.appId || !options.apiKey || !options.productIndexName) {
-      throw new Error('Algolia configuration is incomplete');
+      const missing = [];
+      if (!options.appId) missing.push('ALGOLIA_APP_ID');
+      if (!options.apiKey) missing.push('ALGOLIA_API_KEY');
+      if (!options.productIndexName) missing.push('ALGOLIA_PRODUCT_INDEX_NAME');
+      throw new Error(
+        `Algolia configuration is incomplete. Missing environment variables: ${missing.join(', ')}. Please check your .env file.`,
+      );
     }
 
     const appId = options.appId.trim();
     const apiKey = options.apiKey.trim();
 
+    if (!appId || !apiKey) {
+      throw new Error(
+        'Algolia credentials are empty after trimming. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file.',
+      );
+    }
+
     try {
-      this.client = algoliasearch(appId, apiKey, {
-        timeouts: {
-          connect: 10,
-          read: 10,
-          write: 10,
-        },
-      });
+      this.client = algoliasearch(appId, apiKey);
       this.options = {
         ...options,
         appId,
         apiKey,
         productIndexName: options.productIndexName.trim(),
       };
-
-      // TODO: Verificar configurações do índice no Algolia Dashboard:
-      // - Se busca vazia retorna 0 resultados, verificar:
-      //   1. Searchable Attributes: garantir que pelo menos 'title' ou 'objectID' esteja configurado
-      //   2. Ranking & Sorting: verificar se há configurações de ranking que bloqueiam resultados sem query
-      //   3. Replicas: se usar replicas para sorting, garantir que a busca vazia funcione
-      //   4. Facets: verificar se 'regional_tags' está configurado como facetable para filtros funcionarem
     } catch (error) {
-      throw new Error(
-        `Failed to initialize Algolia client: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to initialize Algolia client: ${errorMessage}`);
     }
   }
 
@@ -129,11 +129,19 @@ export default class AlgoliaModuleService {
   }
 
   async getIndexName(type: AlgoliaIndexType = 'product', language?: string): Promise<string> {
-    const base = this.options.productIndexName;
-    if (language && language !== 'pt') {
-      return `${base}_${language}`;
+    switch (type) {
+      case 'product':
+        const base = this.options.productIndexName;
+        if (language && language !== 'pt') {
+          return `${base}_${language}`;
+        }
+        return base;
+      default:
+        throw new MedusaError(
+          MedusaError.Types.INVALID_ARGUMENT,
+          `Invalid index type: ${type}`,
+        );
     }
-    return type === 'product' ? base : base;
   }
 
   async deleteFromIndex(objectIDs: string[], language?: string): Promise<void> {
@@ -234,59 +242,41 @@ export default class AlgoliaModuleService {
     const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters = language && query.trim().length > 0
+      ? this.buildRegionalTagFilters(language.toLowerCase())
+      : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
-
-    console.log('[Algolia Search Debug]', {
-      indexName,
-      baseIndex,
-      query: query || '(empty)',
-      language: language || '(none)',
-      regionalFilters,
-      filterString: filterString || '(none)',
-      filterParts,
-    });
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);
 
-    console.log('[Algolia Search Request]', {
-      indexName: searchRequest.requests[0].indexName,
-      query: searchRequest.requests[0].query,
-      filters: searchRequest.requests[0].filters || '(none)',
-      page: searchRequest.requests[0].page,
-      hitsPerPage: searchRequest.requests[0].hitsPerPage,
-    });
-
     try {
-      const result = await this.client.search(searchRequest);
-      console.log('[Algolia Search Result]', {
-        nbHits: result.results?.[0]?.nbHits || 0,
-        hitsCount: result.results?.[0]?.hits?.length || 0,
-      });
-      return result as AlgoliaSearchResponse;
+      return (await this.client.search(searchRequest)) as AlgoliaSearchResponse;
     } catch (error) {
       const algoliaError = this.normalizeError(error);
       const errorMessage = algoliaError.message.toLowerCase();
 
+      const errorName = algoliaError.name?.toLowerCase() || '';
       const isNetworkError =
         errorMessage.includes('unreachable hosts') ||
         errorMessage.includes('fetch failed') ||
         errorMessage.includes('network') ||
         errorMessage.includes('timeout') ||
-        errorMessage.includes('eai_again');
+        errorMessage.includes('eai_again') ||
+        errorName.includes('retry') ||
+        errorName.includes('network') ||
+        errorName.includes('timeout') ||
+        errorName.includes('aborterror');
 
       if (isNetworkError) {
-        return {
-          results: [
-            {
-              hits: [],
-              nbHits: 0,
-              page: 0,
-              nbPages: 0,
-              hitsPerPage,
-            },
-          ],
-        } as AlgoliaSearchResponse;
+        const isUnreachableHosts = errorMessage.includes('unreachable hosts');
+        const errorDetails = isUnreachableHosts
+          ? 'Cannot connect to Algolia servers. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file, and verify your network connection.'
+          : 'Network error while connecting to Algolia. Please try again later.';
+
+        throw new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          `Algolia search failed: ${errorDetails}`,
+        );
       }
 
       const isIndexError =
@@ -297,7 +287,9 @@ export default class AlgoliaModuleService {
       if (isIndexError && sortBy) {
         try {
           const fallbackFilters = filters ? [filters] : [];
-          const fallbackRegional = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+          const fallbackRegional = language && query.trim().length > 0
+            ? this.buildRegionalTagFilters(language.toLowerCase())
+            : [];
           const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
 
           const fallbackRequest = this.createSearchRequest(
@@ -337,13 +329,64 @@ export default class AlgoliaModuleService {
         } as AlgoliaSearchResponse;
       }
 
-      throw error;
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Algolia search failed: ${algoliaError.message || 'Unknown error'}`,
+      );
+    }
+  }
+
+  async search(query: string, type: AlgoliaIndexType = 'product'): Promise<AlgoliaSearchResponse> {
+    const indexName = await this.getIndexName(type);
+
+    try {
+      return (await this.client.search({
+        requests: [
+          {
+            indexName,
+            query: query || '',
+          },
+        ],
+      })) as AlgoliaSearchResponse;
+    } catch (error: unknown) {
+      const algoliaError = this.normalizeError(error);
+      const errorMessage = algoliaError.message.toLowerCase();
+      const errorName = algoliaError.name?.toLowerCase() || '';
+
+      const isNetworkError =
+        errorMessage.includes('unreachable hosts') ||
+        errorMessage.includes('fetch failed') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('eai_again') ||
+        errorName.includes('retry') ||
+        errorName.includes('network') ||
+        errorName.includes('timeout') ||
+        errorName.includes('aborterror');
+
+      if (isNetworkError) {
+        const isUnreachableHosts = errorMessage.includes('unreachable hosts');
+        const errorDetails = isUnreachableHosts
+          ? 'Cannot connect to Algolia servers. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file, and verify your network connection.'
+          : 'Network error while connecting to Algolia. Please try again later.';
+
+        throw new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          `Algolia search failed: ${errorDetails}`,
+        );
+      }
+
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Algolia search failed: ${algoliaError.message || 'Unknown error'}`,
+      );
     }
   }
 
   async autocomplete(query: string, hitsPerPage = 5, filters = '', language?: string): Promise<AlgoliaSearchResponse> {
     const indexName = await this.getIndexName('product', language);
     const filterParts = filters ? [filters] : [];
+    // Autocomplete sempre aplica filtros regionais quando há language
     const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
@@ -355,25 +398,28 @@ export default class AlgoliaModuleService {
       const algoliaError = this.normalizeError(error);
       const errorMessage = algoliaError.message.toLowerCase();
 
+      const errorName = algoliaError.name?.toLowerCase() || '';
       const isNetworkError =
         errorMessage.includes('unreachable hosts') ||
         errorMessage.includes('fetch failed') ||
         errorMessage.includes('network') ||
         errorMessage.includes('timeout') ||
-        errorMessage.includes('eai_again');
+        errorMessage.includes('eai_again') ||
+        errorName.includes('retry') ||
+        errorName.includes('network') ||
+        errorName.includes('timeout') ||
+        errorName.includes('aborterror');
 
       if (isNetworkError) {
-        return {
-          results: [
-            {
-              hits: [],
-              nbHits: 0,
-              page: 0,
-              nbPages: 0,
-              hitsPerPage,
-            },
-          ],
-        } as AlgoliaSearchResponse;
+        const isUnreachableHosts = errorMessage.includes('unreachable hosts');
+        const errorDetails = isUnreachableHosts
+          ? 'Cannot connect to Algolia servers. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file, and verify your network connection.'
+          : 'Network error while connecting to Algolia. Please try again later.';
+
+        throw new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          `Algolia autocomplete failed: ${errorDetails}`,
+        );
       }
 
       const isIndexError =
@@ -395,7 +441,10 @@ export default class AlgoliaModuleService {
         } as AlgoliaSearchResponse;
       }
 
-      throw error;
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Algolia autocomplete failed: ${algoliaError.message || 'Unknown error'}`,
+      );
     }
   }
 
@@ -732,6 +781,34 @@ export default class AlgoliaModuleService {
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to index via REST fallback: ${errorMessage}`);
+    }
+  }
+
+  async indexData(data: ProductInput[], type: AlgoliaIndexType = 'product', language?: string): Promise<void> {
+    if (!data?.length) return;
+
+    const indexName = await this.getIndexName(type, language);
+    const validatedLanguage = language || 'pt';
+
+    const objects = data.map((item) => {
+      const transformed = this.transformProductForIndexing(item, validatedLanguage);
+      return {
+        ...transformed,
+        objectID: item.id,
+      };
+    });
+
+    try {
+      await this.client.saveObjects({
+        indexName,
+        objects,
+      });
+    } catch (error: unknown) {
+      const algoliaError = this.normalizeError(error);
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Failed to index data in Algolia: ${algoliaError.message || 'Unknown error'}`,
+      );
     }
   }
 

@@ -22,9 +22,25 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
 
     res.json(result);
   } catch (error) {
-    res.status(500).json({
-      message: 'An error occurred while searching products',
-      error: error instanceof Error ? error.message : 'Unknown error',
+    let errorMessage = 'An error occurred while searching products';
+    let errorCode = 'unknown_error';
+
+    if (error instanceof Error) {
+      errorMessage = error.message || errorMessage;
+      if ('code' in error && typeof error.code === 'string') {
+        errorCode = error.code;
+      }
+    }
+
+    const statusCode = errorCode === 'ALGOLIA_UNREACHABLE' ? 503 : 500;
+
+    res.status(statusCode).json({
+      code: errorCode,
+      type: errorCode,
+      message: errorMessage,
+      ...(error instanceof Error && 'details' in error && typeof error.details === 'string'
+        ? { details: error.details }
+        : {}),
     });
   }
 }

@@ -38,7 +38,7 @@ async function ensureWishlistOwnership(req: MedusaRequest, _res: MedusaResponse,
   const wishlistService: WishlistService = req.scope.resolve(WISHLIST_MODULE);
   const wishlistId = req.params.id as string;
   const query = req.filterableFields as StoreWishlistRetrieveQuery;
-  const customerId = query?.customer_id;
+  const customerId = query?.customer_id?.trim();
 
   if (!customerId) {
     next();
@@ -47,7 +47,7 @@ async function ensureWishlistOwnership(req: MedusaRequest, _res: MedusaResponse,
 
   const wishlist = await wishlistService.retrieveWishlist(wishlistId);
 
-  if (wishlist.customer_id !== customerId) {
+  if (wishlist.customer_id?.trim() !== customerId) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, 'Access denied');
   }
 
@@ -59,7 +59,7 @@ async function ensureWishlistItemOwnership(req: MedusaRequest, _res: MedusaRespo
   const wishlistId = req.params.id as string;
   const itemId = req.params.itemId as string;
   const query = req.filterableFields as StoreWishlistRetrieveQuery;
-  const customerId = query?.customer_id;
+  const customerId = query?.customer_id?.trim();
 
   const item = await wishlistService.retrieveWishlistItem(itemId);
 
@@ -69,7 +69,7 @@ async function ensureWishlistItemOwnership(req: MedusaRequest, _res: MedusaRespo
 
   if (customerId) {
     const wishlist = await wishlistService.retrieveWishlist(item.wishlist_id);
-    if (wishlist.customer_id !== customerId) {
+    if (wishlist.customer_id?.trim() !== customerId) {
       throw new MedusaError(MedusaError.Types.NOT_ALLOWED, 'Access denied');
     }
   }

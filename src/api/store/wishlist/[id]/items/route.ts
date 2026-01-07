@@ -55,6 +55,7 @@ export async function POST(req: MedusaRequest<WishlistItemCreateBody>, res: Medu
   res.json({
     wishlist_id: result.wishlist_id,
     items: result.items,
+    item: result.items?.[0],
   });
 }
 

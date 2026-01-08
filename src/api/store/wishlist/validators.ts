@@ -39,8 +39,24 @@ export const StoreWishlistRetrieveQuerySchema = selectParams.merge(
   }),
 );
 
+const customerIdSchema = z
+  .string()
+  .min(1, 'customer_id is required and cannot be empty')
+  .refine(
+    (val) => {
+      const trimmed = val.trim();
+      if (trimmed.length === 0) return false;
+      if (trimmed.includes('{{') || trimmed.includes('}}')) return false;
+      if (trimmed.length < 3) return false;
+      return true;
+    },
+    {
+      message: 'customer_id must be a valid customer ID',
+    },
+  );
+
 export const StoreWishlistCreateSchema = z.object({
-  customer_id: z.string(),
+  customer_id: customerIdSchema,
   name: z.string().optional(),
 });
 
@@ -134,12 +150,38 @@ export const WishlistItemAddToWishlistSchema = z
     quantity: z.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.wishlist_id && !data.customer_id) {
+    const hasWishlistId = data.wishlist_id && data.wishlist_id.trim().length > 0;
+    const hasCustomerId = data.customer_id && data.customer_id.trim().length > 0;
+
+    if (!hasWishlistId && !hasCustomerId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Either wishlist_id or customer_id is required',
+        message: 'Either wishlist_id or customer_id is required and cannot be empty',
         path: ['customer_id'],
       });
+    }
+
+    if (data.customer_id) {
+      const trimmed = data.customer_id.trim();
+      if (trimmed.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'customer_id cannot be empty',
+          path: ['customer_id'],
+        });
+      } else if (trimmed.includes('{{') || trimmed.includes('}}')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'customer_id must be a valid customer ID',
+          path: ['customer_id'],
+        });
+      } else if (trimmed.length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'customer_id must be a valid customer ID',
+          path: ['customer_id'],
+        });
+      }
     }
 
     if (data.items && data.items.length > 0) {

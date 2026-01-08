@@ -20,8 +20,21 @@ export const ensureWishlistStep = createStep(
     }
 
     if (input.customer_id) {
+      const trimmed = input.customer_id.trim();
+      if (trimmed.length === 0) {
+        throw new Error('customer_id is required and cannot be empty');
+      }
+
+      if (trimmed.includes('{{') || trimmed.includes('}}')) {
+        throw new Error('customer_id must be a valid customer ID');
+      }
+
+      if (trimmed.length < 3) {
+        throw new Error('customer_id must be a valid customer ID');
+      }
+
       const wishlist = await wishlistService.createWishlists({
-        customer_id: input.customer_id,
+        customer_id: trimmed,
         name: input.name || undefined,
       });
       return new StepResponse(wishlist);

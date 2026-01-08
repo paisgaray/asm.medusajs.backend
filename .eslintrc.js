@@ -5,6 +5,15 @@ module.exports = {
   plugins: [ '@typescript-eslint/eslint-plugin', 'eslint-plugin-import-helpers' ],
   parser: '@typescript-eslint/parser',
   parserOptions: { project: "tsconfig.json", sourceType: "module" },
+  overrides: [
+    {
+      files: ["src/admin/**/*"],
+      parserOptions: {
+        project: "./src/admin/tsconfig.json",
+        sourceType: "module"
+      }
+    }
+  ],
   rules: {
     "camelcase": "off",
     "dot-notation": "off",

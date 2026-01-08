@@ -32,7 +32,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
             [Modules.SALES_CHANNEL]: { sales_channel_id: scId },
           });
         } catch (error) {
-          console.error(`Error linking product ${productId} to sales channel ${scId}:`, error);
         }
       }
     }
@@ -45,7 +44,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
             [Modules.SALES_CHANNEL]: { sales_channel_id: scId },
           });
         } catch (error) {
-          console.error(`Error unlinking product ${productId} from sales channel ${scId}:`, error);
         }
       }
     }

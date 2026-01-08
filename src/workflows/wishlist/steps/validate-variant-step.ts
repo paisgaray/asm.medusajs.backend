@@ -18,6 +18,26 @@ export const validateVariantStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
     try {
+      const productResult = await query.graph({
+        entity: 'product',
+        fields: ['id', 'status', 'variants.id', 'variants.product_id'],
+        filters: {
+          id: product_id,
+        },
+      });
+
+      const products = productResult?.data || [];
+
+      if (!products || products.length === 0) {
+        throw new Error(`Product ${product_id} does not exist`);
+      }
+
+      const product = products[0];
+
+      if (product.status !== 'published') {
+        throw new Error(`Product ${product_id} is not published. Current status: ${product.status}`);
+      }
+
       const variantsResult = await query.graph({
         entity: 'product_variant',
         fields: ['id', 'product_id', 'product.id', 'product.status'],
@@ -30,16 +50,17 @@ export const validateVariantStep = createStep(
 
       if (variants && variants.length > 0) {
         const variant = variants[0];
-        const product = variant.product;
+        const variantProduct = variant.product;
 
-        if (product && product.status === 'published') {
+        if (variantProduct && variantProduct.status === 'published') {
           if (variant.product_id === product_id) {
             return new StepResponse({
               variant_id: variant.id,
-              product_id: product.id,
+              product_id: variantProduct.id,
               fallback: false,
             });
           }
+          throw new Error(`Variant ${variant_id} belongs to product ${variant.product_id}, not ${product_id}`);
         }
       }
 
@@ -54,40 +75,16 @@ export const validateVariantStep = createStep(
       const allVariants = allVariantsResult?.data || [];
 
       if (!allVariants || allVariants.length === 0) {
-        if (variants && variants.length > 0) {
-          const variant = variants[0];
-          const product = variant.product;
-          if (product && product.status === 'published') {
-            return new StepResponse({
-              variant_id: variant.id,
-              product_id: product.id,
-              original_variant_id: variant_id,
-              fallback: true,
-            });
-          }
-        }
-        throw new Error(`Product ${product_id} has no variants or variant ${variant_id} does not exist`);
+        throw new Error(`Product ${product_id} has no variants`);
       }
 
       const publishedVariant = allVariants.find((v) => {
-        const product = v.product;
-        return product && product.status === 'published';
+        const vProduct = v.product;
+        return vProduct && vProduct.status === 'published';
       });
 
       if (!publishedVariant) {
-        if (variants && variants.length > 0) {
-          const variant = variants[0];
-          const product = variant.product;
-          if (product && product.status === 'published') {
-            return new StepResponse({
-              variant_id: variant.id,
-              product_id: product.id,
-              original_variant_id: variant_id,
-              fallback: true,
-            });
-          }
-        }
-        throw new Error(`Product ${product_id} is not published or has no published variants`);
+        throw new Error(`Product ${product_id} has no published variants`);
       }
 
       return new StepResponse({

@@ -36,6 +36,7 @@ export const StoreWishlistListQuerySchema = createFindParams().merge(
 export const StoreWishlistRetrieveQuerySchema = selectParams.merge(
   z.object({
     customer_id: z.string().optional(),
+    region_id: z.string().optional(),
   }),
 );
 
@@ -141,7 +142,7 @@ export type WishlistItemsListQuery = z.infer<typeof WishlistItemsListQuerySchema
 
 export const WishlistItemAddToWishlistSchema = z
   .object({
-    wishlist_id: z.string().optional(),
+    wishlist_id: z.string().min(1, 'wishlist_id is required and cannot be empty'),
     customer_id: z.string().optional(),
     name: z.string().optional(),
     items: z.array(WishlistSingleItemSchema).optional(),
@@ -150,38 +151,12 @@ export const WishlistItemAddToWishlistSchema = z
     quantity: z.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
-    const hasWishlistId = data.wishlist_id && data.wishlist_id.trim().length > 0;
-    const hasCustomerId = data.customer_id && data.customer_id.trim().length > 0;
-
-    if (!hasWishlistId && !hasCustomerId) {
+    if (!data.wishlist_id || data.wishlist_id.trim().length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Either wishlist_id or customer_id is required and cannot be empty',
-        path: ['customer_id'],
+        message: 'wishlist_id is required and cannot be empty',
+        path: ['wishlist_id'],
       });
-    }
-
-    if (data.customer_id) {
-      const trimmed = data.customer_id.trim();
-      if (trimmed.length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'customer_id cannot be empty',
-          path: ['customer_id'],
-        });
-      } else if (trimmed.includes('{{') || trimmed.includes('}}')) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'customer_id must be a valid customer ID',
-          path: ['customer_id'],
-        });
-      } else if (trimmed.length < 3) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'customer_id must be a valid customer ID',
-          path: ['customer_id'],
-        });
-      }
     }
 
     if (data.items && data.items.length > 0) {

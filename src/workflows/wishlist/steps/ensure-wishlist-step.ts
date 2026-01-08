@@ -33,6 +33,22 @@ export const ensureWishlistStep = createStep(
         throw new Error('customer_id must be a valid customer ID');
       }
 
+      const existingWishlists = await wishlistService.listWishlists({
+        customer_id: trimmed,
+      });
+
+      if (existingWishlists && existingWishlists.length > 0) {
+        const existingWishlist = existingWishlists[0];
+        if (input.name && existingWishlist.name !== input.name) {
+          await wishlistService.updateWishlistById(existingWishlist.id, {
+            name: input.name,
+          });
+          const updated = await wishlistService.retrieveWishlist(existingWishlist.id);
+          return new StepResponse(updated);
+        }
+        return new StepResponse(existingWishlist);
+      }
+
       const wishlist = await wishlistService.createWishlists({
         customer_id: trimmed,
         name: input.name || undefined,

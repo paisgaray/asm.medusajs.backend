@@ -1,5 +1,8 @@
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { WISHLIST_MODULE } from '../../../modules/wishlist';
+import WishlistService from '../../../modules/wishlist/service';
 import { addWishlistItemToCartWorkflow } from '../../wishlist/add-wishlist-item-to-cart';
 
 type WishlistVariantItem = {
@@ -61,6 +64,7 @@ function extractErrorMessage(error: unknown): string {
 export const addWishlistItemsToCartStep = createStep(
   'add-wishlist-items-to-cart-step',
   async (input: AddWishlistItemsToCartStepInput, { container }) => {
+    const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
     const addedItems: AddedItem[] = [];
     const errors: ItemError[] = [];
     let finalCart: unknown;
@@ -91,6 +95,19 @@ export const addWishlistItemsToCartStep = createStep(
         });
 
         finalCart = result.cart;
+
+        try {
+          await wishlistService.deleteWishlistItems(item.id);
+        } catch (deleteError) {
+          const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as {
+            error?: (message: string) => void;
+          };
+          logger?.error?.(
+            `Failed to remove wishlist item ${item.id} after adding to cart ${input.cart_id}: ${
+              deleteError instanceof Error ? deleteError.message : deleteError
+            }`,
+          );
+        }
       } catch (error: unknown) {
         errors.push({
           item_id: item.id,

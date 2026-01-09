@@ -96,17 +96,22 @@ export const addWishlistItemsToCartStep = createStep(
 
         finalCart = result.cart;
 
+        // Remove item da wishlist após adicionar ao carrinho com sucesso
         try {
           await wishlistService.deleteWishlistItems(item.id);
         } catch (deleteError) {
           const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as {
             error?: (message: string) => void;
           };
+          const errorMessage = deleteError instanceof Error ? deleteError.message : String(deleteError);
           logger?.error?.(
-            `Failed to remove wishlist item ${item.id} after adding to cart ${input.cart_id}: ${
-              deleteError instanceof Error ? deleteError.message : deleteError
-            }`,
+            `Failed to remove wishlist item ${item.id} after adding to cart ${input.cart_id}: ${errorMessage}`,
           );
+          // Adiciona erro à lista de erros para que o usuário saiba que o item não foi removido
+          errors.push({
+            item_id: item.id,
+            error: `Item added to cart but failed to remove from wishlist: ${errorMessage}`,
+          });
         }
       } catch (error: unknown) {
         errors.push({

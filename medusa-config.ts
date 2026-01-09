@@ -115,6 +115,28 @@ if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
   });
 }
 
+// Módulo de Notificação com SendGrid (opcional - apenas se SENDGRID_FROM estiver configurado)
+// Nota: Para salvar contatos no CRM, apenas SENDGRID_API_KEY é necessária
+// O módulo de notificação só é necessário se você quiser enviar emails via SendGrid
+if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM) {
+  modules.push({
+    resolve: '@medusajs/medusa/notification',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/notification-sendgrid',
+          id: 'sendgrid',
+          options: {
+            channels: ['email'],
+            api_key: process.env.SENDGRID_API_KEY,
+            from: process.env.SENDGRID_FROM,
+          },
+        },
+      ],
+    },
+  });
+}
+
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,

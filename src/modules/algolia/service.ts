@@ -241,8 +241,7 @@ export default class AlgoliaModuleService {
     const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters =
-      language && query.trim().length > 0 ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);

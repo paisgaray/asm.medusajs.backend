@@ -32,6 +32,7 @@ export const searchProductsStep = createStep(
       );
 
       if (!result?.results?.[0]) {
+        const frontendPage = input.page ?? 0;
         return new StepResponse<{
           products: AlgoliaSearchHit[];
           total: number;
@@ -42,7 +43,7 @@ export const searchProductsStep = createStep(
         }>({
           products: [],
           total: 0,
-          page: 0,
+          page: frontendPage,
           nbHits: 0,
           nbPages: 0,
           query: input.query,
@@ -51,6 +52,8 @@ export const searchProductsStep = createStep(
 
       const firstResult = result.results[0];
       const hits = firstResult.hits || [];
+
+      const algoliaPage = firstResult.page || 0;
 
       return new StepResponse<{
         products: AlgoliaSearchHit[];
@@ -62,7 +65,7 @@ export const searchProductsStep = createStep(
       }>({
         products: hits,
         total: firstResult.nbHits || 0,
-        page: firstResult.page || 0,
+        page: algoliaPage,
         nbHits: firstResult.nbHits || 0,
         nbPages: firstResult.nbPages || 0,
         query: input.query,

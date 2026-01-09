@@ -1,5 +1,8 @@
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { WISHLIST_MODULE } from '../../../modules/wishlist';
+import WishlistService from '../../../modules/wishlist/service';
 import { addWishlistItemToCartWorkflow } from '../../wishlist/add-wishlist-item-to-cart';
 
 type WishlistVariantItem = {
@@ -69,6 +72,8 @@ type AddSingleWishlistItemToCartStepInput = {
 export const addSingleWishlistItemToCartStep = createStep(
   'add-single-wishlist-item-to-cart-step',
   async (input: AddSingleWishlistItemToCartStepInput, { container }) => {
+    const wishlistService: WishlistService = container.resolve(WISHLIST_MODULE);
+
     try {
       const workflow = addWishlistItemToCartWorkflow(container);
       const { result } = await workflow.run({
@@ -87,7 +92,7 @@ export const addSingleWishlistItemToCartStep = createStep(
         status: 200,
         body: {
           cart: result.cart,
-          message: 'Item added to cart successfully',
+          message: 'Item added to cart successfully and removed from wishlist',
         },
       };
 
@@ -95,7 +100,20 @@ export const addSingleWishlistItemToCartStep = createStep(
         response.body.variant_used = validatedVariant.variant_id;
         response.body.original_variant_id = input.item.product_variant_id;
         response.body.fallback_used = true;
-        response.body.message = 'Item added to cart successfully (variant was updated to a valid one)';
+        response.body.message = 'Item added to cart successfully (variant was updated to a valid one) and removed from wishlist';
+      }
+
+      try {
+        await wishlistService.deleteWishlistItems(input.item.id);
+      } catch (deleteError) {
+        const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as {
+          error?: (message: string) => void;
+        };
+        logger?.error?.(
+          `Failed to remove wishlist item ${input.item.id} after adding to cart ${input.cart_id}: ${
+            deleteError instanceof Error ? deleteError.message : deleteError
+          }`,
+        );
       }
 
       return new StepResponse<AddSingleWishlistItemToCartStepResult>(response);

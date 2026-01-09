@@ -1,14 +1,15 @@
-import { algoliasearch, SearchClient } from 'algoliasearch';
 import { MedusaError } from '@medusajs/framework/utils';
+import { algoliasearch, SearchClient } from 'algoliasearch';
 
 import type {
   AlgoliaProduct,
   AlgoliaSearchRequest,
   AlgoliaSearchResponse,
-  AlgoliaSearchResult,
   AlgoliaRecentSearchesResponse,
   AlgoliaRecentSearch,
   ProductInput,
+  ProductCollection,
+  ProductTag,
   AlgoliaError,
   SalesChannel,
   SalesChannelMetadata,
@@ -130,17 +131,15 @@ export default class AlgoliaModuleService {
 
   async getIndexName(type: AlgoliaIndexType = 'product', language?: string): Promise<string> {
     switch (type) {
-      case 'product':
+      case 'product': {
         const base = this.options.productIndexName;
         if (language && language !== 'pt') {
           return `${base}_${language}`;
         }
         return base;
+      }
       default:
-        throw new MedusaError(
-          MedusaError.Types.INVALID_ARGUMENT,
-          `Invalid index type: ${type}`,
-        );
+        throw new MedusaError(MedusaError.Types.INVALID_ARGUMENT, `Invalid index type: ${type}`);
     }
   }
 
@@ -242,9 +241,7 @@ export default class AlgoliaModuleService {
     const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters = language && query.trim().length > 0
-      ? this.buildRegionalTagFilters(language.toLowerCase())
-      : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);
@@ -273,10 +270,7 @@ export default class AlgoliaModuleService {
           ? 'Cannot connect to Algolia servers. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file, and verify your network connection.'
           : 'Network error while connecting to Algolia. Please try again later.';
 
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          `Algolia search failed: ${errorDetails}`,
-        );
+        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Algolia search failed: ${errorDetails}`);
       }
 
       const isIndexError =
@@ -287,9 +281,8 @@ export default class AlgoliaModuleService {
       if (isIndexError && sortBy) {
         try {
           const fallbackFilters = filters ? [filters] : [];
-          const fallbackRegional = language && query.trim().length > 0
-            ? this.buildRegionalTagFilters(language.toLowerCase())
-            : [];
+          const fallbackRegional =
+            language && query.trim().length > 0 ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
           const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
 
           const fallbackRequest = this.createSearchRequest(
@@ -370,10 +363,7 @@ export default class AlgoliaModuleService {
           ? 'Cannot connect to Algolia servers. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file, and verify your network connection.'
           : 'Network error while connecting to Algolia. Please try again later.';
 
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          `Algolia search failed: ${errorDetails}`,
-        );
+        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Algolia search failed: ${errorDetails}`);
       }
 
       throw new MedusaError(
@@ -416,10 +406,7 @@ export default class AlgoliaModuleService {
           ? 'Cannot connect to Algolia servers. Please check ALGOLIA_APP_ID and ALGOLIA_API_KEY in your .env file, and verify your network connection.'
           : 'Network error while connecting to Algolia. Please try again later.';
 
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          `Algolia autocomplete failed: ${errorDetails}`,
-        );
+        throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Algolia autocomplete failed: ${errorDetails}`);
       }
 
       const isIndexError =
@@ -688,15 +675,66 @@ export default class AlgoliaModuleService {
       if (typeof metadata[handleKey] === 'string') handle = metadata[handleKey];
     }
 
-    const tagValues = Array.isArray(product.tags)
-      ? product.tags.map((tag) => (typeof tag === 'string' ? tag : tag.value || tag.name || ''))
-      : [];
+    const tagsFormatted: Array<{ id: string; value: string }> = [];
+    if (product.tags !== undefined && product.tags !== null) {
+      if (Array.isArray(product.tags)) {
+        for (const tag of product.tags) {
+          if (typeof tag === 'string' && tag.trim()) {
+            tagsFormatted.push({ id: '', value: tag.trim() });
+          } else if (tag && typeof tag === 'object') {
+            const tagObj = tag as ProductTag;
+            const tagId = tagObj.id || '';
+            const tagValue = tagObj.value || tagObj.name || '';
+            if (tagValue && String(tagValue).trim()) {
+              tagsFormatted.push({ id: String(tagId), value: String(tagValue).trim() });
+            }
+          }
+        }
+      } else {
+        const tagsString = product.tags as string;
+        if (typeof tagsString === 'string' && tagsString.trim()) {
+          tagsFormatted.push({ id: '', value: tagsString.trim() });
+        }
+      }
+    }
+
+    const tagValues = tagsFormatted.map((t) => t.value);
 
     const collectionIds: string[] = [];
-    if (product.collection_id) collectionIds.push(product.collection_id);
+    const collectionsFull: Array<{ id: string; handle: string; title: string }> = [];
+
+    const collection = (product as { collection?: ProductCollection }).collection;
+    if (collection?.id) {
+      collectionIds.push(collection.id);
+      const handle = collection.handle || '';
+      const title = collection.title || '';
+      if (handle && title) {
+        collectionsFull.push({
+          id: collection.id,
+          handle: String(handle),
+          title: String(title),
+        });
+      }
+    }
+
+    if (product.collection_id && !collectionIds.includes(product.collection_id)) {
+      collectionIds.push(product.collection_id);
+    }
+
     if (Array.isArray(product.collections)) {
-      const ids = product.collections.map((col) => (typeof col === 'string' ? col : col.id || '')).filter(Boolean);
-      collectionIds.push(...ids);
+      for (const col of product.collections) {
+        const colId = typeof col === 'string' ? col : col.id;
+        if (colId && !collectionIds.includes(colId)) {
+          collectionIds.push(colId);
+        }
+        if (typeof col === 'object' && col.id && col.handle && col.title) {
+          collectionsFull.push({
+            id: col.id,
+            handle: col.handle || '',
+            title: col.title || '',
+          });
+        }
+      }
     }
 
     const regionalTagsFromSC = this.getRegionalTagsFromSalesChannels(product.sales_channels);
@@ -710,6 +748,20 @@ export default class AlgoliaModuleService {
 
     if (!Array.isArray(regionalTags)) {
       regionalTags = [String(regionalTags)];
+    }
+
+    const images: Array<{ id: string; url: string }> = [];
+    if (Array.isArray(product.images)) {
+      for (const img of product.images) {
+        if (img && typeof img === 'object') {
+          const imgObj = img as { id?: string; url?: string };
+          const imgId = imgObj.id || '';
+          const imgUrl = imgObj.url || '';
+          if (imgId && imgUrl) {
+            images.push({ id: String(imgId), url: String(imgUrl) });
+          }
+        }
+      }
     }
 
     return {
@@ -727,9 +779,11 @@ export default class AlgoliaModuleService {
           }))
         : [],
       sku: product.variants?.[0]?.sku || '',
-      tags: tagValues,
+      tags: tagsFormatted,
       regional_tags: regionalTags,
       collections: [...new Set(collectionIds)],
+      collections_full: collectionsFull,
+      images,
       prices_by_region: product.prices_by_region || {},
       price: this.getProductPrice(product),
       created_at: this.getCreatedAtIndex(product.created_at),

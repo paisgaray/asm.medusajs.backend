@@ -36,11 +36,28 @@ export const StoreWishlistListQuerySchema = createFindParams().merge(
 export const StoreWishlistRetrieveQuerySchema = selectParams.merge(
   z.object({
     customer_id: z.string().optional(),
+    region_id: z.string().optional(),
   }),
 );
 
+const customerIdSchema = z
+  .string()
+  .min(1, 'customer_id is required and cannot be empty')
+  .refine(
+    (val) => {
+      const trimmed = val.trim();
+      if (trimmed.length === 0) return false;
+      if (trimmed.includes('{{') || trimmed.includes('}}')) return false;
+      if (trimmed.length < 3) return false;
+      return true;
+    },
+    {
+      message: 'customer_id must be a valid customer ID',
+    },
+  );
+
 export const StoreWishlistCreateSchema = z.object({
-  customer_id: z.string(),
+  customer_id: customerIdSchema,
   name: z.string().optional(),
 });
 
@@ -125,7 +142,7 @@ export type WishlistItemsListQuery = z.infer<typeof WishlistItemsListQuerySchema
 
 export const WishlistItemAddToWishlistSchema = z
   .object({
-    wishlist_id: z.string().optional(),
+    wishlist_id: z.string().min(1, 'wishlist_id is required and cannot be empty'),
     customer_id: z.string().optional(),
     name: z.string().optional(),
     items: z.array(WishlistSingleItemSchema).optional(),
@@ -134,11 +151,11 @@ export const WishlistItemAddToWishlistSchema = z
     quantity: z.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.wishlist_id && !data.customer_id) {
+    if (!data.wishlist_id || data.wishlist_id.trim().length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Either wishlist_id or customer_id is required',
-        path: ['customer_id'],
+        message: 'wishlist_id is required and cannot be empty',
+        path: ['wishlist_id'],
       });
     }
 

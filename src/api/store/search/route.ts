@@ -6,17 +6,21 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
   try {
     const query = (req.query.q as string) || '';
     const filters = (req.query.filters as string) || '';
-    const page = req.query.page ? Number(req.query.page) : 0;
+    const pageParam = req.query.page !== undefined ? Number(req.query.page) : 0;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
     const sortBy = (req.query.sortBy as string) || undefined;
+    const language = (req.query.language as string) || 'pt';
+
+    const algoliaPage = Math.max(0, pageParam);
 
     const { result } = await searchProductsWorkflow(req.scope).run({
       input: {
         query,
         filters,
-        page,
+        page: algoliaPage,
         limit,
         sortBy,
+        language,
       },
     });
 

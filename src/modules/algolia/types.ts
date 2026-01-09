@@ -1,3 +1,19 @@
+export type AlgoliaCollection = {
+  id: string;
+  handle: string;
+  title: string;
+};
+
+export type AlgoliaImage = {
+  id: string;
+  url: string;
+};
+
+export type AlgoliaTag = {
+  id: string;
+  value: string;
+};
+
 export type AlgoliaProduct = {
   objectID: string;
   title: string;
@@ -11,9 +27,11 @@ export type AlgoliaProduct = {
     sku: string;
   }[];
   sku: string;
-  tags: string[];
+  tags: AlgoliaTag[];
   regional_tags: string[];
   collections: string[];
+  collections_full: AlgoliaCollection[];
+  images: AlgoliaImage[];
   prices_by_region: Record<string, number>;
   price: number;
   created_at: number;
@@ -111,12 +129,20 @@ export type ProductVariant = {
 };
 
 export type ProductTag = {
+  id?: string;
   value?: string;
   name?: string;
 };
 
+export type ProductImage = {
+  id?: string;
+  url?: string;
+};
+
 export type ProductCollection = {
   id?: string;
+  handle?: string | null;
+  title?: string | null;
 };
 
 export type SalesChannelMetadata = Record<string, string | number | boolean | null>;
@@ -138,6 +164,7 @@ export type ProductInput = {
   metadata?: Record<string, string | number | boolean | null>;
   variants?: ProductVariant[];
   tags?: (string | ProductTag)[];
+  images?: ProductImage[];
   collections?: (string | ProductCollection)[];
   sales_channels?: SalesChannel[];
   prices_by_region?: Record<string, number>;

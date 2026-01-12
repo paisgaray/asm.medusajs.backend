@@ -1,5 +1,5 @@
 import { defineMiddlewares } from '@medusajs/framework/http';
-import { z } from 'zod';
+import { validateAndTransformBody } from '@medusajs/framework';
 
 import { StoreProductSearchBodySchema } from './validators';
 
@@ -9,9 +9,7 @@ export default defineMiddlewares({
       matcher: '/store/products/search',
       method: 'POST',
       bodyParser: { sizeLimit: '1mb' },
+      middlewares: [validateAndTransformBody(StoreProductSearchBodySchema)],
     },
   ],
-  validate: {
-    body: StoreProductSearchBodySchema,
-  },
 });

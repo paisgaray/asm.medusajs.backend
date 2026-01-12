@@ -104,7 +104,7 @@ export async function POST(req: MedusaRequest<StoreProductSearchBody>, res: Medu
     if (currency_code || finalRegionId) {
       context.variants = {
         calculated_price: QueryContext({
-          currency_code,
+          currency_code: currency_code?.toLowerCase(),
           region_id: finalRegionId,
         }),
       };

@@ -111,7 +111,7 @@ export class SendGridMarketingService {
         },
       });
 
-      return response.body.result_count > 0;
+      return (response.body as any).result_count > 0;
     } catch {
       return false;
     }

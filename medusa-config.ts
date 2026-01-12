@@ -20,6 +20,7 @@ const addLocalModuleIfExists = (relativePath: string) => {
 
 addLocalModuleIfExists('./src/modules/bundled-product');
 addLocalModuleIfExists('./src/modules/wishlist');
+addLocalModuleIfExists('./src/modules/newsletter');
 
 // Módulo Algolia
 const algoliaModulePath = path.resolve(process.cwd(), './src/modules/algolia');

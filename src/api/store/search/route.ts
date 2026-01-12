@@ -118,15 +118,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
 
     const queryOptions = {
       entity: 'product',
-      fields: [
-        'id',
-        'title',
-        'handle',
-        'description',
-        'thumbnail',
-        'variants.*',
-        'variants.calculated_price.*',
-      ],
+      fields: ['id', 'title', 'handle', 'description', 'thumbnail', 'variants.*', 'variants.calculated_price.*'],
       filters: {},
       ...(Object.keys(context).length > 0 ? { context } : {}),
     };

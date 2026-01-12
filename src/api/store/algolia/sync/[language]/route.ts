@@ -14,7 +14,7 @@ import { syncProductsWorkflow } from '../../../../../workflows/algolia/sync-prod
 
 /**
  * Rota pública de sync do Algolia (via store para não precisar de autenticação admin)
- * 
+ *
  * Uso:
  * POST /store/algolia/sync/pt
  * POST /store/algolia/sync/pt?skipClear=true
@@ -54,10 +54,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
 
   const rateLimitResult = await canExecuteSync(req.scope, validatedLanguage);
   if (!rateLimitResult.allowed) {
+    const retryAfter = Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000);
     res.status(429).json({
       message: 'Rate limit exceeded',
-      error: `Too many sync requests. Please try again after ${rateLimitResult.retryAfter} seconds.`,
-      retryAfter: rateLimitResult.retryAfter,
+      error: `Too many sync requests. Please try again after ${retryAfter} seconds.`,
+      retryAfter,
     });
     return;
   }

@@ -1,15 +1,13 @@
+import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
 import { loadEnv, defineConfig } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd());
 
-type ModuleConfig = {
-  resolve: string;
-  options?: Record<string, unknown>;
-};
-
-const modules: ModuleConfig[] = [];
+const modules:
+  | InputConfigModules
+  | Record<string, boolean | Partial<InternalModuleDeclaration | ExternalModuleDeclaration>> = [];
 
 const addLocalModuleIfExists = (relativePath: string) => {
   const fullPath = path.resolve(process.cwd(), relativePath);
@@ -87,6 +85,9 @@ modules.push(
         },
       ],
     },
+  },
+  {
+    resolve: './src/modules/region-zipcodes',
   },
 );
 

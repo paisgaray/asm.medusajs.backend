@@ -1,5 +1,5 @@
-import { defineMiddlewares } from '@medusajs/framework/http';
 import { validateAndTransformBody } from '@medusajs/framework';
+import { defineMiddlewares } from '@medusajs/framework/http';
 
 import { StoreProductSearchBodySchema } from './validators';
 

@@ -83,7 +83,7 @@ export default class AlgoliaModuleService {
   }
 
   getSupportedLanguages(): string[] {
-    return this.options.supportedLanguages || ['pt'];
+    return this.options.supportedLanguages || ['es'];
   }
 
   isLanguageSupported(language: string): boolean {
@@ -91,9 +91,9 @@ export default class AlgoliaModuleService {
   }
 
   validateLanguage(language?: string): string {
-    if (!language) return 'pt';
+    if (!language) return 'es';
     const normalized = language.toLowerCase();
-    return this.isLanguageSupported(normalized) ? normalized : 'pt';
+    return this.isLanguageSupported(normalized) ? normalized : 'es';
   }
 
   mapRegionalTagToLanguage(regionalTag: string): string {
@@ -133,7 +133,7 @@ export default class AlgoliaModuleService {
     switch (type) {
       case 'product': {
         const base = this.options.productIndexName;
-        if (language && language !== 'pt') {
+        if (language && language !== 'es') {
           return `${base}_${language}`;
         }
         return base;
@@ -214,6 +214,7 @@ export default class AlgoliaModuleService {
     page: number,
     hitsPerPage: number,
     filterString?: string,
+    sortBy?: string,
   ): AlgoliaSearchRequest {
     const request: AlgoliaSearchRequest['requests'][number] = {
       indexName,
@@ -238,10 +239,19 @@ export default class AlgoliaModuleService {
     language?: string,
   ): Promise<AlgoliaSearchResponse> {
     const baseIndex = await this.getIndexName('product', language);
-    const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
+    
+    // Try to use replica index for sorting if sortBy is provided
+    // If replica doesn't exist, fallback to base index
+    let indexName = baseIndex;
+    let shouldTryReplica = false;
+    
+    if (sortBy) {
+      indexName = `${baseIndex}_${sortBy}`;
+      shouldTryReplica = true;
+    }
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters: string[] = [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);
@@ -278,22 +288,13 @@ export default class AlgoliaModuleService {
         errorMessage.includes('index not found') ||
         errorMessage.includes('invalid index name');
 
-      if (isIndexError && sortBy) {
+      // If replica index doesn't exist and we have sortBy, fallback to base index
+      if (isIndexError && shouldTryReplica) {
         try {
-          const fallbackFilters = filters ? [filters] : [];
-          const fallbackRegional =
-            language && query.trim().length > 0 ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
-          const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
-
-          const fallbackRequest = this.createSearchRequest(
-            baseIndex,
-            query || '',
-            page,
-            hitsPerPage,
-            fallbackFilterString,
-          );
+          const fallbackRequest = this.createSearchRequest(baseIndex, query || '', page, hitsPerPage, filterString);
           return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
-        } catch {
+        } catch (fallbackError) {
+          // If fallback also fails, return empty results
           return {
             results: [
               {
@@ -376,8 +377,7 @@ export default class AlgoliaModuleService {
   async autocomplete(query: string, hitsPerPage = 5, filters = '', language?: string): Promise<AlgoliaSearchResponse> {
     const indexName = await this.getIndexName('product', language);
     const filterParts = filters ? [filters] : [];
-    // Autocomplete sempre aplica filtros regionais quando há language
-    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters: string[] = [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', 0, hitsPerPage, filterString);

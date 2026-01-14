@@ -48,8 +48,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
     const filters = (req.query.filters as string) || '';
     const pageParam = req.query.page !== undefined ? Number(req.query.page) : 0;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
-    const sortBy = (req.query.sortBy as string) || undefined;
-    const language = (req.query.language as string) || 'pt';
+    const sortBy = (req.query.sortBy as string) || (req.query.sort_by as string) || undefined;
+    const language = (req.query.language as string) || 'es';
     const currency_code = (req.query.currency_code as string) || undefined;
     const region_id = (req.query.region_id as string) || undefined;
 

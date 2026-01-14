@@ -44,10 +44,11 @@ export async function POST(req: MedusaRequest<StoreProductSearchBody>, res: Medu
   try {
     const algoliaModuleService: AlgoliaModuleService = req.scope.resolve(ALGOLIA_MODULE);
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-    const { query: searchQuery, filters, page, limit, sortBy, language, currency_code, region_id } = req.validatedBody;
+    const { query: searchQuery, filters, page, limit, sortBy, sort_by, language, currency_code, region_id } = req.validatedBody;
 
     const pageNum = page ?? 0;
     const limitNum = limit ?? 20;
+    const finalSortBy = sort_by || sortBy;
     const validatedLanguage = algoliaModuleService.validateLanguage(language);
 
     const results = await algoliaModuleService.searchProducts(
@@ -55,7 +56,7 @@ export async function POST(req: MedusaRequest<StoreProductSearchBody>, res: Medu
       filters || '',
       pageNum,
       limitNum,
-      sortBy,
+      finalSortBy,
       validatedLanguage,
     );
 

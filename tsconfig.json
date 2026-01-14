@@ -29,8 +29,7 @@
   ],
   "exclude": [
     "node_modules",
-    ".medusa/server",
-    ".medusa/admin",
+    ".medusa/*",
     ".cache",
     "src/admin"
   ]

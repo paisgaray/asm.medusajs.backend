@@ -1,5 +1,5 @@
 import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
-import { loadEnv, defineConfig } from '@medusajs/framework/utils';
+import { defineConfig, loadEnv } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -67,7 +67,7 @@ modules.push(
     resolve: '@medusajs/medusa/workflow-engine-redis',
     options: {
       redis: {
-        url: process.env.WE_REDIS_URL || redisUrl,
+        redisUrl: process.env.WE_REDIS_URL || redisUrl,
       },
     },
   },
@@ -88,6 +88,9 @@ modules.push(
   },
   {
     resolve: './src/modules/region-zipcodes',
+  },
+  {
+    resolve: '@medusajs/medusa/translation',
   },
 );
 
@@ -134,4 +137,7 @@ export default defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
   },
   modules,
+  featureFlags: {
+    translation: true,
+  },
 });

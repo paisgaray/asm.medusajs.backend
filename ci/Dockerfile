@@ -1,53 +1,47 @@
 # ==========================
 # 1) BUILDER
 # ==========================
-FROM node:23-slim AS builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:23 AS builder
 
 WORKDIR /app/medusa
 
-# Ativa o Yarn 4
-RUN corepack enable && corepack prepare yarn@4.6.0 --activate
+COPY . .
 
-# Copiamos as configurações do Yarn primeiro (com o truque do '*' para não falhar)
-COPY .yarn* ./.yarn/
-COPY package.json yarn.lock* .yarnrc.yml ./
+# dependências necessárias para sharp / prisma / etc
+RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
-# Garante que o Medusa use node_modules (essencial para compatibilidade)
-RUN yarn config set nodeLinker node-modules
-
-# Instalação das dependências
 RUN yarn install --frozen-lockfile
 
-# Agora copiamos o código e rodamos o build uma única vez
-COPY . .
 RUN yarn build
+
 
 # ==========================
 # 2) PRODUCTION IMAGE
 # ==========================
-FROM node:23-slim AS production
+FROM node:23 AS production
 
 WORKDIR /app/medusa
 
-# Habilita o Yarn 4 na produção também
-RUN corepack enable && corepack prepare yarn@4.6.0 --activate
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    && rm -rf /var/lib/apt/lists/*
-
 ENV NODE_ENV=production
 
-# Copiamos o projeto pronto do builder
-COPY --from=builder /app/medusa /app/medusa
+# dependências necessárias somente para runtime
+RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
 
-# Garantir que o script de inicialização tenha permissão de execução
+# Copia resultado do build (JS, migrations, tudo dentro de .medusa)
+COPY --from=builder /app/medusa/.medusa ./.medusa
+COPY --from=builder /app/medusa/tsconfig.json /app/medusa/.medusa/server/tsconfig.json
+
+
+WORKDIR /app/medusa/.medusa/server
+
+# instala somente dependências do servidor compilado
+RUN yarn install --production --frozen-lockfile
+
+# Copia entrypoint
+COPY start.sh ./start.sh
 RUN chmod +x ./start.sh
 
 EXPOSE 9000
 
 ENTRYPOINT ["./start.sh"]
+CMD ["yarn", "start"]

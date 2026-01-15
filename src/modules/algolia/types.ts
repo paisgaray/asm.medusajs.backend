@@ -25,6 +25,10 @@ export type AlgoliaProduct = {
     id: string;
     title: string;
     sku: string;
+    calculated_price?: {
+      calculated_amount: number;
+      currency_code: string;
+    } | null;
   }[];
   sku: string;
   tags: AlgoliaTag[];

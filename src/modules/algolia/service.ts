@@ -214,7 +214,7 @@ export default class AlgoliaModuleService {
     page: number,
     hitsPerPage: number,
     filterString?: string,
-    sortBy?: string,
+    _sortBy?: string,
   ): AlgoliaSearchRequest {
     const request: AlgoliaSearchRequest['requests'][number] = {
       indexName,
@@ -239,12 +239,12 @@ export default class AlgoliaModuleService {
     language?: string,
   ): Promise<AlgoliaSearchResponse> {
     const baseIndex = await this.getIndexName('product', language);
-    
+
     // Try to use replica index for sorting if sortBy is provided
     // If replica doesn't exist, fallback to base index
     let indexName = baseIndex;
     let shouldTryReplica = false;
-    
+
     if (sortBy) {
       indexName = `${baseIndex}_${sortBy}`;
       shouldTryReplica = true;
@@ -293,8 +293,7 @@ export default class AlgoliaModuleService {
         try {
           const fallbackRequest = this.createSearchRequest(baseIndex, query || '', page, hitsPerPage, filterString);
           return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
-        } catch (fallbackError) {
-          // If fallback also fails, return empty results
+        } catch {
           return {
             results: [
               {
@@ -776,6 +775,12 @@ export default class AlgoliaModuleService {
             id: v.id || '',
             title: v.title || '',
             sku: v.sku || '',
+            calculated_price: v.calculated_price
+              ? {
+                  calculated_amount: v.calculated_price.calculated_amount || 0,
+                  currency_code: v.calculated_price.currency_code || 'USD',
+                }
+              : null,
           }))
         : [],
       sku: product.variants?.[0]?.sku || '',

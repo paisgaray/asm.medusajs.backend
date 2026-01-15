@@ -1,47 +1,49 @@
 # ==========================
 # 1) BUILDER
 # ==========================
-FROM node:23 AS builder
+FROM node:23-slim AS builder
+
+# Instalamos o essencial apenas uma vez. 
+# Imagem -slim reduz drasticamente o tempo de download e uso de disco.
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/medusa
 
-COPY . .
-
-# dependências necessárias para sharp / prisma / etc
-RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
-
+# Copiamos apenas arquivos de dependências primeiro para aproveitar o cache do Docker
+COPY package.json yarn.lock* ./
 RUN yarn install --frozen-lockfile
 
+# Agora copiamos o código e geramos o build
+COPY . .
 RUN yarn build
-
 
 # ==========================
 # 2) PRODUCTION IMAGE
 # ==========================
-FROM node:23 AS production
+FROM node:23-slim AS production
 
 WORKDIR /app/medusa
 
+# Instalamos apenas o python3 para runtime (se necessário por algum plugin)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production
 
-# dependências necessárias somente para runtime
-RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
+# Estratégia Medusa v2: 
+# Em vez de tentar isolar a pasta .medusa/server, copiamos o projeto buildado.
+# Isso garante que todos os binários do node_modules e scripts funcionem.
+COPY --from=builder /app/medusa /app/medusa
 
-# Copia resultado do build (JS, migrations, tudo dentro de .medusa)
-COPY --from=builder /app/medusa/.medusa ./.medusa
-COPY --from=builder /app/medusa/tsconfig.json /app/medusa/.medusa/server/tsconfig.json
-
-
-WORKDIR /app/medusa/.medusa/server
-
-# instala somente dependências do servidor compilado
-RUN yarn install --production --frozen-lockfile
-
-# Copia entrypoint
-COPY start.sh ./start.sh
+# O Medusa v2 espera ser executado da raiz para encontrar o medusa-config.js
+# Certifique-se que o seu start.sh está na raiz ou ajuste o caminho abaixo:
 RUN chmod +x ./start.sh
 
 EXPOSE 9000
 
 ENTRYPOINT ["./start.sh"]
-CMD ["yarn", "start"]

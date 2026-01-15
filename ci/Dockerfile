@@ -3,8 +3,7 @@
 # ==========================
 FROM node:23-slim AS builder
 
-# Instalamos o essencial apenas uma vez. 
-# Imagem -slim reduz drasticamente o tempo de download e uso de disco.
+# Instalamos o essencial para compilação de pacotes nativos
 RUN apt-get update && apt-get install -y \
     python3 \
     make \
@@ -13,8 +12,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app/medusa
 
-# Copiamos apenas arquivos de dependências primeiro para aproveitar o cache do Docker
+# --- AJUSTE YARN 4 ---
+# Ativa o Corepack e prepara a versão específica do Yarn
+RUN corepack enable && corepack prepare yarn@4.6.0 --activate
+
+# Copiamos apenas arquivos de dependências
 COPY package.json yarn.lock* ./
+COPY .yarnrc.yml ./ 2>/dev/null || true
+
+# Garante que o Yarn crie a pasta node_modules (necessário para o Medusa)
+RUN yarn config set nodeLinker node-modules
+
+# Instalação das dependências
 RUN yarn install --frozen-lockfile
 
 # Agora copiamos o código e geramos o build
@@ -28,20 +37,20 @@ FROM node:23-slim AS production
 
 WORKDIR /app/medusa
 
-# Instalamos apenas o python3 para runtime (se necessário por algum plugin)
+# Habilita Corepack na produção também para que os comandos 'yarn' funcionem
+RUN corepack enable
+
+# Instalamos apenas o python3 para runtime
 RUN apt-get update && apt-get install -y \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 
-# Estratégia Medusa v2: 
-# Em vez de tentar isolar a pasta .medusa/server, copiamos o projeto buildado.
-# Isso garante que todos os binários do node_modules e scripts funcionem.
+# Copiamos o projeto buildado do builder
 COPY --from=builder /app/medusa /app/medusa
 
-# O Medusa v2 espera ser executado da raiz para encontrar o medusa-config.js
-# Certifique-se que o seu start.sh está na raiz ou ajuste o caminho abaixo:
+# Permissão para o script de inicialização
 RUN chmod +x ./start.sh
 
 EXPOSE 9000

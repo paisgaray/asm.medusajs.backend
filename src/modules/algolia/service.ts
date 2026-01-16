@@ -251,7 +251,7 @@ export default class AlgoliaModuleService {
     }
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters: string[] = [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);

@@ -10,6 +10,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
   const { data: regionZipcodes, metadata: { count, take, skip } = {} } = await query.graph({
     entity: REGION_ZIPCODES_MODULE,
     ...req.queryConfig,
+    filters: req.filterableFields,
   });
 
   res.json({

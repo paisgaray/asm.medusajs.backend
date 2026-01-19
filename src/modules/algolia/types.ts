@@ -121,6 +121,10 @@ export type ProductVariantPrice = {
 export type ProductVariantCalculatedPrice = {
   calculated_amount?: number;
   currency_code?: string;
+  raw_calculated_amount?: {
+    value?: number | string;
+  };
+  original_amount?: number;
 };
 
 export type ProductVariant = {

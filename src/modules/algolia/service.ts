@@ -240,8 +240,6 @@ export default class AlgoliaModuleService {
   ): Promise<AlgoliaSearchResponse> {
     const baseIndex = await this.getIndexName('product', language);
 
-    // Try to use replica index for sorting if sortBy is provided
-    // If replica doesn't exist, fallback to base index
     let indexName = baseIndex;
     let shouldTryReplica = false;
 
@@ -288,7 +286,6 @@ export default class AlgoliaModuleService {
         errorMessage.includes('index not found') ||
         errorMessage.includes('invalid index name');
 
-      // If replica index doesn't exist and we have sortBy, fallback to base index
       if (isIndexError && shouldTryReplica) {
         try {
           const fallbackRequest = this.createSearchRequest(baseIndex, query || '', page, hitsPerPage, filterString);
@@ -632,29 +629,25 @@ export default class AlgoliaModuleService {
     }
 
     for (const variant of product.variants) {
-      if (variant.calculated_price?.calculated_amount != null && variant.calculated_price.calculated_amount > 0) {
-        return variant.calculated_price.calculated_amount;
+      const calculatedPrice = variant.calculated_price;
+
+      if (!calculatedPrice) {
+        continue;
       }
-    }
 
-    const pricesByRegion = product.prices_by_region || {};
-    const regionalPrices = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
-    if (regionalPrices.length > 0) {
-      return regionalPrices[0];
-    }
+      if (calculatedPrice.calculated_amount != null && calculatedPrice.calculated_amount > 0) {
+        return calculatedPrice.calculated_amount;
+      }
 
-    for (const variant of product.variants) {
-      if (Array.isArray(variant.prices) && variant.prices.length > 0) {
-        const firstPrice = variant.prices[0];
-        const amount: number =
-          typeof firstPrice === 'object' && firstPrice !== null
-            ? firstPrice.amount || 0
-            : typeof firstPrice === 'number'
-              ? firstPrice
-              : 0;
-        if (amount > 0) {
-          return amount;
+      if (calculatedPrice.raw_calculated_amount?.value != null) {
+        const rawValue = Number(calculatedPrice.raw_calculated_amount.value);
+        if (!isNaN(rawValue) && rawValue > 0) {
+          return rawValue;
         }
+      }
+
+      if (calculatedPrice.original_amount != null && calculatedPrice.original_amount > 0) {
+        return calculatedPrice.original_amount;
       }
     }
 

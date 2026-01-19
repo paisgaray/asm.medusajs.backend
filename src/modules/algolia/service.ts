@@ -646,8 +646,13 @@ export default class AlgoliaModuleService {
     for (const variant of product.variants) {
       if (Array.isArray(variant.prices) && variant.prices.length > 0) {
         const firstPrice = variant.prices[0];
-        const amount = typeof firstPrice === 'object' && firstPrice !== null ? firstPrice.amount : firstPrice;
-        if (amount != null && amount > 0) {
+        const amount: number =
+          typeof firstPrice === 'object' && firstPrice !== null
+            ? firstPrice.amount || 0
+            : typeof firstPrice === 'number'
+              ? firstPrice
+              : 0;
+        if (amount > 0) {
           return amount;
         }
       }
@@ -655,7 +660,6 @@ export default class AlgoliaModuleService {
 
     return 0;
   }
-
 
   private getCreatedAtIndex(createdAt?: Date | string | number): number {
     if (!createdAt) return Date.now();

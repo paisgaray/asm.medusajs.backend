@@ -41,6 +41,18 @@ export default async function algoliaSyncHandler({ container }: SubscriberArgs) 
   let offset = 0;
   const limit = 100;
 
+  let regionId: string | undefined;
+  let currencyCode = 'eur';
+
+  try {
+    const regionModule = container.resolve('region');
+    const regions = await regionModule.listRegions({});
+    if (regions && regions.length > 0) {
+      regionId = regions[0].id;
+      currencyCode = regions[0].currency_code || 'eur';
+    }
+  } catch {}
+
   try {
     while (hasMore) {
       const {
@@ -50,6 +62,8 @@ export default async function algoliaSyncHandler({ container }: SubscriberArgs) 
           limit,
           offset,
           language: defaultLanguage,
+          region_id: regionId,
+          currency_code: currencyCode,
         },
       });
 

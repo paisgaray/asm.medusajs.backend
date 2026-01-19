@@ -23,6 +23,18 @@ export default async function handleProductEvents({ event: { data }, container }
   const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
   const supportedLanguages = algoliaService.getSupportedLanguages();
 
+  let regionId: string | undefined;
+  let currencyCode = 'eur';
+
+  try {
+    const regionModule = container.resolve('region');
+    const regions = await regionModule.listRegions({});
+    if (regions && regions.length > 0) {
+      regionId = regions[0].id;
+      currencyCode = regions[0].currency_code || 'eur';
+    }
+  } catch {}
+
   for (const language of supportedLanguages) {
     const isIdempotent = await isOperationIdempotent(container, data.id, language, 'index');
     if (isIdempotent) {
@@ -34,6 +46,8 @@ export default async function handleProductEvents({ event: { data }, container }
         input: {
           product_id: data.id,
           language,
+          region_id: regionId,
+          currency_code: currencyCode,
         },
       });
 

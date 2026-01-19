@@ -627,21 +627,28 @@ export default class AlgoliaModuleService {
   }
 
   private getProductPrice(product: ProductInput): number {
+    const allPrices: number[] = [];
+
+    if (product.variants && Array.isArray(product.variants)) {
+      for (const variant of product.variants) {
+        if (variant.calculated_price?.calculated_amount != null && variant.calculated_price.calculated_amount > 0) {
+          allPrices.push(variant.calculated_price.calculated_amount);
+        }
+      }
+    }
+
     const pricesByRegion = product.prices_by_region || {};
     if (Object.keys(pricesByRegion).length > 0) {
-      const values = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
-      if (values.length > 0) return values[0];
+      const regionalPrices = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
+      allPrices.push(...regionalPrices);
+    }
+
+    if (allPrices.length > 0) {
+      return Math.min(...allPrices);
     }
 
     const firstVariant = product.variants?.[0];
-    if (!firstVariant) return 0;
-
-    const calculatedPrice = firstVariant.calculated_price;
-    if (calculatedPrice?.calculated_amount != null) {
-      return calculatedPrice.calculated_amount;
-    }
-
-    if (Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
+    if (firstVariant && Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
       return firstVariant.prices[0].amount || 0;
     }
 

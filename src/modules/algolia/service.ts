@@ -631,10 +631,10 @@ export default class AlgoliaModuleService {
       return 0;
     }
 
-    const firstVariant = product.variants[0];
-    
-    if (firstVariant.calculated_price?.calculated_amount != null) {
-      return firstVariant.calculated_price.calculated_amount;
+    for (const variant of product.variants) {
+      if (variant.calculated_price?.calculated_amount != null && variant.calculated_price.calculated_amount > 0) {
+        return variant.calculated_price.calculated_amount;
+      }
     }
 
     const pricesByRegion = product.prices_by_region || {};
@@ -643,12 +643,19 @@ export default class AlgoliaModuleService {
       return regionalPrices[0];
     }
 
-    if (Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
-      return firstVariant.prices[0].amount || 0;
+    for (const variant of product.variants) {
+      if (Array.isArray(variant.prices) && variant.prices.length > 0) {
+        const firstPrice = variant.prices[0];
+        const amount = typeof firstPrice === 'object' && firstPrice !== null ? firstPrice.amount : firstPrice;
+        if (amount != null && amount > 0) {
+          return amount;
+        }
+      }
     }
 
     return 0;
   }
+
 
   private getCreatedAtIndex(createdAt?: Date | string | number): number {
     if (!createdAt) return Date.now();

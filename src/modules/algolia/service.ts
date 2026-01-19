@@ -627,28 +627,23 @@ export default class AlgoliaModuleService {
   }
 
   private getProductPrice(product: ProductInput): number {
-    const allPrices: number[] = [];
+    if (!product.variants || product.variants.length === 0) {
+      return 0;
+    }
 
-    if (product.variants && Array.isArray(product.variants)) {
-      for (const variant of product.variants) {
-        if (variant.calculated_price?.calculated_amount != null && variant.calculated_price.calculated_amount > 0) {
-          allPrices.push(variant.calculated_price.calculated_amount);
-        }
-      }
+    const firstVariant = product.variants[0];
+    
+    if (firstVariant.calculated_price?.calculated_amount != null) {
+      return firstVariant.calculated_price.calculated_amount;
     }
 
     const pricesByRegion = product.prices_by_region || {};
-    if (Object.keys(pricesByRegion).length > 0) {
-      const regionalPrices = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
-      allPrices.push(...regionalPrices);
+    const regionalPrices = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
+    if (regionalPrices.length > 0) {
+      return regionalPrices[0];
     }
 
-    if (allPrices.length > 0) {
-      return Math.min(...allPrices);
-    }
-
-    const firstVariant = product.variants?.[0];
-    if (firstVariant && Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
+    if (Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
       return firstVariant.prices[0].amount || 0;
     }
 

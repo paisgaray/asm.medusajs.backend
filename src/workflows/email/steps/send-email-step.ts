@@ -9,7 +9,7 @@ import { Modules } from '@medusajs/framework/utils';
 export interface SendEmailInput {
   recipientEmail: string;
   templateId: string;
-  templateData: any;
+  templateData: Record<string, unknown>;
 }
 
 export const sendEmailStep = createStep(

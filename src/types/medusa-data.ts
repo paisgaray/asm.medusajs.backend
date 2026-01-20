@@ -70,6 +70,7 @@ export interface MedusaPaymentCollection {
 export interface MedusaPayment {
   id: string;
   provider_id?: string;
+  payment_collection_id?: string;
   payment_collection?: MedusaPaymentCollection;
   data?: {
     brand?: string;

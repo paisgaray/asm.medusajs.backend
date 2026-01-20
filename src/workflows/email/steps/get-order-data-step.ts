@@ -34,7 +34,7 @@ export const getOrderDataStep = createStep(
       throw new Error(`Payment ${payment_id} não possui payment_collection_id associado`);
     }
 
-    // 2. Buscar a order através da payment_collection
+    // 2. Buscar a order através da payment_collection com todos os relacionamentos
     const { data: orders } = await query.graph({
       entity: 'order',
       fields: [
@@ -61,32 +61,10 @@ export const getOrderDataStep = createStep(
       throw new Error(`Order não encontrada para payment_collection ${paymentCollectionId}`);
     }
 
-    // 3. Buscar pedido completo (mantendo código original depois do filtro)
-    const orderId = orders[0].id;
-    const { data: fullOrders } = await query.graph({
-      entity: 'order',
-      fields: [
-        '*',
-        'items.*',
-        'items.variant.*',
-        'items.variant.product.*',
-        'items.variant.product.thumbnail',
-        'shipping_address.*',
-        'billing_address.*',
-        'shipping_methods.*',
-        'payment_collection.*',
-        'payment_collection.payments.*',
-        'customer.*',
-      ],
-      filters: {
-        id: orderId,
-      },
-    });
-
-    const order = orders?.[0] as unknown as MedusaOrder;
+    const order = orders[0] as unknown as MedusaOrder;
 
     if (!order) {
-      throw new Error(`Order ${orderId} não encontrado`);
+      throw new Error(`Order não encontrado para payment_collection ${paymentCollectionId}`);
     }
 
     return new StepResponse({ order, payment });

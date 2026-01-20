@@ -120,6 +120,13 @@ export interface PaymentNotApprovedEmailData {
 }
 
 /**
+ * Template: Order Invoiced (específico)
+ * ID: d-c3c0dd4a6d0a46d6ab25da1ce99f6f89
+ * Alias para OrderStatusEmailData
+ */
+export type OrderInvoicedEmailData = OrderStatusEmailData;
+
+/**
  * Template: Reset Password
  * ID: d-97f70554211843c08e630e384ae6951f
  */

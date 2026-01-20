@@ -19,6 +19,7 @@ module.exports = {
     "dot-notation": "off",
     "@typescript-eslint/no-require-imports": "off",
     "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/ban-ts-comment": "off",
     "prettier/prettier": [
       "error",
       {

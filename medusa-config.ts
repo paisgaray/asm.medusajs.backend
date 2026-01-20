@@ -92,6 +92,21 @@ modules.push(
   {
     resolve: '@medusajs/medusa/translation',
   },
+  {
+    resolve: '@medusajs/medusa/notification',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/notification-sendgrid',
+          id: 'sendgrid',
+          options: {
+            api_key: process.env.SENDGRID_API_KEY,
+            from: process.env.SENDGRID_FROM_EMAIL,
+          },
+        },
+      ],
+    },
+  },
 );
 
 if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {

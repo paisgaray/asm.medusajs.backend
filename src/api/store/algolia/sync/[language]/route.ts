@@ -104,6 +104,18 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     let offset = 0;
     const limit = 100;
 
+    let regionId: string | undefined;
+    let currencyCode = 'eur';
+
+    try {
+      const regionModule = req.scope.resolve('region');
+      const regions = await regionModule.listRegions({});
+      if (regions && regions.length > 0) {
+        regionId = regions[0].id;
+        currencyCode = regions[0].currency_code || 'eur';
+      }
+    } catch {}
+
     while (hasMore) {
       try {
         const workflowResult = await syncProductsWorkflow(req.scope).run({
@@ -111,6 +123,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
             limit,
             offset,
             language: validatedLanguage,
+            region_id: regionId,
+            currency_code: currencyCode,
           },
         });
 

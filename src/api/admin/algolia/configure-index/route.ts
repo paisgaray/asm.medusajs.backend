@@ -29,7 +29,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
     await client.setSettings({
       indexName,
       indexSettings: {
-        attributesForFaceting: ['filterOnly(regional_tags)', 'searchable(regional_tags)'],
+        attributesForFaceting: ['filterOnly(regional_tags)', 'searchable(regional_tags)', 'searchable(tags.value)'],
         searchableAttributes: ['title', 'description', 'handle', 'tags'],
         attributesToRetrieve: [
           'objectID',
@@ -50,7 +50,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
       indexName,
       language,
       settings: {
-        attributesForFaceting: ['filterOnly(regional_tags)', 'searchable(regional_tags)'],
+        attributesForFaceting: ['filterOnly(regional_tags)', 'searchable(regional_tags)', 'searchable(tags.value)'],
         searchableAttributes: ['title', 'description', 'handle', 'tags'],
       },
     };

@@ -83,7 +83,7 @@ export default class AlgoliaModuleService {
   }
 
   getSupportedLanguages(): string[] {
-    return this.options.supportedLanguages || ['pt'];
+    return this.options.supportedLanguages || ['es'];
   }
 
   isLanguageSupported(language: string): boolean {
@@ -91,9 +91,9 @@ export default class AlgoliaModuleService {
   }
 
   validateLanguage(language?: string): string {
-    if (!language) return 'pt';
+    if (!language) return 'es';
     const normalized = language.toLowerCase();
-    return this.isLanguageSupported(normalized) ? normalized : 'pt';
+    return this.isLanguageSupported(normalized) ? normalized : 'es';
   }
 
   mapRegionalTagToLanguage(regionalTag: string): string {
@@ -133,7 +133,7 @@ export default class AlgoliaModuleService {
     switch (type) {
       case 'product': {
         const base = this.options.productIndexName;
-        if (language && language !== 'pt') {
+        if (language && language !== 'es') {
           return `${base}_${language}`;
         }
         return base;
@@ -214,6 +214,7 @@ export default class AlgoliaModuleService {
     page: number,
     hitsPerPage: number,
     filterString?: string,
+    _sortBy?: string,
   ): AlgoliaSearchRequest {
     const request: AlgoliaSearchRequest['requests'][number] = {
       indexName,
@@ -238,10 +239,17 @@ export default class AlgoliaModuleService {
     language?: string,
   ): Promise<AlgoliaSearchResponse> {
     const baseIndex = await this.getIndexName('product', language);
-    const indexName = sortBy ? `${baseIndex}_${sortBy}` : baseIndex;
+
+    let indexName = baseIndex;
+    let shouldTryReplica = false;
+
+    if (sortBy) {
+      indexName = `${baseIndex}_${sortBy}`;
+      shouldTryReplica = true;
+    }
 
     const filterParts = filters ? [filters] : [];
-    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters = language ? this.buildRegionalTagFilters(language) : [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', page, hitsPerPage, filterString);
@@ -278,20 +286,9 @@ export default class AlgoliaModuleService {
         errorMessage.includes('index not found') ||
         errorMessage.includes('invalid index name');
 
-      if (isIndexError && sortBy) {
+      if (isIndexError && shouldTryReplica) {
         try {
-          const fallbackFilters = filters ? [filters] : [];
-          const fallbackRegional =
-            language && query.trim().length > 0 ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
-          const fallbackFilterString = this.buildFilterString(fallbackFilters, fallbackRegional);
-
-          const fallbackRequest = this.createSearchRequest(
-            baseIndex,
-            query || '',
-            page,
-            hitsPerPage,
-            fallbackFilterString,
-          );
+          const fallbackRequest = this.createSearchRequest(baseIndex, query || '', page, hitsPerPage, filterString);
           return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
         } catch {
           return {
@@ -376,8 +373,7 @@ export default class AlgoliaModuleService {
   async autocomplete(query: string, hitsPerPage = 5, filters = '', language?: string): Promise<AlgoliaSearchResponse> {
     const indexName = await this.getIndexName('product', language);
     const filterParts = filters ? [filters] : [];
-    // Autocomplete sempre aplica filtros regionais quando há language
-    const regionalFilters = language ? this.buildRegionalTagFilters(language.toLowerCase()) : [];
+    const regionalFilters: string[] = [];
     const filterString = this.buildFilterString(filterParts, regionalFilters);
 
     const searchRequest = this.createSearchRequest(indexName, query || '', 0, hitsPerPage, filterString);
@@ -628,22 +624,31 @@ export default class AlgoliaModuleService {
   }
 
   private getProductPrice(product: ProductInput): number {
-    const pricesByRegion = product.prices_by_region || {};
-    if (Object.keys(pricesByRegion).length > 0) {
-      const values = Object.values(pricesByRegion).filter((p) => typeof p === 'number' && p > 0);
-      if (values.length > 0) return values[0];
+    if (!product.variants || product.variants.length === 0) {
+      return 0;
     }
 
-    const firstVariant = product.variants?.[0];
-    if (!firstVariant) return 0;
+    for (const variant of product.variants) {
+      const calculatedPrice = variant.calculated_price;
 
-    const calculatedPrice = firstVariant.calculated_price;
-    if (calculatedPrice?.calculated_amount != null) {
-      return calculatedPrice.calculated_amount;
-    }
+      if (!calculatedPrice) {
+        continue;
+      }
 
-    if (Array.isArray(firstVariant.prices) && firstVariant.prices.length > 0) {
-      return firstVariant.prices[0].amount || 0;
+      if (calculatedPrice.calculated_amount != null && calculatedPrice.calculated_amount > 0) {
+        return calculatedPrice.calculated_amount;
+      }
+
+      if (calculatedPrice.raw_calculated_amount?.value != null) {
+        const rawValue = Number(calculatedPrice.raw_calculated_amount.value);
+        if (!isNaN(rawValue) && rawValue > 0) {
+          return rawValue;
+        }
+      }
+
+      if (calculatedPrice.original_amount != null && calculatedPrice.original_amount > 0) {
+        return calculatedPrice.original_amount;
+      }
     }
 
     return 0;
@@ -776,6 +781,12 @@ export default class AlgoliaModuleService {
             id: v.id || '',
             title: v.title || '',
             sku: v.sku || '',
+            calculated_price: v.calculated_price
+              ? {
+                  calculated_amount: v.calculated_price.calculated_amount || 0,
+                  currency_code: v.calculated_price.currency_code || 'USD',
+                }
+              : null,
           }))
         : [],
       sku: product.variants?.[0]?.sku || '',

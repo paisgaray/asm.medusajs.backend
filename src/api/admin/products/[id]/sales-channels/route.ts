@@ -31,7 +31,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
             [Modules.PRODUCT]: { product_id: productId },
             [Modules.SALES_CHANNEL]: { sales_channel_id: scId },
           });
-        } catch (error) {}
+        } catch {
+          continue;
+        }
       }
     }
 
@@ -42,7 +44,9 @@ export async function POST(req: MedusaRequest, res: MedusaResponse): Promise<voi
             [Modules.PRODUCT]: { product_id: productId },
             [Modules.SALES_CHANNEL]: { sales_channel_id: scId },
           });
-        } catch (error) {}
+        } catch {
+          continue;
+        }
       }
     }
 

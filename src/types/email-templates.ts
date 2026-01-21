@@ -145,5 +145,6 @@ export type OrderShippedEmailData = OrderStatusEmailData;
  * ID: d-97f70554211843c08e630e384ae6951f
  */
 export interface ResetPasswordEmailData extends Record<string, unknown> {
+  firstName: string;
   actionUrl: string;
 }

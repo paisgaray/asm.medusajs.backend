@@ -134,6 +134,13 @@ export type OrderInvoicedEmailData = OrderStatusEmailData;
 export type OrderPreparingEmailData = OrderStatusEmailData;
 
 /**
+ * Template: Order Shipped (específico)
+ * ID: d-4901f2e3d61c47c2b5f9569065c08616
+ * Alias para OrderStatusEmailData
+ */
+export type OrderShippedEmailData = OrderStatusEmailData;
+
+/**
  * Template: Reset Password
  * ID: d-97f70554211843c08e630e384ae6951f
  */

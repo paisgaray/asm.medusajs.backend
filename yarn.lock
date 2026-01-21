@@ -7580,7 +7580,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sendgrid/mail@npm:^8.1.6":
+"@sendgrid/mail@npm:^8.1.4, @sendgrid/mail@npm:^8.1.6":
   version: 8.1.6
   resolution: "@sendgrid/mail@npm:8.1.6"
   dependencies:
@@ -14810,6 +14810,7 @@ __metadata:
     "@medusajs/notification-sendgrid": "npm:^2.12.5"
     "@medusajs/test-utils": "npm:2.12.5"
     "@medusajs/ui": "npm:^4.0.26"
+    "@sendgrid/mail": "npm:^8.1.4"
     "@swc/core": "npm:1.5.7"
     "@swc/jest": "npm:^0.2.36"
     "@tanstack/react-query": "npm:5.64.2"

@@ -46,7 +46,7 @@ export interface Totalizers {
  * Template: Payment Approved
  * ID: d-dadda7e1dafb4d52b9cd80fc5e546590
  */
-export interface PaymentApprovedEmailData {
+export interface PaymentApprovedEmailData extends Record<string, unknown> {
   firstName: string;
   orderId: string;
   actionUrl: string;
@@ -62,7 +62,7 @@ export interface PaymentApprovedEmailData {
  * Template: Order Confirmed
  * ID: d-51287e3277764d86aea821a1ea60c022
  */
-export interface OrderConfirmedEmailData {
+export interface OrderConfirmedEmailData extends Record<string, unknown> {
   firstName: string;
   orderId: string;
   orderItems: OrderItem[];
@@ -80,7 +80,7 @@ export interface OrderConfirmedEmailData {
  * - Invoiced: d-c3c0dd4a6d0a46d6ab25da1ce99f6f89
  * - Shipped: d-4901f2e3d61c47c2b5f9569065c08616
  */
-export interface OrderStatusEmailData {
+export interface OrderStatusEmailData extends Record<string, unknown> {
   firstName: string;
   orderId: string;
   actionUrl: string;
@@ -96,7 +96,7 @@ export interface OrderStatusEmailData {
  * Template: Order Delivered
  * ID: d-c0157e4c7a4a4ebe839fae834b9d6168
  */
-export interface OrderDeliveredEmailData {
+export interface OrderDeliveredEmailData extends Record<string, unknown> {
   firstName: string;
   orderId: string;
   orderItems: OrderItem[];
@@ -111,7 +111,7 @@ export interface OrderDeliveredEmailData {
  * Template: Payment Not Approved
  * ID: d-b23249abe881427f8badc774880eba76
  */
-export interface PaymentNotApprovedEmailData {
+export interface PaymentNotApprovedEmailData extends Record<string, unknown> {
   firstName: string;
   orderId: string;
   actionUrl: string;
@@ -127,9 +127,16 @@ export interface PaymentNotApprovedEmailData {
 export type OrderInvoicedEmailData = OrderStatusEmailData;
 
 /**
+ * Template: Order Preparing (específico)
+ * ID: d-e0153efc5c184f878e833c2d42ca3247
+ * Alias para OrderStatusEmailData
+ */
+export type OrderPreparingEmailData = OrderStatusEmailData;
+
+/**
  * Template: Reset Password
  * ID: d-97f70554211843c08e630e384ae6951f
  */
-export interface ResetPasswordEmailData {
+export interface ResetPasswordEmailData extends Record<string, unknown> {
   actionUrl: string;
 }

@@ -21,11 +21,31 @@ type AlgoliaOptions = {
   productIndexName: string;
   regionalTagPrefixes?: string[];
   supportedLanguages?: string[];
+  envPrefix?: string;
 };
 
 export type AlgoliaIndexType = 'product';
 
-const COMMON_SUFFIXES = ['BR', '001', '002', '003', '01', '02', '03', '1121', '00x'];
+const COMMON_SUFFIXES = [
+  'BR',
+  'ES',
+  'US',
+  'PT',
+  'FR',
+  'CA',
+  'MX',
+  'AR',
+  'CL',
+  'CO', // Países comuns
+  '001',
+  '002',
+  '003',
+  '01',
+  '02',
+  '03',
+  '1121',
+  '00x', // Códigos numéricos
+];
 
 type Container = Record<string, never>;
 
@@ -132,7 +152,11 @@ export default class AlgoliaModuleService {
   async getIndexName(type: AlgoliaIndexType = 'product', language?: string): Promise<string> {
     switch (type) {
       case 'product': {
-        const base = this.options.productIndexName;
+        let base = this.options.productIndexName;
+        if (this.options.envPrefix) {
+          base = `${base}_${this.options.envPrefix}`;
+        }
+        // Adiciona sufixo de idioma se necessário
         if (language && language !== 'es') {
           return `${base}_${language}`;
         }
@@ -185,6 +209,28 @@ export default class AlgoliaModuleService {
       }
 
       throw new Error(`Failed to clear Algolia index '${indexName}': ${algoliaError.message}`);
+    }
+  }
+
+  /**
+   * Configura o índice do Algolia com os settings necessários
+   */
+  async configureIndex(language?: string): Promise<void> {
+    const indexName = await this.getIndexName('product', language);
+
+    try {
+      await this.client.setSettings({
+        indexName,
+        indexSettings: {
+          attributesForFaceting: ['filterOnly(regional_tags)', 'filterOnly(tags)', 'filterOnly(collections)'],
+          searchableAttributes: ['title', 'description', 'handle', 'sku'],
+        },
+      });
+
+      console.log(`✅ Índice ${indexName} configurado com sucesso`);
+    } catch (error) {
+      console.error(`❌ Erro ao configurar índice ${indexName}:`, error);
+      throw error;
     }
   }
 

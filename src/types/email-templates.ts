@@ -43,6 +43,21 @@ export interface Totalizers {
 }
 
 /**
+ * Template: Order Confirmation
+ * ID: d-51287e3277764d86aea821a1ea60c022
+ */
+export interface OrderConfirmationEmailData extends Record<string, unknown> {
+  firstName: string;
+  orderId: string;
+  orderItems: OrderItem[];
+  deliveryAddress: DeliveryAddress;
+  invoiceAddress: DeliveryAddress | null;
+  deliverySchedule: DeliverySchedule;
+  paymentMethod: PaymentMethod;
+  totalizers: Totalizers;
+}
+
+/**
  * Template: Payment Approved
  * ID: d-dadda7e1dafb4d52b9cd80fc5e546590
  */

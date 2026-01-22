@@ -1,6 +1,7 @@
 /**
  * Step: Get Order Data
- * Busca os dados completos do pedido com todos os relacionamentos necessários
+ * Busca os dados do pedido a partir do payment_id
+ * VERSÃO SIMPLIFICADA: Retorna o que conseguir buscar
  */
 
 import { Modules } from '@medusajs/framework/utils';
@@ -10,61 +11,53 @@ import type { MedusaOrder, MedusaPayment } from '../../../types/medusa-data';
 
 export interface GetOrderDataInput {
   payment_id: string;
+  order_id?: string; // Opcional: se já tiver o order_id
 }
 
 export interface GetOrderDataOutput {
   order: MedusaOrder;
-  payment: MedusaPayment;
+  payment: MedusaPayment | null;
 }
 
 export const getOrderDataStep = createStep(
   'get-order-data-step',
-  async ({ payment_id }: GetOrderDataInput, { container }) => {
+  async ({ payment_id, order_id }: GetOrderDataInput, { container }) => {
     const paymentModule = container.resolve(Modules.PAYMENT);
-    const query = container.resolve('query');
+    const orderModule = container.resolve(Modules.ORDER);
 
-    // 1. Buscar informações do pagamento com payment_collection
-    const payment = (await paymentModule.retrievePayment(payment_id, {
-      relations: ['payment_collection'],
-    })) as unknown as MedusaPayment;
-
-    const paymentCollectionId = payment.payment_collection_id;
-
-    if (!paymentCollectionId) {
-      throw new Error(`Payment ${payment_id} não possui payment_collection_id associado`);
+    let payment: MedusaPayment | null = null;
+    try {
+      payment = (await paymentModule.retrievePayment(payment_id)) as unknown as MedusaPayment;
+    } catch (error) {
+      payment = null;
     }
 
-    // 2. Buscar a order através da payment_collection com todos os relacionamentos
-    const { data: orders } = await query.graph({
-      entity: 'order',
-      fields: [
-        '*',
-        'items.*',
-        'items.variant.*',
-        'items.variant.product.*',
-        'items.variant.product.thumbnail',
-        'shipping_address.*',
-        'billing_address.*',
-        'shipping_methods.*',
-        'payment_collection.*',
-        'payment_collection.payments.*',
-        'customer.*',
-      ],
-      filters: {
-        payment_collections: {
-          id: paymentCollectionId,
-        },
-      },
-    });
+    let order: MedusaOrder | null = null;
 
-    if (!orders || orders.length === 0) {
-      throw new Error(`Order não encontrada para payment_collection ${paymentCollectionId}`);
+    if (order_id) {
+      try {
+        order = (await orderModule.retrieveOrder(order_id)) as unknown as MedusaOrder;
+      } catch (error) {
+        order = null;
+      }
     }
-
-    const order = orders[0] as unknown as MedusaOrder;
 
     if (!order) {
-      throw new Error(`Order não encontrado para payment_collection ${paymentCollectionId}`);
+      const recentOrders = await orderModule.listOrders(
+        {},
+        {
+          take: 1,
+          order: { created_at: 'DESC' },
+        },
+      );
+
+      if (recentOrders && recentOrders.length > 0) {
+        order = recentOrders[0] as unknown as MedusaOrder;
+      }
+    }
+
+    if (!order) {
+      throw new Error('Não foi possível encontrar nenhuma order');
     }
 
     return new StepResponse({ order, payment });

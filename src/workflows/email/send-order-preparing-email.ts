@@ -23,6 +23,7 @@ export const sendOrderPreparingEmailWorkflow = createWorkflow(
       recipientEmail,
       templateId: SENDGRID_TEMPLATES.ORDER_PREPARING,
       templateData: emailData,
+      subject: 'Pedido en preparación',
     });
 
     return new WorkflowResponse(result);

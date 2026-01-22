@@ -36,6 +36,7 @@ export const sendOrderShippedEmailWorkflow = createWorkflow(
       recipientEmail,
       templateId: SENDGRID_TEMPLATES.ORDER_SHIPPED,
       templateData: emailData,
+      subject: 'Pedido enviado',
     });
 
     return new WorkflowResponse(result);

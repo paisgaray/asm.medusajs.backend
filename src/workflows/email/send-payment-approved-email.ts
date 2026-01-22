@@ -32,6 +32,7 @@ export const sendPaymentApprovedEmailWorkflow = createWorkflow(
       recipientEmail,
       templateId: SENDGRID_TEMPLATES.PAYMENT_APPROVED,
       templateData: emailData,
+      subject: 'Pago aprobado',
     });
 
     return new WorkflowResponse(result);

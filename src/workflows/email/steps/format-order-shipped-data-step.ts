@@ -22,7 +22,7 @@ import {
 
 export interface FormatOrderShippedDataInput {
   order: MedusaOrder;
-  payment: MedusaPayment;
+  payment?: MedusaPayment | null;
 }
 
 export interface FormatOrderShippedDataOutput {

@@ -26,7 +26,7 @@ export interface DeliverySchedule {
 
 export interface PaymentMethod {
   paymentName: string;
-  paymentBrand: string;
+  paymentBrand: string; // URL do ícone do método de pagamento (ex: Visa, Master, etc)
 }
 
 export interface Tax {

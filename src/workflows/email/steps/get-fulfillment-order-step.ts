@@ -8,8 +8,8 @@
  * Referência: https://docs.medusajs.com/resources/commerce-modules/fulfillment
  */
 
-import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { Modules } from '@medusajs/framework/utils';
+import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 export interface GetFulfillmentOrderInput {
   fulfillment_id: string;
@@ -22,32 +22,38 @@ export interface GetFulfillmentOrderOutput {
 export const getFulfillmentOrderStep = createStep(
   'get-fulfillment-order-step',
   async ({ fulfillment_id }: GetFulfillmentOrderInput, { container }) => {
-    console.log(`[Get Fulfillment Order] Buscando fulfillment: ${fulfillment_id}`);
-
     const fulfillmentModuleService = container.resolve(Modules.FULFILLMENT);
+    const orderModuleService = container.resolve(Modules.ORDER);
 
-    // Buscar fulfillment com relações
-    const fulfillment = await fulfillmentModuleService.retrieveFulfillment(fulfillment_id, {
-      relations: ['order'],
-    });
+    const fulfillment = await fulfillmentModuleService.retrieveFulfillment(fulfillment_id);
 
     if (!fulfillment) {
       throw new Error(`Fulfillment ${fulfillment_id} não encontrado`);
     }
 
-    console.log(`[Get Fulfillment Order] Fulfillment encontrado: ${fulfillment_id}`);
+    let orderId: string | undefined;
 
-    // Obter order_id do fulfillment
-    let orderId = fulfillment.order_id;
-
-    // Fallback: tentar buscar da metadata
-    if (!orderId && fulfillment.metadata?.order_id) {
+    if (fulfillment.metadata?.order_id) {
       orderId = fulfillment.metadata.order_id as string;
     }
 
-    // Fallback: tentar buscar das relações
-    if (!orderId && fulfillment.order) {
-      orderId = (fulfillment.order as any).id;
+    if (!orderId) {
+      const orders = await orderModuleService.listOrders({});
+
+      for (const order of orders) {
+        const orderWithFulfillments = await orderModuleService.retrieveOrder(order.id, {
+          relations: ['fulfillments'],
+        });
+
+        const hasFulfillment = (orderWithFulfillments as { fulfillments?: { id: string }[] }).fulfillments?.some(
+          (f) => f.id === fulfillment_id,
+        );
+
+        if (hasFulfillment) {
+          orderId = order.id;
+          break;
+        }
+      }
     }
 
     if (!orderId) {
@@ -56,8 +62,6 @@ export const getFulfillmentOrderStep = createStep(
           `Verifique se o fulfillment está associado a um pedido.`,
       );
     }
-
-    console.log(`[Get Fulfillment Order] Order ID encontrado: ${orderId}`);
 
     return new StepResponse({
       order_id: orderId,

@@ -15,6 +15,7 @@
 
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
 import { formatOrderConfirmationDataStep } from './steps/format-order-confirmation-data-step';
 import { getOrderByIdStep } from './steps/get-order-by-id-step';
 import { sendEmailStep } from './steps/send-email-step';
@@ -32,13 +33,18 @@ export const sendOrderConfirmationEmailWorkflow = createWorkflow(
     });
 
     // Step 2: Formatar dados para o template do SendGrid
-    const emailData = formatOrderConfirmationDataStep({
+    const { emailData, recipientEmail } = formatOrderConfirmationDataStep({
       order,
       payment,
     });
 
     // Step 3: Enviar e-mail
-    const result = sendEmailStep(emailData);
+    const result = sendEmailStep({
+      recipientEmail,
+      templateId: SENDGRID_TEMPLATES.ORDER_CONFIRMATION,
+      templateData: emailData,
+      subject: 'Pedido confirmado',
+    });
 
     return new WorkflowResponse(result);
   },

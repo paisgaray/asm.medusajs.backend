@@ -34,6 +34,7 @@ if (fs.existsSync(algoliaModulePath)) {
       supportedLanguages: process.env.ALGOLIA_SUPPORTED_LANGUAGES
         ? process.env.ALGOLIA_SUPPORTED_LANGUAGES.split(',').map((l: string) => l.trim())
         : undefined,
+      envPrefix: process.env.ALGOLIA_ENV_PREFIX || undefined,
     },
   });
 }

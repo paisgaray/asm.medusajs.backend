@@ -1,5 +1,5 @@
-import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { Modules } from '@medusajs/framework/utils';
+import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import type { ResetPasswordEmailData } from '../../../types/email-templates';
 import { SENDGRID_TEMPLATES } from '../../../utils/sendgrid-templates';

@@ -19,7 +19,6 @@ import {
   formatTotalizers,
   generateActionUrl,
 } from '../../../utils/email-formatters';
-import { SENDGRID_TEMPLATES } from '../../../utils/sendgrid-templates';
 
 export interface FormatOrderDeliveredDataInput {
   order: MedusaOrder;
@@ -33,7 +32,7 @@ export const formatOrderDeliveredDataStep = createStep(
     const emailData: OrderDeliveredEmailData = {
       firstName: order.customer?.first_name || 'Cliente',
       orderId: formatOrderId(order.display_id || order.id),
-      actionUrl: generateActionUrl(order.id, 'order-details'),
+      actionUrl: generateActionUrl(order.id),
       orderItems: formatOrderItems(order.items || []),
       deliveryAddress: formatAddress(order.shipping_address),
       invoiceAddress: order.billing_address ? formatAddress(order.billing_address) : null,
@@ -50,9 +49,8 @@ export const formatOrderDeliveredDataStep = createStep(
     }
 
     return new StepResponse({
-      to: customerEmail,
-      templateId: SENDGRID_TEMPLATES.ORDER_DELIVERED,
-      dynamicTemplateData: emailData,
+      emailData,
+      recipientEmail: customerEmail,
     });
   },
 );

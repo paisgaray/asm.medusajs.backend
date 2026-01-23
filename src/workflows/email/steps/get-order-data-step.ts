@@ -28,7 +28,7 @@ export const getOrderDataStep = createStep(
     let payment: MedusaPayment | null = null;
     try {
       payment = (await paymentModule.retrievePayment(payment_id)) as unknown as MedusaPayment;
-    } catch (error) {
+    } catch {
       payment = null;
     }
 
@@ -37,7 +37,7 @@ export const getOrderDataStep = createStep(
     if (order_id) {
       try {
         order = (await orderModule.retrieveOrder(order_id)) as unknown as MedusaOrder;
-      } catch (error) {
+      } catch {
         order = null;
       }
     }

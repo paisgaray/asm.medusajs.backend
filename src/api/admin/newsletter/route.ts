@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
+import NewsletterModuleService from '../../../modules/newsletter/service';
+
 export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  const newsletterService: any = req.scope.resolve('newsletter');
+  const newsletterService = req.scope.resolve('newsletter') as NewsletterModuleService;
 
   const [subscribers, count] = await newsletterService.listAndCountNewsletterSubscribers(
     {},

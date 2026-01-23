@@ -72,7 +72,10 @@ export class SendGridMarketingService {
         const statusCode = sendGridError.response?.statusCode;
         const errors = sendGridError.response?.body?.errors || [];
         const errorMessages = errors.map((e) => e.message || 'Erro desconhecido').join(', ');
-        const helpMessages = errors.map((e) => e.help || '').filter(Boolean).join(' ');
+        const helpMessages = errors
+          .map((e) => e.help || '')
+          .filter(Boolean)
+          .join(' ');
 
         // Erro específico de permissões (403)
         if (statusCode === 403) {
@@ -88,7 +91,8 @@ export class SendGridMarketingService {
         };
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao adicionar contato ao SendGrid';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Erro desconhecido ao adicionar contato ao SendGrid';
       return {
         success: false,
         message: errorMessage,
@@ -111,7 +115,7 @@ export class SendGridMarketingService {
         },
       });
 
-      return (response.body as any).result_count > 0;
+      return (response.body as { result_count: number }).result_count > 0;
     } catch {
       return false;
     }

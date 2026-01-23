@@ -1,7 +1,7 @@
 # ==========================
 # 1) BUILDER
 # ==========================
-FROM node:23 AS builder
+FROM node:24 AS builder
 
 WORKDIR /app/medusa
 
@@ -18,7 +18,7 @@ RUN yarn build
 # ==========================
 # 2) PRODUCTION IMAGE
 # ==========================
-FROM node:23 AS production
+FROM node:24 AS production
 
 WORKDIR /app/medusa
 

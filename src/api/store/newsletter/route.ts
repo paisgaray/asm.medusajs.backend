@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { Modules } from '@medusajs/framework/utils';
+
 import type { NewsletterSubscribeBody } from './validators';
 
 export async function POST(req: MedusaRequest<NewsletterSubscribeBody>, res: MedusaResponse): Promise<void> {

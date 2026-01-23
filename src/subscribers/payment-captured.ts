@@ -1,6 +1,7 @@
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
-import { sendPaymentApprovedEmailWorkflow } from '../workflows/email/send-payment-approved-email';
+
 import { sendOrderInvoicedEmailWorkflow } from '../workflows/email/send-order-invoiced-email';
+import { sendPaymentApprovedEmailWorkflow } from '../workflows/email/send-payment-approved-email';
 
 export default async function handlePaymentCaptured({ event: { data }, container }: SubscriberArgs<{ id: string }>) {
   const paymentId = data.id;

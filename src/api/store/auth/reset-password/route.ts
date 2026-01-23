@@ -1,15 +1,15 @@
 /**
  * API Route: Request Password Reset
  * Endpoint para solicitar redefinição de senha
- * 
+ *
  * POST /store/auth/reset-password
  * Body: { email: string }
- * 
+ *
  * Este endpoint:
  * 1. Valida se o email existe
  * 2. Gera token de reset (via Auth Module)
  * 3. Dispara evento para enviar email AUTOMATICAMENTE
- * 
+ *
  * Referência: https://docs.medusajs.com/resources/infrastructure-modules/auth
  */
 
@@ -21,10 +21,7 @@ interface ResetPasswordRequest {
   email: string;
 }
 
-export async function POST(
-  req: MedusaRequest<ResetPasswordRequest>,
-  res: MedusaResponse,
-) {
+export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: MedusaResponse) {
   try {
     const { email } = req.body;
 

@@ -12,26 +12,23 @@ export interface ValidateEmailOutput {
   last_name?: string;
 }
 
-export const validateEmailStep = createStep(
-  'validate-email-step',
-  async (input: ValidateEmailInput) => {
-    const { email, first_name, last_name } = input;
+export const validateEmailStep = createStep('validate-email-step', async (input: ValidateEmailInput) => {
+  const { email, first_name, last_name } = input;
 
-    if (!email || typeof email !== 'string') {
-      throw new Error('Email é obrigatório');
-    }
+  if (!email || typeof email !== 'string') {
+    throw new Error('Email é obrigatório');
+  }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Email inválido');
-    }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new Error('Email inválido');
+  }
 
-    const normalizedEmail = email.toLowerCase().trim();
+  const normalizedEmail = email.toLowerCase().trim();
 
-    return new StepResponse({
-      email: normalizedEmail,
-      first_name: first_name?.trim(),
-      last_name: last_name?.trim(),
-    });
-  },
-);
+  return new StepResponse({
+    email: normalizedEmail,
+    first_name: first_name?.trim(),
+    last_name: last_name?.trim(),
+  });
+});

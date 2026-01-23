@@ -51,10 +51,12 @@ export const formatOrderInvoicedDataStep = createStep(
     const orderItems = formatOrderItems(order.items || []);
 
     // Formatar método de pagamento (se disponível)
-    const paymentMethod = payment ? formatPaymentMethod(payment) : {
-      paymentName: 'Pagamento processado',
-      paymentBrand: 'N/A',
-    };
+    const paymentMethod = payment
+      ? formatPaymentMethod(payment)
+      : {
+          paymentName: 'Pagamento processado',
+          paymentBrand: 'N/A',
+        };
 
     // Formatar schedule de entrega
     const deliverySchedule = formatDeliverySchedule(order.shipping_methods?.[0]);

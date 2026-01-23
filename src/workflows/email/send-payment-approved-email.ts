@@ -4,6 +4,7 @@
  */
 
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
+
 import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
 import { formatPaymentApprovedDataStep } from './steps/format-payment-approved-data-step';
 import { getOrderDataStep } from './steps/get-order-data-step';

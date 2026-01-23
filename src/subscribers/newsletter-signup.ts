@@ -12,7 +12,10 @@ export default async function newsletterSignupHandler({
 
   try {
     // Resolver o módulo de newsletter
-    const newsletterService: any = container.resolve('newsletter');
+    const newsletterService = container.resolve('newsletter') as {
+      listNewsletterSubscribers: (filters: { email: string }) => Promise<unknown[]>;
+      createNewsletterSubscribers: (data: { email: string; source: string; subscribed_at: Date }) => Promise<unknown>;
+    };
 
     // Verificar se o email já existe
     const existingSubscribers = await newsletterService.listNewsletterSubscribers({

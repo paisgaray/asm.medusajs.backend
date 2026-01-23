@@ -17,6 +17,7 @@
 
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
 import { formatOrderDeliveredDataStep } from './steps/format-order-delivered-data-step';
 import { getFulfillmentOrderStep } from './steps/get-fulfillment-order-step';
 import { getOrderByIdStep } from './steps/get-order-by-id-step';
@@ -40,13 +41,18 @@ export const sendOrderDeliveredEmailWorkflow = createWorkflow(
     });
 
     // Step 3: Formatar dados para o template do SendGrid
-    const emailData = formatOrderDeliveredDataStep({
+    const { emailData, recipientEmail } = formatOrderDeliveredDataStep({
       order,
       payment,
     });
 
     // Step 4: Enviar e-mail
-    const result = sendEmailStep(emailData);
+    const result = sendEmailStep({
+      recipientEmail,
+      templateId: SENDGRID_TEMPLATES.ORDER_DELIVERED,
+      templateData: emailData,
+      subject: 'Pedido entregue',
+    });
 
     return new WorkflowResponse(result);
   },

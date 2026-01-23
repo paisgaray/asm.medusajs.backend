@@ -1,15 +1,13 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils';
+import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
+import { defineConfig, loadEnv } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd());
 
-type ModuleConfig = {
-  resolve: string;
-  options?: Record<string, unknown>;
-};
-
-const modules: ModuleConfig[] = [];
+const modules:
+  | InputConfigModules
+  | Record<string, boolean | Partial<InternalModuleDeclaration | ExternalModuleDeclaration>> = [];
 
 const addLocalModuleIfExists = (relativePath: string) => {
   const fullPath = path.resolve(process.cwd(), relativePath);
@@ -37,6 +35,7 @@ if (fs.existsSync(algoliaModulePath)) {
       supportedLanguages: process.env.ALGOLIA_SUPPORTED_LANGUAGES
         ? process.env.ALGOLIA_SUPPORTED_LANGUAGES.split(',').map((l: string) => l.trim())
         : undefined,
+      envPrefix: process.env.ALGOLIA_ENV_PREFIX || undefined,
     },
   });
 }
@@ -70,7 +69,7 @@ modules.push(
     resolve: '@medusajs/medusa/workflow-engine-redis',
     options: {
       redis: {
-        url: process.env.WE_REDIS_URL || redisUrl,
+        redisUrl: process.env.WE_REDIS_URL || redisUrl,
       },
     },
   },
@@ -84,6 +83,27 @@ modules.push(
           is_default: true,
           options: {
             redisUrl: process.env.LOCKING_REDIS_URL || redisUrl,
+          },
+        },
+      ],
+    },
+  },
+  {
+    resolve: './src/modules/region-zipcodes',
+  },
+  {
+    resolve: '@medusajs/medusa/translation',
+  },
+  {
+    resolve: '@medusajs/medusa/notification',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/notification-sendgrid',
+          id: 'sendgrid',
+          options: {
+            api_key: process.env.SENDGRID_API_KEY,
+            from: process.env.SENDGRID_FROM_EMAIL,
           },
         },
       ],
@@ -156,4 +176,7 @@ export default defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
   },
   modules,
+  featureFlags: {
+    translation: true,
+  },
 });

@@ -141,6 +141,8 @@ export const syncProductsStep = createStep(
               'variants.sku',
               'variants.calculated_price.calculated_amount',
               'variants.calculated_price.currency_code',
+              'variants.prices.amount',
+              'variants.prices.currency_code',
               'variants.sales_count',
               'tags.id',
               'tags.value',

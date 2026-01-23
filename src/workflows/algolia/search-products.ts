@@ -12,6 +12,13 @@ type SearchProductsInput = {
 };
 
 export const searchProductsWorkflow = createWorkflow('search-products', (input: SearchProductsInput) => {
-  const results = searchProductsStep(input);
+  const results = searchProductsStep({
+    searchQuery: input.query,
+    filters: input.filters,
+    page: input.page,
+    limit: input.limit,
+    sortBy: input.sortBy,
+    language: input.language,
+  });
   return new WorkflowResponse(results);
 });

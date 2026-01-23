@@ -1,50 +1,20 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { searchProductsWorkflow } from '../../../workflows/algolia';
+import { searchProductsWithPricingWorkflow } from '../../../workflows/algolia/search-with-pricing';
 
 export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void> {
-  try {
-    const query = (req.query.q as string) || '';
-    const filters = (req.query.filters as string) || '';
-    const pageParam = req.query.page !== undefined ? Number(req.query.page) : 0;
-    const limit = req.query.limit ? Number(req.query.limit) : 20;
-    const sortBy = (req.query.sortBy as string) || undefined;
-    const language = (req.query.language as string) || 'pt';
+  const { result } = await searchProductsWithPricingWorkflow(req.scope).run({
+    input: {
+      searchQuery: (req.query.q as string) || '',
+      filters: (req.query.filters as string) || '',
+      page: req.query.page !== undefined ? Number(req.query.page) : 0,
+      limit: req.query.limit ? Number(req.query.limit) : 20,
+      sortBy: (req.query.sortBy as string) || (req.query.sort_by as string) || undefined,
+      language: (req.query.language as string) || 'es',
+      currency_code: (req.query.currency_code as string) || undefined,
+      region_id: (req.query.region_id as string) || undefined,
+    },
+  });
 
-    const algoliaPage = Math.max(0, pageParam);
-
-    const { result } = await searchProductsWorkflow(req.scope).run({
-      input: {
-        query,
-        filters,
-        page: algoliaPage,
-        limit,
-        sortBy,
-        language,
-      },
-    });
-
-    res.json(result);
-  } catch (error) {
-    let errorMessage = 'An error occurred while searching products';
-    let errorCode = 'unknown_error';
-
-    if (error instanceof Error) {
-      errorMessage = error.message || errorMessage;
-      if ('code' in error && typeof error.code === 'string') {
-        errorCode = error.code;
-      }
-    }
-
-    const statusCode = errorCode === 'ALGOLIA_UNREACHABLE' ? 503 : 500;
-
-    res.status(statusCode).json({
-      code: errorCode,
-      type: errorCode,
-      message: errorMessage,
-      ...(error instanceof Error && 'details' in error && typeof error.details === 'string'
-        ? { details: error.details }
-        : {}),
-    });
-  }
+  res.json(result);
 }

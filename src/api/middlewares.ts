@@ -1,6 +1,7 @@
 import { defineMiddlewares } from '@medusajs/framework/http';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
+import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
 import { productSearchMiddlewares } from './store/products/search/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
@@ -13,5 +14,6 @@ export default defineMiddlewares({
     ...productSearchMiddlewares,
     ...newsletterMiddlewares,
     ...wishlistMiddlewares,
+    ...regionZipcodeMiddlewares,
   ],
 });

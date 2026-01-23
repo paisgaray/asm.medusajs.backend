@@ -100,7 +100,8 @@ export const addSingleWishlistItemToCartStep = createStep(
         response.body.variant_used = validatedVariant.variant_id;
         response.body.original_variant_id = input.item.product_variant_id;
         response.body.fallback_used = true;
-        response.body.message = 'Item added to cart successfully (variant was updated to a valid one) and removed from wishlist';
+        response.body.message =
+          'Item added to cart successfully (variant was updated to a valid one) and removed from wishlist';
       }
 
       // Remove item da wishlist após adicionar ao carrinho

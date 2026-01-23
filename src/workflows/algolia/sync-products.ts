@@ -9,6 +9,8 @@ type SyncProductsInput = {
     id?: string;
   };
   language?: string;
+  region_id?: string;
+  currency_code?: string;
 };
 
 export const syncProductsWorkflow = createWorkflow('sync-products', (input: SyncProductsInput) => {

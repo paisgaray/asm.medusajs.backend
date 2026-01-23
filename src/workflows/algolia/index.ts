@@ -4,3 +4,4 @@ export { searchProductsWorkflow } from './search-products';
 export { syncProductsWorkflow } from './sync-products';
 export { autocompleteWorkflow } from './autocomplete';
 export { indexProductsByLanguageWorkflow } from './index-products-by-language';
+export { searchProductsWithPricingWorkflow } from './search-with-pricing';

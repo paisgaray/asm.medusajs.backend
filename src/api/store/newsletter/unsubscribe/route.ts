@@ -1,6 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { sendgridClient } from '../../../../utils/sendgrid-client';
+import { NEWSLETTER_MODULE } from '../../../../modules/newsletter';
+import NewsletterModuleService from '../../../../modules/newsletter/service';
 
 export async function POST(req: MedusaRequest, res: MedusaResponse) {
   try {
@@ -13,42 +14,36 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       });
     }
 
+    const newsletterService: NewsletterModuleService = req.scope.resolve(NEWSLETTER_MODULE);
+
     const normalizedEmail = email.toLowerCase().trim();
 
-    const searchResponse = await sendgridClient.request({
-      url: '/v3/marketing/contacts/search',
-      method: 'POST',
-      body: {
-        query: `email LIKE '${normalizedEmail}'`,
-      },
+    // Buscar subscriber
+    const subscribers = await newsletterService.listNewsletterSubscribers({
+      email: normalizedEmail,
     });
 
-    const contacts = (searchResponse[1]?.body as { result?: { id: string }[] })?.result || [];
-
-    if (contacts.length === 0) {
+    if (!subscribers || subscribers.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Email não encontrado na newsletter',
       });
     }
 
-    const contactId = contacts[0].id;
+    const subscriber = subscribers[0];
 
-    await sendgridClient.request({
-      url: '/v3/marketing/contacts',
-      method: 'DELETE',
-      qs: {
-        ids: contactId,
-      },
+    // Atualizar status para unsubscribed
+    await newsletterService.updateNewsletterSubscribers({
+      id: subscriber.id,
+      status: 'unsubscribed',
+      unsubscribed_at: new Date(),
     });
 
     return res.status(200).json({
       success: true,
       message: 'Email removido da newsletter com sucesso',
     });
-  } catch (error) {
-    console.error('[Newsletter Unsubscribe] Erro:', error);
-
+  } catch {
     return res.status(500).json({
       success: false,
       message: 'Erro ao remover email da newsletter',

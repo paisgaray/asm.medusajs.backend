@@ -1,6 +1,6 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
-import { addContactToSendGridStep } from './steps/add-contact-to-sendgrid-step';
+import { saveSubscriberStep } from './steps/save-subscriber-step';
 import { validateEmailStep } from './steps/validate-email-step';
 
 export interface SubscribeNewsletterInput {
@@ -12,7 +12,7 @@ export interface SubscribeNewsletterInput {
 export interface SubscribeNewsletterOutput {
   success: boolean;
   message: string;
-  contact_id?: string;
+  subscriber_id?: string;
 }
 
 export const subscribeNewsletterWorkflow = createWorkflow(
@@ -20,7 +20,7 @@ export const subscribeNewsletterWorkflow = createWorkflow(
   (input: SubscribeNewsletterInput) => {
     const validatedEmail = validateEmailStep(input);
 
-    const result = addContactToSendGridStep(validatedEmail);
+    const result = saveSubscriberStep(validatedEmail);
 
     return new WorkflowResponse(result);
   },

@@ -18,7 +18,7 @@ RUN yarn build
 # ==========================
 # 2) PRODUCTION IMAGE
 # ==========================
-FROM node:23 AS production
+FROM node:24 AS production
 
 WORKDIR /app/medusa
 

@@ -66,7 +66,7 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
       // Formatar dados do email
       const firstName = customer.first_name || customer.email.split('@')[0] || 'Cliente';
       const storeUrl = process.env.STORE_URL || 'http://localhost:8000';
-      const actionUrl = `${storeUrl}/reset-password?token=${resetToken}`;
+      const actionUrl = `${storeUrl}/account?token=${resetToken}&email=${encodeURIComponent(customer.email)}`;
 
       // Enviar email via SendGrid
       const emailData = {

@@ -40,7 +40,9 @@ export const savePaymentMethodStep = createStep(
     };
 
     if (!paymentModuleService || !paymentModuleService.savePaymentMethod) {
-      throw new Error('Payment provider does not support saving payment methods. Please ensure the provider implements savePaymentMethod method.');
+      throw new Error(
+        'Payment provider does not support saving payment methods. Please ensure the provider implements savePaymentMethod method.',
+      );
     }
 
     if (!input.account_holder.data?.id) {

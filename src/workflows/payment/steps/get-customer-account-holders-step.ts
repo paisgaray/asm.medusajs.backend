@@ -20,15 +20,18 @@ export const getCustomerAccountHoldersStep = createStep(
     const link = container.resolve(ContainerRegistrationKeys.LINK);
 
     try {
-      const { data: customerData } = await query.graph({
-        entity: 'customer',
-        fields: ['id'],
-        filters: {
-          id: input.customer_id,
+      const { data: customerData } = await query.graph(
+        {
+          entity: 'customer',
+          fields: ['id'],
+          filters: {
+            id: input.customer_id,
+          },
         },
-      }, {
-        throwIfKeyNotFound: false,
-      });
+        {
+          throwIfKeyNotFound: false,
+        },
+      );
 
       if (!customerData || customerData.length === 0) {
         return new StepResponse([]);
@@ -50,15 +53,18 @@ export const getCustomerAccountHoldersStep = createStep(
         return new StepResponse([]);
       }
 
-      const { data: accountHoldersData } = await query.graph({
-        entity: 'account_holder',
-        fields: ['id', 'provider_id', 'data'],
-        filters: {
-          id: accountHolderIds,
+      const { data: accountHoldersData } = await query.graph(
+        {
+          entity: 'account_holder',
+          fields: ['id', 'provider_id', 'data'],
+          filters: {
+            id: accountHolderIds,
+          },
         },
-      }, {
-        throwIfKeyNotFound: false,
-      });
+        {
+          throwIfKeyNotFound: false,
+        },
+      );
 
       if (!accountHoldersData || accountHoldersData.length === 0) {
         return new StepResponse([]);

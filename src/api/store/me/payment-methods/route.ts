@@ -3,7 +3,10 @@ import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { createPaymentMethodWorkflow, listCustomerPaymentMethodsWorkflow } from '../../../../workflows/payment';
 import type { StoreCreatePaymentMethodBody, StorePaymentMethodsListQuery } from '../../payment-methods/validators';
 
-export async function GET(req: MedusaRequest<undefined, StorePaymentMethodsListQuery>, res: MedusaResponse): Promise<void> {
+export async function GET(
+  req: MedusaRequest<undefined, StorePaymentMethodsListQuery>,
+  res: MedusaResponse,
+): Promise<void> {
   const query = req.filterableFields as StorePaymentMethodsListQuery;
 
   if (!query.customer_id) {

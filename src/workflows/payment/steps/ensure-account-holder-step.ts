@@ -14,15 +14,18 @@ export const ensureAccountHolderStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const link = container.resolve(ContainerRegistrationKeys.LINK);
 
-    const { data: customerData } = await query.graph({
-      entity: 'customer',
-      fields: ['id'],
-      filters: {
-        id: input.customer_id,
+    const { data: customerData } = await query.graph(
+      {
+        entity: 'customer',
+        fields: ['id'],
+        filters: {
+          id: input.customer_id,
+        },
       },
-    }, {
-      throwIfKeyNotFound: false,
-    });
+      {
+        throwIfKeyNotFound: false,
+      },
+    );
 
     if (!customerData || customerData.length === 0) {
       throw new Error('Customer not found');
@@ -39,16 +42,19 @@ export const ensureAccountHolderStep = createStep(
           .filter((id): id is string => !!id);
 
         if (accountHolderIds.length > 0) {
-          const { data: accountHoldersData } = await query.graph({
-            entity: 'account_holder',
-            fields: ['id', 'provider_id', 'data'],
-            filters: {
-              id: accountHolderIds,
-              provider_id: input.provider_id,
+          const { data: accountHoldersData } = await query.graph(
+            {
+              entity: 'account_holder',
+              fields: ['id', 'provider_id', 'data'],
+              filters: {
+                id: accountHolderIds,
+                provider_id: input.provider_id,
+              },
             },
-          }, {
-            throwIfKeyNotFound: false,
-          });
+            {
+              throwIfKeyNotFound: false,
+            },
+          );
 
           if (accountHoldersData && accountHoldersData.length > 0) {
             const existing = accountHoldersData[0] as {
@@ -71,8 +77,7 @@ export const ensureAccountHolderStep = createStep(
           }
         }
       }
-    } catch {
-    }
+    } catch {}
 
     const paymentModuleService = container.resolve('payment') as {
       createAccountHolder?: (params: {
@@ -112,18 +117,20 @@ export const ensureAccountHolderStep = createStep(
             },
           },
         ]);
-      } catch {
-      }
+      } catch {}
 
-      const { data: createdAccountHolders } = await query.graph({
-        entity: 'account_holder',
-        fields: ['id', 'provider_id', 'data'],
-        filters: {
-          id: accountHolderData.id,
+      const { data: createdAccountHolders } = await query.graph(
+        {
+          entity: 'account_holder',
+          fields: ['id', 'provider_id', 'data'],
+          filters: {
+            id: accountHolderData.id,
+          },
         },
-      }, {
-        throwIfKeyNotFound: false,
-      });
+        {
+          throwIfKeyNotFound: false,
+        },
+      );
 
       if (createdAccountHolders && createdAccountHolders.length > 0) {
         const created = createdAccountHolders[0] as {

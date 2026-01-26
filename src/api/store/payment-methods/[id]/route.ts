@@ -41,4 +41,3 @@ export async function PUT(req: MedusaRequest<StoreUpdatePaymentMethodBody>, res:
 
   res.status(200).json({ success: true });
 }
-

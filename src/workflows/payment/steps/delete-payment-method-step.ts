@@ -11,7 +11,7 @@ export const deletePaymentMethodStep = createStep(
   async (input: DeletePaymentMethodStepInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const paymentModuleService = container.resolve('payment') as {
-      deletePaymentMethod: (params: {
+      deletePaymentMethod?: (params: {
         provider_id: string;
         payment_method_id: string;
         context: {
@@ -23,6 +23,10 @@ export const deletePaymentMethodStep = createStep(
         };
       }) => Promise<void>;
     };
+
+    if (!paymentModuleService || !paymentModuleService.deletePaymentMethod) {
+      throw new Error('Payment provider does not support deleting payment methods');
+    }
 
     const { data: accountHolders } = await query.graph({
       entity: 'account_holder',

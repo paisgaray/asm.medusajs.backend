@@ -17,6 +17,9 @@ import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { Modules } from '@medusajs/framework/utils';
 import crypto from 'crypto';
 
+import { sendgridClient } from '../../../../utils/sendgrid-client';
+import { SENDGRID_TEMPLATES } from '../../../../utils/sendgrid-templates';
+
 interface ResetPasswordRequest {
   email: string;
 }
@@ -34,7 +37,6 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
 
     // Resolver serviços necessários
     const customerModuleService = req.scope.resolve(Modules.CUSTOMER);
-    const eventBusService = req.scope.resolve(Modules.EVENT_BUS);
 
     // 1. Verificar se o email existe
     const customers = await customerModuleService.listCustomers({
@@ -59,16 +61,30 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
 
-    // 4. DISPARAR EVENTO AUTOMATICAMENTE
-    await eventBusService.emit({
-      name: 'user.password_reset_requested',
-      data: {
-        id: customer.id,
-        email: customer.email,
-        token: resetToken,
-        expires_at: expiresAt.toISOString(),
-      },
-    });
+    // 4. ENVIAR EMAIL DIRETAMENTE (sem depender do workflow/subscriber)
+    try {
+      // Formatar dados do email
+      const firstName = customer.first_name || customer.email.split('@')[0] || 'Cliente';
+      const storeUrl = process.env.STORE_URL || 'http://localhost:8000';
+      const actionUrl = `${storeUrl}/reset-password?token=${resetToken}`;
+
+      // Enviar email via SendGrid
+      const emailData = {
+        firstName,
+        actionUrl,
+      };
+
+      await sendgridClient.send({
+        to: customer.email,
+        from: process.env.SENDGRID_FROM_EMAIL!,
+        templateId: SENDGRID_TEMPLATES.RESET_PASSWORD,
+        dynamicTemplateData: emailData,
+        subject: 'Restablecer contraseña',
+      });
+    } catch (emailError) {
+      console.error('[Password Reset] Erro ao enviar e-mail:', emailError);
+      // Continua mesmo se o email falhar (não bloqueia a resposta)
+    }
 
     // 5. Retornar sucesso
     return res.status(200).json({

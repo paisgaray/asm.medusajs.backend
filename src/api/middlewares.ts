@@ -4,6 +4,7 @@ import { bundledProductsMiddlewares } from './admin/bundled-products/middleware'
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
+import { paymentMethodsMiddlewares } from './store/payment-methods/middleware';
 import { productSearchMiddlewares } from './store/products/search/middleware';
 import { wishlistMiddlewares } from './store/wishlist/middleware';
 
@@ -15,5 +16,6 @@ export default defineMiddlewares({
     ...newsletterMiddlewares,
     ...wishlistMiddlewares,
     ...regionZipcodeMiddlewares,
+    ...paymentMethodsMiddlewares,
   ],
 });

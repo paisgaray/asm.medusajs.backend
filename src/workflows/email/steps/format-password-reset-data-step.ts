@@ -19,7 +19,7 @@ export const formatPasswordResetDataStep = createStep(
 
     const firstName = customer?.first_name || email.split('@')[0] || 'Cliente';
     const storeUrl = process.env.STORE_URL || 'http://localhost:8000';
-    const actionUrl = `${storeUrl}/reset-password?token=${token}`;
+    const actionUrl = `${storeUrl}/account?token=${token}&email=${encodeURIComponent(email)}`;
 
     const emailData: ResetPasswordEmailData = {
       firstName,

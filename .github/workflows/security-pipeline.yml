@@ -11,11 +11,11 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  security-events: write
   actions: read
+  # security-events: write  # (remova se você não publica SARIF)
 
 concurrency:
-  group: devsecops-${{ github.ref }}
+  group: devsecops-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
+          mkdir -p artifacts/{logs,reports,dast,sca}
           echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
       - name: Context log
@@ -45,6 +45,7 @@ jobs:
           set -euo pipefail
           {
             echo "=== Context ==="
+            echo "Workflow: ${GITHUB_WORKFLOW}"
             echo "Event: ${GITHUB_EVENT_NAME}"
             echo "Branch: ${GITHUB_REF_NAME}"
             echo "SHA: ${GITHUB_SHA}"
@@ -53,7 +54,7 @@ jobs:
             echo "==============="
           } | tee artifacts/logs/01-context.txt
 
-      - name: Setup Node (Corepack + Yarn)
+      - name: Setup Node (Corepack + Yarn cache)
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -65,23 +66,24 @@ jobs:
         run: |
           set -euo pipefail
           corepack enable
-          yarn --version | tee artifacts/logs/10-yarn-version.txt
+          YVER="$(yarn --version)"
+          echo "$YVER" | tee artifacts/logs/10-yarn-version.txt
 
-          if [ -f yarn.lock ]; then
-            # Yarn classic (v1) usa --frozen-lockfile; Yarn Berry (v2+) usa --immutable.
-            if yarn --version | grep -Eq '^1\.'; then
-              yarn install --frozen-lockfile 2>&1 | tee artifacts/logs/10-install.txt
-            else
-              yarn install --immutable 2>&1 | tee artifacts/logs/10-install.txt
-            fi
-          else
-            echo "⚠️ yarn.lock not found. This project should commit yarn.lock for reproducible builds." \
+          if [ ! -f yarn.lock ]; then
+            echo "⚠️ yarn.lock not found. Commit yarn.lock for reproducible builds." \
               | tee artifacts/logs/10-install.txt
             yarn install 2>&1 | tee -a artifacts/logs/10-install.txt
+            exit 0
+          fi
+
+          if echo "$YVER" | grep -Eq '^1\.'; then
+            yarn install --frozen-lockfile 2>&1 | tee artifacts/logs/10-install.txt
+          else
+            yarn install --immutable 2>&1 | tee artifacts/logs/10-install.txt
           fi
 
       # =========================================================
-      # SCA - GitHub Dependency Review (PR only)
+      # SCA - Dependency Review (PR only)
       # =========================================================
       - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
         if: ${{ github.event_name == 'pull_request' }}
@@ -91,7 +93,7 @@ jobs:
           fail-on-severity: high
           deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
 
-      - name: SCA - Export technical report (Dependency Review JSON) - PR only
+      - name: SCA - Export dependency graph diff (JSON) - PR only
         if: ${{ always() && github.event_name == 'pull_request' }}
         continue-on-error: true
         shell: bash
@@ -100,7 +102,7 @@ jobs:
         run: |
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
-          OUT="artifacts/sca/dependency-review.json"
+          OUT="artifacts/sca/dependency-graph-compare.json"
 
           curl -sS \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -110,14 +112,14 @@ jobs:
             | tee "$OUT" >/dev/null || true
 
           if [[ ! -s "$OUT" ]]; then
-            echo "Dependency Review JSON could not be exported. See PR check output." \
-              > artifacts/sca/DEPENDENCY_REVIEW_EXPORT_FAILED.txt
+            echo "Dependency graph compare JSON could not be exported. See PR check output." \
+              > artifacts/sca/EXPORT_FAILED.txt
           else
-            echo "✅ Exported SCA technical report to $OUT" | tee artifacts/logs/20-sca-export.txt
+            echo "✅ Exported SCA JSON to $OUT" | tee artifacts/logs/20-sca-export.txt
           fi
 
       # =========================================================
-      # DAST - OWASP ZAP (RUN VIA DOCKER TO AVOID INTERNAL ARTIFACT UPLOAD)
+      # DAST - OWASP ZAP (Docker)
       # =========================================================
       - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
         continue-on-error: true
@@ -125,12 +127,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Ensure container can write to workspace
           sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
 
           docker pull ghcr.io/zaproxy/zaproxy:stable -q
+          docker image inspect ghcr.io/zaproxy/zaproxy:stable --format '{{.Id}}' \
+            | tee artifacts/logs/30-zap-image-id.txt || true
 
-          docker run --rm \
+          # Timeout defensivo (10 min) para não travar job em rede
+          timeout 600 docker run --rm \
             -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
             --network=host \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -139,7 +143,8 @@ jobs:
               -J /zap/wrk/artifacts/dast/zap-report.json \
               -w /zap/wrk/artifacts/dast/zap-report.md \
               -r /zap/wrk/artifacts/dast/zap-report.html \
-              -a -I -m 5
+              -a -I -m 5 \
+            2>&1 | tee artifacts/logs/31-zap-run.txt || true
 
       - name: DAST - Validate reports + placeholder
         if: always()
@@ -151,13 +156,19 @@ jobs:
           fi
 
       # =========================================================
-      # Technical summary report (index)
+      # Technical index
       # =========================================================
       - name: Generate technical index report (DAST + SCA)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
+
+          SCA_NOTE="N/A"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            SCA_NOTE="artifacts/sca/dependency-graph-compare.json"
+          fi
+
           {
             echo "# DevSecOps - Technical Reports Index"
             echo ""
@@ -174,7 +185,7 @@ jobs:
             echo "- artifacts/dast/zap-report.json"
             echo ""
             echo "## SCA (GitHub Dependency Review) - PR only"
-            echo "- artifacts/sca/dependency-review.json"
+            echo "- Evidence JSON: ${SCA_NOTE}"
             echo "- Note: Detailed results also appear in the PR check UI."
           } > artifacts/reports/TECH_REPORTS_INDEX.md
 
@@ -195,7 +206,7 @@ jobs:
             echo ""
             echo "- **Index:** artifacts/reports/TECH_REPORTS_INDEX.md"
             echo "- **DAST:** artifacts/dast/zap-report.*"
-            echo "- **SCA (PR only):** artifacts/sca/dependency-review.json"
+            echo "- **SCA (PR only):** artifacts/sca/dependency-graph-compare.json"
             echo "- **Logs:** artifacts/logs/"
             echo ""
             echo "> Download the **devsecops-evidence** artifact."

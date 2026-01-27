@@ -1,9 +1,11 @@
-name: DevSecOps (MAIN) - Sonar + ZAP (DAST) + SCA + PDF   
+name: DevSecOps (SECURITY BRANCH) - Sonar + ZAP (DAST) + SCA(PR) + PDF
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -12,7 +14,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: devsecops-main-${{ github.ref }}
+  group: devsecops-security-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -36,24 +38,12 @@ jobs:
           mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
           echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
-      - name: Context log
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "=== Context ==="
-            echo "Event: ${GITHUB_EVENT_NAME}"
-            echo "Branch: ${GITHUB_REF_NAME}"
-            echo "SHA: ${GITHUB_SHA}"
-            echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
-            echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
-            echo "==============="
-          } | tee artifacts/logs/01-context.txt
-
       # -------------------------
-      # SAST (Sonar) - baseline main
+      # Sonar: nesta branch, usa o nome da própria branch
+      # Em PR, Sonar auto-configura o PR (não precisa branch.name).
       # -------------------------
-      - name: Sonar Scan (main)
+      - name: Sonar Scan (push security branch)
+        if: ${{ github.event_name == 'push' }}
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -65,6 +55,53 @@ jobs:
             -Dsonar.sources=src
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
             -Dsonar.sourceEncoding=UTF-8
+
+      - name: Sonar Scan (PR)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.sources=src
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
+            -Dsonar.sourceEncoding=UTF-8
+
+      # -------------------------
+      # SCA - GitHub Dependency Review (PR only) + export JSON
+      # -------------------------
+      - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+
+      - name: SCA - Export dependency graph diff (JSON) - PR only
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          OUT="artifacts/sca/dependency-graph-compare.json"
+
+          curl -sS \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -X POST "https://api.github.com/repos/${REPO}/dependency-graph/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
+            | tee "$OUT" >/dev/null || true
+
+          if [[ ! -s "$OUT" ]]; then
+            echo "Dependency graph compare JSON could not be exported. See PR check output." \
+              > artifacts/sca/EXPORT_FAILED.txt
+          fi
 
       # -------------------------
       # DAST - OWASP ZAP (Docker)
@@ -98,34 +135,6 @@ jobs:
           fi
 
       # -------------------------
-      # SCA (Main) - gratuito (yarn audit) para ter evidência também fora de PR
-      # -------------------------
-      - name: Setup Node (Corepack + Yarn)
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
-
-      - name: Install deps (yarn) - NON-BLOCKING
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          corepack enable
-          if yarn --version | grep -Eq '^1\.'; then
-            yarn install --frozen-lockfile || true
-          else
-            yarn install --immutable || true
-          fi
-
-      - name: SCA - yarn audit (JSON) - NON-BLOCKING
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          yarn audit --json > artifacts/sca/yarn-audit.json || true
-
-      # -------------------------
       # PDF (DAST + SCA)
       # -------------------------
       - name: Build DAST+SCA PDF report (FREE)
@@ -140,7 +149,7 @@ jobs:
           REPORT_PDF="artifacts/reports/DAST_SCA_REPORT.pdf"
 
           {
-            echo "# Relatório Técnico - DAST + SCA (MAIN)"
+            echo "# Relatório Técnico - DAST + SCA (SECURITY BRANCH)"
             echo ""
             echo "## Contexto"
             echo "- Repositório: ${GITHUB_REPOSITORY}"
@@ -150,33 +159,19 @@ jobs:
             echo ""
             echo "## DAST (OWASP ZAP)"
             echo "- Target: ${DAST_TARGET_URL}"
-            echo "- Evidências:"
-            echo "  - artifacts/dast/zap-report.html"
-            echo "  - artifacts/dast/zap-report.md"
-            echo "  - artifacts/dast/zap-report.json"
+            echo "- Evidências: artifacts/dast/zap-report.*"
+            echo ""
+            echo "## SCA (Dependency Review) - PR only"
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              echo "- Evidência: artifacts/sca/dependency-graph-compare.json"
+            else
+              echo "- N/A (não é PR)"
+            fi
             echo ""
             if [[ -s artifacts/dast/zap-report.md ]]; then
               echo "### Saída ZAP (trecho)"
               echo ""
               sed -n '1,200p' artifacts/dast/zap-report.md
-              echo ""
-              echo "> (Relatório completo nos artifacts)"
-            else
-              echo "> ZAP report não encontrado."
-            fi
-            echo ""
-            echo "## SCA (yarn audit - JSON)"
-            echo "- Evidência: artifacts/sca/yarn-audit.json"
-            echo ""
-            if [[ -s artifacts/sca/yarn-audit.json ]]; then
-              echo "### yarn audit (trecho)"
-              echo ""
-              echo '```json'
-              head -c 6000 artifacts/sca/yarn-audit.json || true
-              echo ""
-              echo '```'
-            else
-              echo "> yarn-audit.json não gerado."
             fi
           } > "$REPORT_MD"
 
@@ -186,5 +181,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: devsecops-evidence-main
+          name: devsecops-evidence-security
           path: artifacts

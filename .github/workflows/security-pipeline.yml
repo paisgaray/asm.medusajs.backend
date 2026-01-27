@@ -59,8 +59,14 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # Se for SonarQube self-hosted, você PRECISA definir:
-          # SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+           args: >
+              -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+              -Dsonar.organization=${{ vars.SONAR_ORG }}
+              -Dsonar.projectBaseDir=.
+              -Dsonar.sources=
+              -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
+              -Dsonar.sourceEncoding=UTF-8
 
       - name: Setup Node (Corepack + Yarn)
         uses: actions/setup-node@v4

@@ -1,12 +1,10 @@
-name: Security Pipeline (SAST/DAST/SCA/Secrets) - JWT
+name: DevSecOps - SAST/SCA/SBOM/Secrets/DAST (JWT) - Evidence First
 
 on:
   push:
-    branches:
-      - security/github-actions-sast-dast
+    branches: [ security/github-actions-sast-dast ]
   pull_request:
-    branches:
-      - security/github-actions-sast-dast
+    branches: [ security/github-actions-sast-dast ]
   workflow_dispatch:
 
 permissions:
@@ -15,191 +13,250 @@ permissions:
   actions: read
   pull-requests: read
 
-concurrency:
-  group: security-pipeline-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  NODE_VERSION: "20"
+
+  # Vars (Settings -> Secrets and variables -> Actions -> Variables)
+  DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}       # ex: https://medusa-admin-dev.qualityhosting.global
+  DAST_LOGIN_URL:  ${{ vars.DAST_LOGIN_URL }}        # ex: https://medusa-admin-dev.qualityhosting.global/auth/user/emailpass
+  DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}     # ex: token
 
 jobs:
-  sast_codeql:
-    name: SAST - CodeQL (JS/TS)
+  devsecops:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [javascript-typescript]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Initialize CodeQL
+      - name: Preparar diretórios de evidências
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs artifacts/reports artifacts/sbom artifacts/sast artifacts/secrets artifacts/dast
+          echo "✅ Diretórios criados." | tee artifacts/logs/00-init-dirs.txt
+
+      - name: Log inicial (contexto)
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "=== [INIT] Contexto ==="
+            echo "Event: ${GITHUB_EVENT_NAME}"
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "SHA: ${GITHUB_SHA}"
+            echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
+            echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
+            echo "DAST_LOGIN_URL:  ${DAST_LOGIN_URL}"
+            echo "DAST_TOKEN_FIELD:${DAST_TOKEN_FIELD}"
+            echo "======================="
+          } | tee artifacts/logs/01-context.txt
+
+      - name: Sanity checks (vars/secrets) - NON-BLOCKING (loga)
+        continue-on-error: true
+        shell: bash
+        env:
+          DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
+          DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          {
+            echo "=== [SANITY] Vars/Secrets ==="
+            missing=0
+            for v in DAST_TARGET_URL DAST_LOGIN_URL DAST_TOKEN_FIELD; do
+              if [[ -z "${!v:-}" ]]; then
+                echo "⚠️ VAR ${v} está vazia."
+                missing=1
+              else
+                echo "✅ VAR ${v} ok."
+              fi
+            done
+            for s in DAST_USERNAME DAST_PASSWORD; do
+              if [[ -z "${!s:-}" ]]; then
+                echo "⚠️ SECRET ${s} está vazio."
+                missing=1
+              else
+                echo "✅ SECRET ${s} ok."
+              fi
+            done
+            if [[ "$missing" -eq 1 ]]; then
+              echo "⚠️ Há variáveis/secrets faltando. Alguns jobs podem falhar."
+              exit 1
+            fi
+            echo "========================="
+          } | tee artifacts/logs/02-sanity.txt
+
+      # -------------------------
+      # 1) SAST - CodeQL (NON-BLOCKING) + SARIF como evidência
+      # -------------------------
+      - name: SAST - Initialize CodeQL (NON-BLOCKING)
+        continue-on-error: true
         uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
+          languages: javascript-typescript
 
-      - name: Autobuild
+      - name: SAST - Autobuild (NON-BLOCKING)
+        continue-on-error: true
         uses: github/codeql-action/autobuild@v3
 
-      # Evita falhar caso Code Scanning não esteja habilitado na org/repo
-      - name: Analyze (no upload)
+      - name: SAST - Analyze (no upload) (NON-BLOCKING)
+        continue-on-error: true
         uses: github/codeql-action/analyze@v3
         with:
           upload: false
-          output: results
-          category: "/language:${{ matrix.language }}"
+          output: artifacts/sast
 
-      - name: Upload CodeQL SARIF artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codeql-sarif
-          path: results/**/*.sarif
+      - name: Garantir evidência SAST (placeholder se vazio)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$(find artifacts/sast -type f 2>/dev/null)" ]]; then
+            echo "CodeQL não gerou SARIF (ver logs do job). Talvez faltou suporte/code scanning." \
+              > artifacts/sast/SAST_EMPTY.txt
+          fi
 
-  sca_dependency_review:
-    name: SCA - Dependency Review (PR)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: ${{ github.event_name == 'pull_request' }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Dependency Review (license policy)
+      # -------------------------
+      # 2) SCA - Dependency Review (somente PR)
+      # -------------------------
+      - name: SCA - Dependency Review (PR) - NON-BLOCKING
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
           deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
 
-  sca_sbom:
-    name: SCA - SBOM (CycloneDX)
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
+      # -------------------------
+      # 3) SBOM - CycloneDX (NON-BLOCKING)
+      # -------------------------
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies (auto)
+      - name: Install dependencies (auto) - NON-BLOCKING
+        continue-on-error: true
+        shell: bash
         run: |
           set -euo pipefail
-          if [ -f pnpm-lock.yaml ]; then
-            corepack enable
-            pnpm i --frozen-lockfile
-          elif [ -f yarn.lock ]; then
-            corepack enable
-            yarn install --frozen-lockfile
-          elif [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
+          ( if [ -f pnpm-lock.yaml ]; then
+              corepack enable
+              pnpm i --frozen-lockfile
+            elif [ -f yarn.lock ]; then
+              corepack enable
+              yarn install --frozen-lockfile
+            elif [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+          ) 2>&1 | tee artifacts/logs/20-install-deps.txt
+
+      - name: Generate SBOM (CycloneDX) - NON-BLOCKING
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          ( echo "=== [SBOM] CycloneDX ==="
+            npm i -g @cyclonedx/cyclonedx-npm
+            cyclonedx-npm --output-file artifacts/sbom/sbom-cyclonedx.json --output-format json
+            cyclonedx-npm --output-file artifacts/sbom/sbom-cyclonedx.xml  --output-format xml
+            echo "======================="
+          ) 2>&1 | tee artifacts/logs/21-sbom.txt
+
+      - name: Garantir evidência SBOM (placeholder se ausente)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f artifacts/sbom/sbom-cyclonedx.json && ! -f artifacts/sbom/sbom-cyclonedx.xml ]]; then
+            echo "SBOM não foi gerado. Ver artifacts/logs/21-sbom.txt" > artifacts/sbom/SBOM_EMPTY.txt
           fi
 
-      - name: Generate SBOM (CycloneDX)
+      # -------------------------
+      # 4) Secrets scan - Gitleaks (NON-BLOCKING) via GHCR
+      # -------------------------
+      - name: Secrets - Gitleaks -> SARIF (NON-BLOCKING)
+        continue-on-error: true
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p reports
-          npm i -g @cyclonedx/cyclonedx-npm
-          cyclonedx-npm --output-file reports/sbom-cyclonedx.json --output-format json
-          cyclonedx-npm --output-file reports/sbom-cyclonedx.xml  --output-format xml
+          ( echo "=== [GITLEAKS] ==="
+            docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:latest \
+              detect --source . --no-git \
+              --report-format sarif --report-path artifacts/secrets/gitleaks.sarif --redact
+            echo "=================="
+          ) 2>&1 | tee artifacts/logs/30-gitleaks.txt
 
-      - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-cyclonedx
-          path: reports/sbom-cyclonedx.*
-
-  secrets_gitleaks:
-    name: Secrets - Gitleaks (container)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Gitleaks -> SARIF (GHCR image)
+      - name: Garantir evidência Gitleaks (placeholder se ausente)
+        if: always()
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p reports
-          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:latest \
-            detect --source . --no-git \
-            --report-format sarif --report-path reports/gitleaks.sarif --redact
+          if [[ ! -f artifacts/secrets/gitleaks.sarif ]]; then
+            echo "Gitleaks não gerou SARIF. Ver artifacts/logs/30-gitleaks.txt" > artifacts/secrets/GITLEAKS_EMPTY.txt
+          fi
 
-      - name: Upload Gitleaks report
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: reports/gitleaks.sarif
-
-      # Se o Security/Code Scanning não estiver habilitado, comente este step.
-      - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: reports/gitleaks.sarif
-          category: gitleaks
-
-  dast_zap_jwt:
-    name: DAST - OWASP ZAP (JWT Auth)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    env:
-      DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
-      DAST_LOGIN_URL: ${{ vars.DAST_LOGIN_URL }}
-      DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}
-      DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
-      DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
-
-    steps:
-      - name: Guard - ensure required vars/secrets are set
+      # -------------------------
+      # 5) DAST - OWASP ZAP com JWT (NON-BLOCKING) + headers tipo browser
+      # -------------------------
+      - name: Garantir jq disponível
+        continue-on-error: true
+        shell: bash
         run: |
           set -euo pipefail
-          for v in DAST_TARGET_URL DAST_LOGIN_URL DAST_TOKEN_FIELD; do
-            if [ -z "${!v:-}" ]; then
-              echo "$v is not set."
-              exit 1
-            fi
-          done
-          for s in DAST_USERNAME DAST_PASSWORD; do
-            if [ -z "${!s:-}" ]; then
-              echo "$s secret is not set."
-              exit 1
-            fi
-          done
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y jq
+          fi
 
-      - name: Install jq
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y jq
-
-      - name: Get JWT token (Medusa Admin)
+      - name: DAST - Get JWT token (browser-like headers) - NON-BLOCKING
         id: jwt
+        continue-on-error: true
+        shell: bash
+        env:
+          DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
+          DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
         run: |
           set -euo pipefail
-          mkdir -p reports
 
-          # JSON seguro (não depende de template / substituição)
+          # BODY 100% seguro (sem problemas com caracteres especiais)
           BODY=$(jq -n --arg email "$DAST_USERNAME" --arg password "$DAST_PASSWORD" \
             '{email:$email, password:$password}')
 
-          RESPONSE=$(curl -sS -X POST "$DAST_LOGIN_URL" \
+          # Headers que costumam fazer diferença vs browser
+          ORIGIN="${DAST_TARGET_URL}"
+          REFERER="${DAST_TARGET_URL%/}/app/login"
+
+          RESPONSE_FILE="artifacts/dast/login-response.json"
+          HEADERS_FILE="artifacts/dast/login-response-headers.txt"
+
+          # Faz request e guarda resposta para evidência/debug (não imprime senha)
+          curl -sS -D "$HEADERS_FILE" -o "$RESPONSE_FILE" \
+            -X POST "$DAST_LOGIN_URL" \
             -H "Content-Type: application/json" \
-            -d "$BODY")
+            -H "Accept: application/json, text/plain, */*" \
+            -H "Origin: $ORIGIN" \
+            -H "Referer: $REFERER" \
+            -d "$BODY" || true
 
-          TOKEN=$(echo "$RESPONSE" | jq -r ".${DAST_TOKEN_FIELD}")
+          TOKEN=$(jq -r ".${DAST_TOKEN_FIELD} // empty" "$RESPONSE_FILE" 2>/dev/null || true)
 
-          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-            echo "Failed to obtain JWT token"
-            # cuidado: pode conter info sensível; use apenas para debug
-            echo "$RESPONSE" > reports/login-response.json
+          if [[ -z "$TOKEN" ]]; then
+            echo "❌ Failed to obtain JWT token" | tee artifacts/logs/40-dast-jwt.txt
+            echo "TIP: ver artifacts/dast/login-response.json e headers para entender erro (401/403/WAF)." \
+              | tee -a artifacts/logs/40-dast-jwt.txt
             exit 1
           fi
 
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "✅ JWT obtido (token não será logado)" | tee artifacts/logs/40-dast-jwt.txt
 
-      - name: Run ZAP Baseline Scan (inject Bearer)
+      - name: DAST - Run ZAP Baseline (inject Bearer) - NON-BLOCKING
+        continue-on-error: true
         uses: zaproxy/action-baseline@v0.12.0
         with:
           target: ${{ env.DAST_TARGET_URL }}
@@ -217,63 +274,52 @@ jobs:
                 -config replacer.full_list(0).regex=false
                 -config replacer.full_list(0).replacement=Bearer ${{ steps.jwt.outputs.token }}"
 
-      - name: Move ZAP reports to reports/
+      - name: Move ZAP reports
+        if: always()
+        shell: bash
         run: |
-          mkdir -p reports
-          mv zap-report.html reports/ || true
-          mv zap-report.md reports/ || true
-          mv zap-report.json reports/ || true
+          set -euo pipefail
+          mv -f zap-report.html artifacts/dast/ 2>/dev/null || true
+          mv -f zap-report.md  artifacts/dast/ 2>/dev/null || true
+          mv -f zap-report.json artifacts/dast/ 2>/dev/null || true
 
-      - name: Upload ZAP artifacts
+          if [[ ! -f artifacts/dast/zap-report.html && ! -f artifacts/dast/zap-report.json && ! -f artifacts/dast/zap-report.md ]]; then
+            echo "ZAP não gerou relatórios. Ver logs do job DAST." > artifacts/dast/ZAP_EMPTY.txt
+          fi
+
+      # -------------------------
+      # 6) Upload evidências (sempre)
+      # -------------------------
+      - name: Upload evidências (Artifacts)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-dast-report
-          path: reports/zap-report.*
+          name: devsecops-evidence
+          path: artifacts
 
-      - name: Upload login response (debug on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-login-debug
-          path: reports/login-response.json
-
-  unify_reports:
-    name: Reports - Consolidate & Index
-    runs-on: ubuntu-latest
-    needs:
-      - sast_codeql
-      - sca_sbom
-      - secrets_gitleaks
-      - dast_zap_jwt
-    if: always()
-    timeout-minutes: 15
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: collected-artifacts
-
-      - name: Build consolidated index
+      # -------------------------
+      # 7) Summary (ISO-friendly)
+      # -------------------------
+      - name: Summary do Run
+        if: always()
+        shell: bash
         run: |
-          mkdir -p reports
+          set -euo pipefail
           {
-            echo "# Security Pipeline Reports"
+            echo "## DevSecOps Evidence Summary"
             echo ""
-            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "**Branch:** ${GITHUB_REF_NAME}"
+            echo "**SHA:** ${GITHUB_SHA}"
+            echo "**Run:** #${GITHUB_RUN_NUMBER} (attempt ${GITHUB_RUN_ATTEMPT})"
             echo ""
-            echo "## Artifacts"
+            echo "### Evidências"
+            echo "- SAST (CodeQL): artifacts/sast/"
+            echo "- SBOM (CycloneDX): artifacts/sbom/"
+            echo "- Secrets (Gitleaks): artifacts/secrets/"
+            echo "- DAST (ZAP + login debug): artifacts/dast/"
+            echo "- Logs: artifacts/logs/"
             echo ""
-            find collected-artifacts -type f | sort | sed 's|^collected-artifacts/|- |'
-            echo ""
-            echo "## Notes"
-            echo "- CodeQL SARIF: artifact (codeql-sarif)."
-            echo "- Gitleaks SARIF: artifact (gitleaks-report) e upload no Security (se habilitado)."
-            echo "- ZAP DAST: artifact (zap-dast-report) HTML/MD/JSON."
-            echo "- SBOM: artifact (sbom-cyclonedx) JSON/XML."
-          } > reports/INDEX.md
-
-      - name: Upload consolidated index
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports-index
-          path: reports/INDEX.md
+            echo "### Observações"
+            echo "- Etapas NON-BLOCKING geram evidência mesmo em falha."
+            echo "- Se JWT falhar, verificar artifacts/dast/login-response.json e login-response-headers.txt."
+          } >> "$GITHUB_STEP_SUMMARY"

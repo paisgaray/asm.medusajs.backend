@@ -1,0 +1,23 @@
+services:
+  db:
+    container_name: asm-db
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: localpassword
+    ports:
+      - '54329:5432'
+    volumes:
+      - asm-db:/var/lib/postgresql
+
+  redis:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '63791:6379'
+    command: redis-server --loglevel warning
+
+volumes:
+  asm-db:
+    driver: local

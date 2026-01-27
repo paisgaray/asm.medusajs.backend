@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  medusabackend:
+    container_name: medusa-backend-release
+    image: medusa-backend:latest  
+
+    restart: unless-stopped
+
+    environment:
+      NODE_ENV: "production"
+      PORT: "9000"
+      MEDUSA_WORKER_MODE: "server"
+      DISABLE_MEDUSA_ADMIN: "false"
+
+      DATABASE_URL: "${DATABASE_URL}"
+  
+
+      REDIS_URL: "${REDIS_URL}"
+
+      JWT_SECRET: "${JWT_SECRET}"
+      COOKIE_SECRET: "${COOKIE_SECRET}"
+
+      # BACKEND (API)
+      MEDUSA_BACKEND_URL: "https://medusa-api-release.qualityhosting.global"
+
+      # CORS para Admin no domínio separado
+      ADMIN_CORS: "https://medusa-admin-release.qualityhosting.global"
+      AUTH_CORS: "https://medusa-admin-release.qualityhosting.global,https://medusa-api-release.qualityhosting.global"
+      STORE_CORS: "https://medusa-store-release.qualityhosting.global"
+
+      # S3 / MinIO
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY}"
+      S3_ENDPOINT: "https://minio-api.coolify-dev.qualityhosting.global"
+      S3_REGION: "us-east-1"
+      S3_BUCKET: "medusa"
+      S3_FILE_URL: "https://minio-api.coolify-dev.qualityhosting.global/medusa"
+      S3_FORCE_PATH_STYLE: "true"
+
+    ports:
+      - "9010:9000"
+   
+

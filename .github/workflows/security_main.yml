@@ -63,6 +63,10 @@ jobs:
            args: >
               -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
               -Dsonar.organization=${{ vars.SONAR_ORG }}
+              -Dsonar.projectBaseDir=.
+              -Dsonar.sources=src
+              -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
+              -Dsonar.sourceEncoding=UTF-8
 
       - name: Setup Node (Corepack + Yarn)
         uses: actions/setup-node@v4

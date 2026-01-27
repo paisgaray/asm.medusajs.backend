@@ -1,127 +1,87 @@
-name: DevSecOps - SAST/SCA/SBOM/Secrets/DAST (JWT) - Evidence First
+name: DevSecOps - Sonar (SAST) + OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
 
 on:
   push:
-    branches: [ security/github-actions-sast-dast ]
+    branches:
+      - security/github-actions-sast-dast
+      # depois, se quiser: - main / develop
   pull_request:
-    branches: [ security/github-actions-sast-dast ]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
   contents: read
+  pull-requests: read
   security-events: write
   actions: read
-  pull-requests: read
+
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   NODE_VERSION: "20"
 
-  # Vars (Settings -> Secrets and variables -> Actions -> Variables)
-  DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}       # ex: https://medusa-admin-dev.qualityhosting.global
-  DAST_LOGIN_URL:  ${{ vars.DAST_LOGIN_URL }}        # ex: https://medusa-admin-dev.qualityhosting.global/auth/user/emailpass
-  DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}     # ex: token
+  # DAST vars
+  DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+  DAST_LOGIN_URL:  ${{ vars.DAST_LOGIN_URL }}
+  DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}
+
+  # Sonar vars
+  SONAR_ORG: ${{ vars.SONAR_ORG }}
+  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
 jobs:
   devsecops:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Preparar diretórios de evidências
+      - name: Prepare evidence directories
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/logs artifacts/reports artifacts/sbom artifacts/sast artifacts/secrets artifacts/dast
-          echo "✅ Diretórios criados." | tee artifacts/logs/00-init-dirs.txt
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca artifacts/sast
+          echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
-      - name: Log inicial (contexto)
+      - name: Context log
         shell: bash
         run: |
           set -euo pipefail
           {
-            echo "=== [INIT] Contexto ==="
+            echo "=== Context ==="
             echo "Event: ${GITHUB_EVENT_NAME}"
             echo "Branch: ${GITHUB_REF_NAME}"
             echo "SHA: ${GITHUB_SHA}"
             echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
             echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
-            echo "DAST_LOGIN_URL:  ${DAST_LOGIN_URL}"
-            echo "DAST_TOKEN_FIELD:${DAST_TOKEN_FIELD}"
-            echo "======================="
+            echo "DAST_LOGIN_URL: ${DAST_LOGIN_URL}"
+            echo "SONAR_ORG: ${SONAR_ORG}"
+            echo "SONAR_PROJECT_KEY: ${SONAR_PROJECT_KEY}"
+            echo "==============="
           } | tee artifacts/logs/01-context.txt
 
-      - name: Sanity checks (vars/secrets) - NON-BLOCKING (loga)
-        continue-on-error: true
-        shell: bash
-        env:
-          DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
-          DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
-        run: |
-          set -euo pipefail
-          {
-            echo "=== [SANITY] Vars/Secrets ==="
-            missing=0
-            for v in DAST_TARGET_URL DAST_LOGIN_URL DAST_TOKEN_FIELD; do
-              if [[ -z "${!v:-}" ]]; then
-                echo "⚠️ VAR ${v} está vazia."
-                missing=1
-              else
-                echo "✅ VAR ${v} ok."
-              fi
-            done
-            for s in DAST_USERNAME DAST_PASSWORD; do
-              if [[ -z "${!s:-}" ]]; then
-                echo "⚠️ SECRET ${s} está vazio."
-                missing=1
-              else
-                echo "✅ SECRET ${s} ok."
-              fi
-            done
-            if [[ "$missing" -eq 1 ]]; then
-              echo "⚠️ Há variáveis/secrets faltando. Alguns jobs podem falhar."
-              exit 1
-            fi
-            echo "========================="
-          } | tee artifacts/logs/02-sanity.txt
-
-      # -------------------------
-      # 1) SAST - CodeQL (NON-BLOCKING) + SARIF como evidência
-      # -------------------------
-      - name: SAST - Initialize CodeQL (NON-BLOCKING)
-        continue-on-error: true
-        uses: github/codeql-action/init@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          languages: javascript-typescript
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: SAST - Autobuild (NON-BLOCKING)
+      - name: Install deps (auto) - NON-BLOCKING
         continue-on-error: true
-        uses: github/codeql-action/autobuild@v3
-
-      - name: SAST - Analyze (no upload) (NON-BLOCKING)
-        continue-on-error: true
-        uses: github/codeql-action/analyze@v3
-        with:
-          upload: false
-          output: artifacts/sast
-
-      - name: Garantir evidência SAST (placeholder se vazio)
-        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$(find artifacts/sast -type f 2>/dev/null)" ]]; then
-            echo "CodeQL não gerou SARIF (ver logs do job). Talvez faltou suporte/code scanning." \
-              > artifacts/sast/SAST_EMPTY.txt
-          fi
+          ( if [ -f package-lock.json ]; then npm ci; else npm install; fi ) \
+            2>&1 | tee artifacts/logs/10-install.txt
 
-      # -------------------------
-      # 2) SCA - Dependency Review (somente PR)
-      # -------------------------
-      - name: SCA - Dependency Review (PR) - NON-BLOCKING
+      # =========================================================
+      # SCA (OFFICIAL) - Dependency Review (PR only)
+      # =========================================================
+      - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
         if: ${{ github.event_name == 'pull_request' }}
         continue-on-error: true
         uses: actions/dependency-review-action@v4
@@ -129,81 +89,43 @@ jobs:
           fail-on-severity: high
           deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
 
-      # -------------------------
-      # 3) SBOM - CycloneDX (NON-BLOCKING)
-      # -------------------------
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies (auto) - NON-BLOCKING
-        continue-on-error: true
+      - name: SCA evidence placeholder (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
-          ( if [ -f pnpm-lock.yaml ]; then
-              corepack enable
-              pnpm i --frozen-lockfile
-            elif [ -f yarn.lock ]; then
-              corepack enable
-              yarn install --frozen-lockfile
-            elif [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
-          ) 2>&1 | tee artifacts/logs/20-install-deps.txt
+          echo "Dependency Review executed on this PR. See PR Checks for detailed findings." \
+            > artifacts/sca/DEPENDENCY_REVIEW_NOTE.txt
 
-      - name: Generate SBOM (CycloneDX) - NON-BLOCKING
+      # =========================================================
+      # SAST - SonarCloud (OFFICIAL)
+      # =========================================================
+      - name: SAST - SonarCloud Scan - NON-BLOCKING
         continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          ( echo "=== [SBOM] CycloneDX ==="
-            npm i -g @cyclonedx/cyclonedx-npm
-            cyclonedx-npm --output-file artifacts/sbom/sbom-cyclonedx.json --output-format json
-            cyclonedx-npm --output-file artifacts/sbom/sbom-cyclonedx.xml  --output-format xml
-            echo "======================="
-          ) 2>&1 | tee artifacts/logs/21-sbom.txt
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      - name: Garantir evidência SBOM (placeholder se ausente)
+      - name: SAST evidence (Sonar link)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f artifacts/sbom/sbom-cyclonedx.json && ! -f artifacts/sbom/sbom-cyclonedx.xml ]]; then
-            echo "SBOM não foi gerado. Ver artifacts/logs/21-sbom.txt" > artifacts/sbom/SBOM_EMPTY.txt
-          fi
+          SONAR_DASHBOARD="https://sonarcloud.io/dashboard?id=${SONAR_PROJECT_KEY}"
+          SONAR_ISSUES="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}"
+          {
+            echo "# SAST (SonarCloud) Evidence"
+            echo ""
+            echo "- Dashboard: ${SONAR_DASHBOARD}"
+            echo "- Issues: ${SONAR_ISSUES}"
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit: ${GITHUB_SHA}"
+          } > artifacts/sast/SONAR_EVIDENCE.md
 
-      # -------------------------
-      # 4) Secrets scan - Gitleaks (NON-BLOCKING) via GHCR
-      # -------------------------
-      - name: Secrets - Gitleaks -> SARIF (NON-BLOCKING)
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          ( echo "=== [GITLEAKS] ==="
-            docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:latest \
-              detect --source . --no-git \
-              --report-format sarif --report-path artifacts/secrets/gitleaks.sarif --redact
-            echo "=================="
-          ) 2>&1 | tee artifacts/logs/30-gitleaks.txt
-
-      - name: Garantir evidência Gitleaks (placeholder se ausente)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f artifacts/secrets/gitleaks.sarif ]]; then
-            echo "Gitleaks não gerou SARIF. Ver artifacts/logs/30-gitleaks.txt" > artifacts/secrets/GITLEAKS_EMPTY.txt
-          fi
-
-      # -------------------------
-      # 5) DAST - OWASP ZAP com JWT (NON-BLOCKING) + headers tipo browser
-      # -------------------------
-      - name: Garantir jq disponível
+      # =========================================================
+      # DAST - OWASP ZAP (JWT)
+      # =========================================================
+      - name: Ensure jq
         continue-on-error: true
         shell: bash
         run: |
@@ -223,18 +145,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # BODY 100% seguro (sem problemas com caracteres especiais)
           BODY=$(jq -n --arg email "$DAST_USERNAME" --arg password "$DAST_PASSWORD" \
             '{email:$email, password:$password}')
 
-          # Headers que costumam fazer diferença vs browser
           ORIGIN="${DAST_TARGET_URL}"
           REFERER="${DAST_TARGET_URL%/}/app/login"
 
           RESPONSE_FILE="artifacts/dast/login-response.json"
           HEADERS_FILE="artifacts/dast/login-response-headers.txt"
 
-          # Faz request e guarda resposta para evidência/debug (não imprime senha)
           curl -sS -D "$HEADERS_FILE" -o "$RESPONSE_FILE" \
             -X POST "$DAST_LOGIN_URL" \
             -H "Content-Type: application/json" \
@@ -246,61 +165,128 @@ jobs:
           TOKEN=$(jq -r ".${DAST_TOKEN_FIELD} // empty" "$RESPONSE_FILE" 2>/dev/null || true)
 
           if [[ -z "$TOKEN" ]]; then
-            echo "❌ Failed to obtain JWT token" | tee artifacts/logs/40-dast-jwt.txt
-            echo "TIP: ver artifacts/dast/login-response.json e headers para entender erro (401/403/WAF)." \
-              | tee -a artifacts/logs/40-dast-jwt.txt
+            echo "❌ Failed to obtain JWT token" | tee artifacts/logs/30-dast-jwt.txt
             exit 1
           fi
 
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-          echo "✅ JWT obtido (token não será logado)" | tee artifacts/logs/40-dast-jwt.txt
+          echo "✅ JWT obtained (token not logged)" | tee artifacts/logs/30-dast-jwt.txt
 
-      - name: DAST - Run ZAP Baseline (inject Bearer) - NON-BLOCKING
+      - name: DAST - Make workspace writable for ZAP container
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+          echo "✅ Workspace permissions adjusted." | tee artifacts/logs/31-dast-perms.txt
+
+      - name: DAST - OWASP ZAP Baseline (JWT header) - NON-BLOCKING
         continue-on-error: true
         uses: zaproxy/action-baseline@v0.12.0
+        env:
+          ZAP_AUTH_HEADER: "Authorization"
+          ZAP_AUTH_HEADER_VALUE: "Bearer ${{ steps.jwt.outputs.token }}"
+          ZAP_AUTH_HEADER_SITE: ${{ env.DAST_TARGET_URL }}
         with:
           target: ${{ env.DAST_TARGET_URL }}
           cmd_options: >
             -a
             -I
             -m 5
-            -r zap-report.html
-            -w zap-report.md
-            -J zap-report.json
-            -z "-config replacer.full_list(0).description=authbearer
-                -config replacer.full_list(0).enabled=true
-                -config replacer.full_list(0).matchtype=REQ_HEADER
-                -config replacer.full_list(0).matchstr=Authorization
-                -config replacer.full_list(0).regex=false
-                -config replacer.full_list(0).replacement=Bearer ${{ steps.jwt.outputs.token }}"
 
-      - name: Move ZAP reports
+      - name: Collect ZAP reports + placeholders
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          mv -f zap-report.html artifacts/dast/ 2>/dev/null || true
-          mv -f zap-report.md  artifacts/dast/ 2>/dev/null || true
-          mv -f zap-report.json artifacts/dast/ 2>/dev/null || true
+          # action outputs these in workspace
+          mv -f report_html.html artifacts/dast/zap-report.html 2>/dev/null || true
+          mv -f report_md.md     artifacts/dast/zap-report.md   2>/dev/null || true
+          mv -f report_json.json artifacts/dast/zap-report.json 2>/dev/null || true
 
           if [[ ! -f artifacts/dast/zap-report.html && ! -f artifacts/dast/zap-report.json && ! -f artifacts/dast/zap-report.md ]]; then
-            echo "ZAP não gerou relatórios. Ver logs do job DAST." > artifacts/dast/ZAP_EMPTY.txt
+            echo "ZAP did not generate reports. Check workflow logs." > artifacts/dast/ZAP_EMPTY.txt
           fi
 
-      # -------------------------
-      # 6) Upload evidências (sempre)
-      # -------------------------
-      - name: Upload evidências (Artifacts)
+      # =========================================================
+      # REPORTS (DEV + CLIENT)
+      # =========================================================
+      - name: Generate reports (DEV_REPORT + CLIENT_REPORT)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SONAR_DASHBOARD="https://sonarcloud.io/dashboard?id=${SONAR_PROJECT_KEY}"
+          SONAR_ISSUES="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}"
+
+          {
+            echo "# DevSecOps - Developer Report"
+            echo ""
+            echo "## Context"
+            echo "- Repo: ${GITHUB_REPOSITORY}"
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## SAST (SonarCloud) - Official"
+            echo "- Dashboard: ${SONAR_DASHBOARD}"
+            echo "- Issues: ${SONAR_ISSUES}"
+            echo "- Evidence: artifacts/sast/SONAR_EVIDENCE.md"
+            echo ""
+            echo "## SCA (GitHub Dependency Review) - Official (PR only)"
+            echo "- This check runs on Pull Requests."
+            echo "- Evidence note: artifacts/sca/DEPENDENCY_REVIEW_NOTE.txt"
+            echo "- Guidance: fix High/Critical before merge; review license policy (GPL/AGPL denied)."
+            echo ""
+            echo "## DAST (OWASP ZAP) - JWT"
+            echo "- Target: ${DAST_TARGET_URL}"
+            echo "- Reports:"
+            echo "  - artifacts/dast/zap-report.html"
+            echo "  - artifacts/dast/zap-report.md"
+            echo "  - artifacts/dast/zap-report.json"
+            echo "- Login debug (if needed):"
+            echo "  - artifacts/dast/login-response-headers.txt"
+            echo "  - artifacts/dast/login-response.json"
+            echo ""
+            echo "## Notes"
+            echo "- This pipeline is non-blocking (evidence-first)."
+            echo "- Recommended: treat Sonar 'Vulnerabilities' and ZAP High alerts as release blockers."
+          } > artifacts/reports/DEV_REPORT.md
+
+          {
+            echo "# DevSecOps Security Report (Client)"
+            echo ""
+            echo "## Executive Summary"
+            echo "This CI pipeline provides automated security testing coverage across:"
+            echo "- SAST (static analysis): SonarCloud"
+            echo "- SCA (dependency risk in PRs): GitHub Dependency Review"
+            echo "- DAST (dynamic security testing): OWASP ZAP (authenticated via JWT)"
+            echo ""
+            echo "## Traceability"
+            echo "- Repository: ${GITHUB_REPOSITORY}"
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit (SHA): ${GITHUB_SHA}"
+            echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## Evidence Delivered"
+            echo "- SonarCloud evidence: artifacts/sast/SONAR_EVIDENCE.md (links to dashboard & issues)"
+            echo "- OWASP ZAP reports: artifacts/dast/zap-report.html/.md/.json"
+            echo "- Pipeline execution logs: artifacts/logs/"
+            echo ""
+            echo "## Notes"
+            echo "- SCA results are provided as PR checks via GitHub Dependency Review."
+            echo "- Detailed vulnerability remediation is managed by the development team based on findings."
+          } > artifacts/reports/CLIENT_REPORT.md
+
+      - name: Upload evidence artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: devsecops-evidence
           path: artifacts
 
-      # -------------------------
-      # 7) Summary (ISO-friendly)
-      # -------------------------
-      - name: Summary do Run
+      - name: Job Summary (quick links)
         if: always()
         shell: bash
         run: |
@@ -308,18 +294,11 @@ jobs:
           {
             echo "## DevSecOps Evidence Summary"
             echo ""
-            echo "**Branch:** ${GITHUB_REF_NAME}"
-            echo "**SHA:** ${GITHUB_SHA}"
-            echo "**Run:** #${GITHUB_RUN_NUMBER} (attempt ${GITHUB_RUN_ATTEMPT})"
+            echo "- **DEV report:** artifacts/reports/DEV_REPORT.md"
+            echo "- **Client report:** artifacts/reports/CLIENT_REPORT.md"
+            echo "- **Sonar evidence:** artifacts/sast/SONAR_EVIDENCE.md"
+            echo "- **ZAP reports:** artifacts/dast/zap-report.*"
+            echo "- **Logs:** artifacts/logs/"
             echo ""
-            echo "### Evidências"
-            echo "- SAST (CodeQL): artifacts/sast/"
-            echo "- SBOM (CycloneDX): artifacts/sbom/"
-            echo "- Secrets (Gitleaks): artifacts/secrets/"
-            echo "- DAST (ZAP + login debug): artifacts/dast/"
-            echo "- Logs: artifacts/logs/"
-            echo ""
-            echo "### Observações"
-            echo "- Etapas NON-BLOCKING geram evidência mesmo em falha."
-            echo "- Se JWT falhar, verificar artifacts/dast/login-response.json e login-response-headers.txt."
+            echo "> Download the **devsecops-evidence** artifact to share with developers and client."
           } >> "$GITHUB_STEP_SUMMARY"

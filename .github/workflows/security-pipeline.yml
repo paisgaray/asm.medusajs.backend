@@ -1,4 +1,4 @@
-name: DevSecOps - Sonar (SAST) + OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
+name: DevSecOps - OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
 
 on:
   push:
@@ -21,15 +21,7 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
-
-  # DAST vars
   DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
-  DAST_LOGIN_URL:  ${{ vars.DAST_LOGIN_URL }}
-  DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}
-
-  # Sonar vars
-  SONAR_ORG: ${{ vars.SONAR_ORG }}
-  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
 jobs:
   devsecops:
@@ -45,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca artifacts/sast
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
           echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
       - name: Context log
@@ -59,9 +51,6 @@ jobs:
             echo "SHA: ${GITHUB_SHA}"
             echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
             echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
-            echo "DAST_LOGIN_URL: ${DAST_LOGIN_URL}"
-            echo "SONAR_ORG: ${SONAR_ORG}"
-            echo "SONAR_PROJECT_KEY: ${SONAR_PROJECT_KEY}"
             echo "==============="
           } | tee artifacts/logs/01-context.txt
 
@@ -79,7 +68,7 @@ jobs:
             2>&1 | tee artifacts/logs/10-install.txt
 
       # =========================================================
-      # SCA (OFFICIAL) - Dependency Review (PR only)
+      # SCA - GitHub Dependency Review (PR only)
       # =========================================================
       - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
         if: ${{ github.event_name == 'pull_request' }}
@@ -89,106 +78,43 @@ jobs:
           fail-on-severity: high
           deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
 
-      - name: SCA evidence placeholder (PR only)
+      - name: SCA - Export technical report (Dependency Review JSON) - PR only
         if: ${{ always() && github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Dependency Review executed on this PR. See PR Checks for detailed findings." \
-            > artifacts/sca/DEPENDENCY_REVIEW_NOTE.txt
-
-      # =========================================================
-      # SAST - SonarCloud (OFFICIAL)
-      # =========================================================
-      - name: SAST - SonarCloud Scan - NON-BLOCKING
-        continue-on-error: true
-        uses: SonarSource/sonarcloud-github-action@v3
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      - name: SAST evidence (Sonar link)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          SONAR_DASHBOARD="https://sonarcloud.io/dashboard?id=${SONAR_PROJECT_KEY}"
-          SONAR_ISSUES="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}"
-          {
-            echo "# SAST (SonarCloud) Evidence"
-            echo ""
-            echo "- Dashboard: ${SONAR_DASHBOARD}"
-            echo "- Issues: ${SONAR_ISSUES}"
-            echo "- Branch: ${GITHUB_REF_NAME}"
-            echo "- Commit: ${GITHUB_SHA}"
-          } > artifacts/sast/SONAR_EVIDENCE.md
-
-      # =========================================================
-      # DAST - OWASP ZAP (JWT)
-      # =========================================================
-      - name: Ensure jq
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v jq >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y jq
-          fi
-
-      - name: DAST - Get JWT token (browser-like headers) - NON-BLOCKING
-        id: jwt
         continue-on-error: true
         shell: bash
         env:
-          DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
-          DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          BODY=$(jq -n --arg email "$DAST_USERNAME" --arg password "$DAST_PASSWORD" \
-            '{email:$email, password:$password}')
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REPO="${GITHUB_REPOSITORY}"
+          OUT="artifacts/sca/dependency-review.json"
 
-          ORIGIN="${DAST_TARGET_URL}"
-          REFERER="${DAST_TARGET_URL%/}/app/login"
+          # Dependency Review API (Preview). Produz um JSON técnico com findings.
+          curl -sS \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -X POST "https://api.github.com/repos/${REPO}/dependency-graph/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
+            | tee "$OUT" >/dev/null || true
 
-          RESPONSE_FILE="artifacts/dast/login-response.json"
-          HEADERS_FILE="artifacts/dast/login-response-headers.txt"
-
-          curl -sS -D "$HEADERS_FILE" -o "$RESPONSE_FILE" \
-            -X POST "$DAST_LOGIN_URL" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json, text/plain, */*" \
-            -H "Origin: $ORIGIN" \
-            -H "Referer: $REFERER" \
-            -d "$BODY" || true
-
-          TOKEN=$(jq -r ".${DAST_TOKEN_FIELD} // empty" "$RESPONSE_FILE" 2>/dev/null || true)
-
-          if [[ -z "$TOKEN" ]]; then
-            echo "❌ Failed to obtain JWT token" | tee artifacts/logs/30-dast-jwt.txt
-            exit 1
+          if [[ ! -s "$OUT" ]]; then
+            echo "Dependency Review JSON could not be exported. See PR check output." \
+              > artifacts/sca/DEPENDENCY_REVIEW_EXPORT_FAILED.txt
+          else
+            echo "✅ Exported SCA technical report to $OUT" | tee artifacts/logs/20-sca-export.txt
           fi
 
-          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-          echo "✅ JWT obtained (token not logged)" | tee artifacts/logs/30-dast-jwt.txt
-
-      - name: DAST - Make workspace writable for ZAP container
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
-          echo "✅ Workspace permissions adjusted." | tee artifacts/logs/31-dast-perms.txt
-
-      - name: DAST - OWASP ZAP Baseline (JWT header) - NON-BLOCKING
+      # =========================================================
+      # DAST - OWASP ZAP (PUBLIC LOGIN PAGE, NO AUTH)
+      # =========================================================
+      - name: DAST - OWASP ZAP Baseline (Admin Login) - NON-BLOCKING
         continue-on-error: true
         uses: zaproxy/action-baseline@v0.12.0
-        env:
-          ZAP_AUTH_HEADER: "Authorization"
-          ZAP_AUTH_HEADER_VALUE: "Bearer ${{ steps.jwt.outputs.token }}"
-          ZAP_AUTH_HEADER_SITE: ${{ env.DAST_TARGET_URL }}
         with:
           target: ${{ env.DAST_TARGET_URL }}
+          allow_issue_writing: false
           cmd_options: >
             -a
             -I
@@ -199,7 +125,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # action outputs these in workspace
           mv -f report_html.html artifacts/dast/zap-report.html 2>/dev/null || true
           mv -f report_md.md     artifacts/dast/zap-report.md   2>/dev/null || true
           mv -f report_json.json artifacts/dast/zap-report.json 2>/dev/null || true
@@ -209,75 +134,32 @@ jobs:
           fi
 
       # =========================================================
-      # REPORTS (DEV + CLIENT)
+      # Technical summary report (index)
       # =========================================================
-      - name: Generate reports (DEV_REPORT + CLIENT_REPORT)
+      - name: Generate technical index report (DAST + SCA)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-
-          SONAR_DASHBOARD="https://sonarcloud.io/dashboard?id=${SONAR_PROJECT_KEY}"
-          SONAR_ISSUES="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}"
-
           {
-            echo "# DevSecOps - Developer Report"
+            echo "# DevSecOps - Technical Reports Index"
             echo ""
             echo "## Context"
             echo "- Repo: ${GITHUB_REPOSITORY}"
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Commit: ${GITHUB_SHA}"
-            echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-            echo ""
-            echo "## SAST (SonarCloud) - Official"
-            echo "- Dashboard: ${SONAR_DASHBOARD}"
-            echo "- Issues: ${SONAR_ISSUES}"
-            echo "- Evidence: artifacts/sast/SONAR_EVIDENCE.md"
-            echo ""
-            echo "## SCA (GitHub Dependency Review) - Official (PR only)"
-            echo "- This check runs on Pull Requests."
-            echo "- Evidence note: artifacts/sca/DEPENDENCY_REVIEW_NOTE.txt"
-            echo "- Guidance: fix High/Critical before merge; review license policy (GPL/AGPL denied)."
-            echo ""
-            echo "## DAST (OWASP ZAP) - JWT"
-            echo "- Target: ${DAST_TARGET_URL}"
-            echo "- Reports:"
-            echo "  - artifacts/dast/zap-report.html"
-            echo "  - artifacts/dast/zap-report.md"
-            echo "  - artifacts/dast/zap-report.json"
-            echo "- Login debug (if needed):"
-            echo "  - artifacts/dast/login-response-headers.txt"
-            echo "  - artifacts/dast/login-response.json"
-            echo ""
-            echo "## Notes"
-            echo "- This pipeline is non-blocking (evidence-first)."
-            echo "- Recommended: treat Sonar 'Vulnerabilities' and ZAP High alerts as release blockers."
-          } > artifacts/reports/DEV_REPORT.md
-
-          {
-            echo "# DevSecOps Security Report (Client)"
-            echo ""
-            echo "## Executive Summary"
-            echo "This CI pipeline provides automated security testing coverage across:"
-            echo "- SAST (static analysis): SonarCloud"
-            echo "- SCA (dependency risk in PRs): GitHub Dependency Review"
-            echo "- DAST (dynamic security testing): OWASP ZAP (authenticated via JWT)"
-            echo ""
-            echo "## Traceability"
-            echo "- Repository: ${GITHUB_REPOSITORY}"
-            echo "- Branch: ${GITHUB_REF_NAME}"
-            echo "- Commit (SHA): ${GITHUB_SHA}"
             echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo ""
-            echo "## Evidence Delivered"
-            echo "- SonarCloud evidence: artifacts/sast/SONAR_EVIDENCE.md (links to dashboard & issues)"
-            echo "- OWASP ZAP reports: artifacts/dast/zap-report.html/.md/.json"
-            echo "- Pipeline execution logs: artifacts/logs/"
+            echo "## DAST (OWASP ZAP)"
+            echo "- Target: ${DAST_TARGET_URL}"
+            echo "- artifacts/dast/zap-report.html"
+            echo "- artifacts/dast/zap-report.md"
+            echo "- artifacts/dast/zap-report.json"
             echo ""
-            echo "## Notes"
-            echo "- SCA results are provided as PR checks via GitHub Dependency Review."
-            echo "- Detailed vulnerability remediation is managed by the development team based on findings."
-          } > artifacts/reports/CLIENT_REPORT.md
+            echo "## SCA (GitHub Dependency Review) - PR only"
+            echo "- artifacts/sca/dependency-review.json"
+            echo "- Note: Detailed results also appear in the PR check UI."
+          } > artifacts/reports/TECH_REPORTS_INDEX.md
 
       - name: Upload evidence artifact
         if: always()
@@ -292,13 +174,12 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "## DevSecOps Evidence Summary"
+            echo "## Technical Reports"
             echo ""
-            echo "- **DEV report:** artifacts/reports/DEV_REPORT.md"
-            echo "- **Client report:** artifacts/reports/CLIENT_REPORT.md"
-            echo "- **Sonar evidence:** artifacts/sast/SONAR_EVIDENCE.md"
-            echo "- **ZAP reports:** artifacts/dast/zap-report.*"
+            echo "- **Index:** artifacts/reports/TECH_REPORTS_INDEX.md"
+            echo "- **DAST:** artifacts/dast/zap-report.*"
+            echo "- **SCA (PR only):** artifacts/sca/dependency-review.json"
             echo "- **Logs:** artifacts/logs/"
             echo ""
-            echo "> Download the **devsecops-evidence** artifact to share with developers and client."
+            echo "> Download the **devsecops-evidence** artifact."
           } >> "$GITHUB_STEP_SUMMARY"

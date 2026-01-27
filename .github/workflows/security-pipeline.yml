@@ -3,10 +3,10 @@ name: Security Pipeline (SAST/DAST/SCA/Secrets) - JWT
 on:
   push:
     branches:
-      - security/ci-sast-dast
+      - security/github-actions-sast-dast
   pull_request:
     branches:
-      - security/ci-sast-dast
+      - security/github-actions-sast-dast
   workflow_dispatch:
 
 permissions:

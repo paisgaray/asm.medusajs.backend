@@ -17,9 +17,6 @@ import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 
 import { SENDGRID_TEMPLATES } from '../utils/sendgrid-templates';
 
-// Log para verificar se o arquivo está sendo carregado
-console.log('[Password Reset Subscriber] Arquivo carregado - Subscriber registrado para evento: auth.password_reset');
-
 export default async function resetPasswordTokenHandler({
   event: { data },
   container,
@@ -34,7 +31,6 @@ export default async function resetPasswordTokenHandler({
   console.log('[Password Reset Subscriber] Token (primeiros 20 chars):', token?.substring(0, 20));
   console.log('[Password Reset Subscriber] Actor Type:', actorType);
 
-  // Só processa se for para customer (não admin)
   if (actorType !== 'customer') {
     console.log('[Password Reset Subscriber] Ignorando evento - não é customer, é:', actorType);
     return;
@@ -46,22 +42,12 @@ export default async function resetPasswordTokenHandler({
     const notificationModuleService = container.resolve(Modules.NOTIFICATION);
     console.log('[Password Reset Subscriber] Módulo de Notificação resolvido');
 
-    // Define o prefixo da URL baseado no tipo de usuário (customer)
-    // Usa STORE_URL do env ou fallback para localhost
     const storeUrl = process.env.STORE_URL || 'http://localhost:8000';
     console.log('[Password Reset Subscriber] STORE_URL:', storeUrl);
 
-    // URL formatada conforme pedido do front-end: /account?token=...&email=...
-    // IMPORTANTE: O token JWT é passado diretamente na URL. Para evitar corrupção do token
-    // pelo SendGrid Click Tracking:
-    // 1. Desabilitar Click Tracking nas configurações do template no painel do SendGrid
-    // 2. Ou adicionar atributo clicktracking=off na tag <a> do template HTML
-    // Template ID: d-97f70554211843c08e630e384ae6951f
     const resetUrl = `${storeUrl}/account?token=${token}&email=${encodeURIComponent(email)}`;
     console.log('[Password Reset Subscriber] URL de reset gerada:', resetUrl.substring(0, 100) + '...');
 
-    // Buscar customer para obter o primeiro nome (opcional, para personalização)
-    // Usando Remote Query (padrão Medusa v2) para melhor performance
     let firstName = 'Cliente';
     try {
       const query = container.resolve(ContainerRegistrationKeys.QUERY);
@@ -74,18 +60,9 @@ export default async function resetPasswordTokenHandler({
       if (customers && customers.length > 0) {
         firstName = customers[0]?.first_name || email.split('@')[0] || 'Cliente';
       }
-    } catch (customerError) {
-      // Se não conseguir buscar o customer, usa o email como fallback
+    } catch {
       firstName = email.split('@')[0] || 'Cliente';
     }
-
-    // Envia a notificação usando o módulo de Notificação do Medusa (SendGrid)
-    console.log('[Password Reset Subscriber] Enviando notificação...');
-    console.log('[Password Reset Subscriber] Template ID:', SENDGRID_TEMPLATES.RESET_PASSWORD);
-    console.log('[Password Reset Subscriber] Dados do template:', {
-      firstName,
-      actionUrl: resetUrl.substring(0, 100) + '...',
-    });
 
     const notificationResult = await notificationModuleService.createNotifications({
       to: email,
@@ -93,15 +70,11 @@ export default async function resetPasswordTokenHandler({
       template: SENDGRID_TEMPLATES.RESET_PASSWORD, // ID do template dinâmico no SendGrid
       data: {
         firstName,
-        // IMPORTANTE: No template SendGrid, use {{{actionUrl}}} ao invés de {{actionUrl}}
-        // Isso escapa automaticamente caracteres especiais (', ", &) na URL e resolve o aviso
-        // Exemplo no template: <a href="{{{actionUrl}}}">Restablecer contraseña</a>
         actionUrl: resetUrl,
-        reset_url: resetUrl, // Também disponível como reset_url para compatibilidade
+        reset_url: resetUrl,
       },
     });
 
-    console.log(`[Password Reset Subscriber] ✅ Email enviado com sucesso para: ${email}`);
     console.log('[Password Reset Subscriber] Resultado da notificação:', JSON.stringify(notificationResult, null, 2));
   } catch (error) {
     console.error(`[Password Reset Subscriber] ❌ Erro ao enviar e-mail para: ${email}`, error);

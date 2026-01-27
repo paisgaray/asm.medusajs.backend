@@ -1,4 +1,4 @@
-name: DevSecOps (MAIN) - Sonar + ZAP (DAST) + SCA + PDF
+name: DevSecOps (MAIN) - Sonar + ZAP (DAST) + SCA + PDF   
 
 on:
   push:

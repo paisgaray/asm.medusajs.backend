@@ -38,26 +38,10 @@ jobs:
           mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
           echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
+     # -------------------------
+      # Sonar Scan Unificado
       # -------------------------
-      # Sonar: nesta branch, usa o nome da própria branch
-      # Em PR, Sonar auto-configura o PR (não precisa branch.name).
-      # -------------------------
-      - name: Sonar Scan (push security branch)
-        if: ${{ github.event_name == 'push' }}
-        uses: SonarSource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ vars.SONAR_ORG }}
-            -Dsonar.sources=.
-            -Dsonar.inclusions=src/**,*.ts,*.js,package.json
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
-            -Dsonar.sourceEncoding=UTF-8
-
-      - name: Sonar Scan (PR)
-        if: ${{ github.event_name == 'pull_request' }}
+      - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -67,9 +51,8 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORG }}
             -Dsonar.sources=.
             -Dsonar.inclusions=src/**,*.ts,*.js,package.json,medusa-config.ts
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
             -Dsonar.sourceEncoding=UTF-8
-
       # -------------------------
       # SCA - GitHub Dependency Review (PR only) + export JSON
       # -------------------------

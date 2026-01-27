@@ -1,4 +1,4 @@
-name: DevSecOps - Sonar (SAST) + OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
+name: DevSecOps - Sonar Scan + OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
 
 on:
   push:
@@ -11,7 +11,6 @@ on:
 permissions:
   contents: read
   pull-requests: read
-  security-events: write
   actions: read
 
 concurrency:
@@ -21,10 +20,6 @@ concurrency:
 env:
   NODE_VERSION: "20"
   DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
-
-  # Sonar vars
-  SONAR_ORG: ${{ vars.SONAR_ORG }}
-  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
 jobs:
   devsecops:
@@ -40,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca artifacts/sast
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
           echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
       - name: Context log
@@ -54,10 +49,18 @@ jobs:
             echo "SHA: ${GITHUB_SHA}"
             echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
             echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
-            echo "SONAR_ORG: ${SONAR_ORG}"
-            echo "SONAR_PROJECT_KEY: ${SONAR_PROJECT_KEY}"
             echo "==============="
           } | tee artifacts/logs/01-context.txt
+
+      # =========================================================
+      # SAST - Sonar (ONLY what Sonar provided)
+      # =========================================================
+      - name: Sonar Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Se for SonarQube self-hosted, você PRECISA definir:
+          # SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Setup Node (Corepack + Yarn)
         uses: actions/setup-node@v4
@@ -122,33 +125,6 @@ jobs:
           fi
 
       # =========================================================
-      # SAST - SonarCloud (OFFICIAL)
-      # =========================================================
-      - name: SAST - SonarCloud Scan - NON-BLOCKING
-        continue-on-error: true
-        uses: SonarSource/sonarcloud-github-action@v3
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_ORG: ${{ env.SONAR_ORG }}
-          SONAR_PROJECT_KEY: ${{ env.SONAR_PROJECT_KEY }}
-
-      - name: SAST evidence (Sonar links)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          SONAR_DASHBOARD="https://sonarcloud.io/dashboard?id=${SONAR_PROJECT_KEY}"
-          SONAR_ISSUES="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}"
-          {
-            echo "# SAST (SonarCloud) Evidence"
-            echo ""
-            echo "- Dashboard: ${SONAR_DASHBOARD}"
-            echo "- Issues: ${SONAR_ISSUES}"
-            echo "- Branch: ${GITHUB_REF_NAME}"
-            echo "- Commit: ${GITHUB_SHA}"
-          } > artifacts/sast/SONAR_EVIDENCE.md
-
-      # =========================================================
       # DAST - OWASP ZAP (Docker)
       # =========================================================
       - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
@@ -180,41 +156,68 @@ jobs:
           fi
 
       # =========================================================
-      # Technical index
+      # PDF report (DAST + SCA) - FREE
       # =========================================================
-      - name: Generate technical index report (SAST + DAST + SCA)
+      - name: Build DAST+SCA PDF report (FREE)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
 
-          SCA_NOTE="N/A"
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            SCA_NOTE="artifacts/sca/dependency-graph-compare.json"
-          fi
+          sudo apt-get update -y
+          sudo apt-get install -y pandoc wkhtmltopdf
+
+          REPORT_MD="artifacts/reports/DAST_SCA_REPORT.md"
+          REPORT_PDF="artifacts/reports/DAST_SCA_REPORT.pdf"
 
           {
-            echo "# DevSecOps - Technical Reports Index"
+            echo "# Relatório Técnico - DAST + SCA"
             echo ""
-            echo "## Context"
-            echo "- Repo: ${GITHUB_REPOSITORY}"
+            echo "## Contexto"
+            echo "- Repositório: ${GITHUB_REPOSITORY}"
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Commit: ${GITHUB_SHA}"
             echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo ""
-            echo "## SAST (SonarCloud)"
-            echo "- Evidence: artifacts/sast/SONAR_EVIDENCE.md"
-            echo ""
             echo "## DAST (OWASP ZAP)"
             echo "- Target: ${DAST_TARGET_URL}"
-            echo "- artifacts/dast/zap-report.html"
-            echo "- artifacts/dast/zap-report.md"
-            echo "- artifacts/dast/zap-report.json"
+            echo "- Evidências:"
+            echo "  - artifacts/dast/zap-report.html"
+            echo "  - artifacts/dast/zap-report.md"
+            echo "  - artifacts/dast/zap-report.json"
             echo ""
-            echo "## SCA (GitHub Dependency Review) - PR only"
-            echo "- Evidence JSON: ${SCA_NOTE}"
-            echo "- Note: Detailed results also appear in the PR check UI."
-          } > artifacts/reports/TECH_REPORTS_INDEX.md
+            if [[ -s artifacts/dast/zap-report.md ]]; then
+              echo "### Saída ZAP (markdown)"
+              echo ""
+              # inclui um trecho para o PDF não ficar gigantesco
+              sed -n '1,200p' artifacts/dast/zap-report.md
+              echo ""
+              echo "> (Relatório completo nos artifacts: zap-report.html/md/json)"
+            else
+              echo "> ZAP report não encontrado. Verifique artifacts/dast/ e logs."
+            fi
+            echo ""
+            echo "## SCA (GitHub Dependency Review)"
+            echo "- Executa apenas em Pull Request."
+            echo "- Evidências:"
+            echo "  - artifacts/sca/dependency-graph-compare.json (se PR)"
+            echo "  - artifacts/sca/EXPORT_FAILED.txt (se falhou)"
+            echo ""
+            if [[ -s artifacts/sca/dependency-graph-compare.json ]]; then
+              echo "### JSON (trecho)"
+              echo ""
+              echo '```json'
+              head -c 6000 artifacts/sca/dependency-graph-compare.json || true
+              echo ""
+              echo '```'
+              echo ""
+              echo "> (JSON completo anexado em artifacts/sca/)"
+            else
+              echo "> Sem JSON de SCA nesta execução (provavelmente não foi PR)."
+            fi
+          } > "$REPORT_MD"
+
+          pandoc "$REPORT_MD" -o "$REPORT_PDF" --pdf-engine=wkhtmltopdf
 
       - name: Upload evidence artifact
         if: always()
@@ -229,13 +232,12 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "## Technical Reports"
+            echo "## Evidências geradas"
             echo ""
-            echo "- **Index:** artifacts/reports/TECH_REPORTS_INDEX.md"
-            echo "- **SAST:** artifacts/sast/SONAR_EVIDENCE.md (links only)"
+            echo "- **PDF (DAST+SCA):** artifacts/reports/DAST_SCA_REPORT.pdf"
             echo "- **DAST:** artifacts/dast/zap-report.*"
             echo "- **SCA (PR only):** artifacts/sca/dependency-graph-compare.json"
             echo "- **Logs:** artifacts/logs/"
             echo ""
-            echo "> Download the **devsecops-evidence** artifact."
+            echo "> Baixe o artifact **devsecops-evidence**."
           } >> "$GITHUB_STEP_SUMMARY"

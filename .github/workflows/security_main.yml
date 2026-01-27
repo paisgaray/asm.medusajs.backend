@@ -51,9 +51,9 @@ jobs:
           args: >
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORG }}
-            -Dsonar.branch.name=main
-            -Dsonar.sources=src
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
+            -Dsonar.sources=.
+            -Dsonar.inclusions=src/**,*.ts,*.js,package.json
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
             -Dsonar.sourceEncoding=UTF-8
 
       - name: Sonar Scan (PR)
@@ -65,8 +65,9 @@ jobs:
           args: >
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORG }}
-            -Dsonar.sources=src
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
+            -Dsonar.sources=.
+            -Dsonar.inclusions=src/**,*.ts,*.js,package.json,medusa-config.ts
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**
             -Dsonar.sourceEncoding=UTF-8
 
       # -------------------------

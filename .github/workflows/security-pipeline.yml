@@ -21,13 +21,14 @@ concurrency:
 
 jobs:
   sast_codeql:
-    name: SAST - CodeQL
+    name: SAST - CodeQL (JS/TS)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         language: [javascript-typescript]
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,10 +43,24 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
 
-      - name: Analyze
+      # IMPORTANT:
+      # Em repositórios privados/organizacionais, Code Scanning pode não estar habilitado.
+      # Para não quebrar o pipeline, fazemos upload=false e geramos SARIF como artifact.
+      - name: Analyze (no upload)
         uses: github/codeql-action/analyze@v3
         with:
+          upload: false
+          output: results
           category: "/language:${{ matrix.language }}"
+
+      - name: Upload CodeQL SARIF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: results/**/*.sarif
+
+      # Se Code Scanning estiver habilitado, você pode trocar upload:false para true
+      # OU adicionar um step upload-sarif apontando para results/**/*.sarif
 
   sca_dependency_review:
     name: SCA - Dependency Review (PR)
@@ -60,7 +75,6 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
-          # Política inicial (denylist copyleft forte):
           deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
 
   sca_sbom:
@@ -75,10 +89,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (auto)
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable
+            pnpm -v
+            pnpm i --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            corepack enable
+            yarn -v
+            yarn install --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Generate SBOM (CycloneDX)
         run: |
@@ -94,7 +121,7 @@ jobs:
           path: reports/sbom-cyclonedx.*
 
   secrets_gitleaks:
-    name: Secrets - Gitleaks
+    name: Secrets - Gitleaks (container)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -103,18 +130,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks (SARIF)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: >
-            detect
-            --source .
-            --no-git
-            --report-format sarif
-            --report-path reports/gitleaks.sarif
-            --redact
+      - name: Run Gitleaks -> SARIF
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          docker run --rm -v "$PWD:/repo" -w /repo gitleaks/gitleaks:latest \
+            detect --source . --no-git \
+            --report-format sarif --report-path reports/gitleaks.sarif --redact
 
       - name: Upload Gitleaks report
         uses: actions/upload-artifact@v4
@@ -122,6 +144,8 @@ jobs:
           name: gitleaks-report
           path: reports/gitleaks.sarif
 
+      # Se seu GitHub Security aceitar SARIF, isso adiciona na aba Security.
+      # Caso não esteja habilitado, comente este step.
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
@@ -135,90 +159,57 @@ jobs:
 
     env:
       DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
-      DAST_LOGIN_URL: ${{ vars.DAST_LOGIN_URL }}         # opcional (recomendado)
-      DAST_LOGIN_BODY: ${{ vars.DAST_LOGIN_BODY }}       # opcional
-      DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}     # opcional (default token)
+      DAST_LOGIN_URL: ${{ vars.DAST_LOGIN_URL }}
+      DAST_LOGIN_BODY: ${{ vars.DAST_LOGIN_BODY }}
+      DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}
       DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
       DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
 
     steps:
-      - name: Guard - ensure target URL is set
+      - name: Guard - ensure required vars/secrets are set
         run: |
-          if [ -z "${DAST_TARGET_URL}" ]; then
-            echo "DAST_TARGET_URL is not set. Define repo variable 'DAST_TARGET_URL'."
-            exit 1
-          fi
+          set -euo pipefail
+          for v in DAST_TARGET_URL DAST_LOGIN_URL DAST_LOGIN_BODY DAST_TOKEN_FIELD; do
+            if [ -z "${!v:-}" ]; then
+              echo "$v is not set. Configure it in Settings -> Secrets and variables -> Actions."
+              exit 1
+            fi
+          done
+          for s in DAST_USERNAME DAST_PASSWORD; do
+            if [ -z "${!s:-}" ]; then
+              echo "$s secret is not set. Configure it in Settings -> Secrets and variables -> Actions -> Secrets."
+              exit 1
+            fi
+          done
 
       - name: Install jq
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq
 
-      - name: Get JWT token (try configured endpoint or common endpoints)
+      - name: Get JWT token (Medusa Admin)
         id: jwt
         run: |
           set -euo pipefail
           mkdir -p reports
 
-          # Defaults
-          TOKEN_FIELD="${DAST_TOKEN_FIELD:-token}"
-
-          # Default login body (se não setar vars.DAST_LOGIN_BODY)
-          # Usa placeholders __USER__ e __PASS__
-          BODY_TEMPLATE="${DAST_LOGIN_BODY:-{"email":"__USER__","password":"__PASS__"}}"
-          BODY="${BODY_TEMPLATE/__USER__/${DAST_USERNAME}}"
+          BODY='${DAST_LOGIN_BODY}'
+          BODY="${BODY/__USER__/${DAST_USERNAME}}"
           BODY="${BODY/__PASS__/${DAST_PASSWORD}}"
 
-          # Lista de endpoints comuns (caso DAST_LOGIN_URL não seja setado)
-          # Ajuste aqui se você souber o endpoint exato do seu Admin.
-          CANDIDATES=()
-          if [ -n "${DAST_LOGIN_URL:-}" ]; then
-            CANDIDATES+=("${DAST_LOGIN_URL}")
-          else
-            CANDIDATES+=("${DAST_TARGET_URL%/}/admin/auth")
-            CANDIDATES+=("${DAST_TARGET_URL%/}/admin/auth/token")
-            CANDIDATES+=("${DAST_TARGET_URL%/}/admin/login")
-            CANDIDATES+=("${DAST_TARGET_URL%/}/auth/admin")
-            CANDIDATES+=("${DAST_TARGET_URL%/}/api/admin/auth")
-          fi
+          RESPONSE=$(curl -sS -X POST "${DAST_LOGIN_URL}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
 
-          echo "Trying login endpoints (count=${#CANDIDATES[@]})..."
+          TOKEN=$(echo "$RESPONSE" | jq -r ".${DAST_TOKEN_FIELD}")
 
-          TOKEN=""
-          USED_URL=""
-          RESP_FILE="reports/login-response.json"
-
-          for url in "${CANDIDATES[@]}"; do
-            echo "Attempting: $url"
-            # Não imprimir BODY nem credenciais no log
-            http_code=$(curl -sS -o "${RESP_FILE}" -w "%{http_code}" \
-              -X POST "$url" \
-              -H "Content-Type: application/json" \
-              -d "$BODY" || true)
-
-            if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
-              # Tenta extrair token em campos comuns
-              TOKEN=$(jq -r --arg f "$TOKEN_FIELD" '
-                .[$f] // .token // .access_token // .accessToken // .jwt // .data.token // .data.access_token // empty
-              ' "${RESP_FILE}" || true)
-
-              if [ -n "${TOKEN}" ] && [ "${TOKEN}" != "null" ]; then
-                USED_URL="$url"
-                break
-              fi
-            fi
-          done
-
-          if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "null" ]; then
-            echo "Failed to obtain JWT token."
-            echo "Tip: set vars.DAST_LOGIN_URL to the exact endpoint and vars.DAST_LOGIN_BODY with the correct JSON payload."
-            echo "Response sample saved at reports/login-response.json (may include sensitive info; keep artifacts restricted)."
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Failed to obtain JWT token"
+            echo "$RESPONSE" > reports/login-response.json
             exit 1
           fi
 
-          echo "Login OK via: ${USED_URL}"
-          # Exporta token para próximos steps sem logar o valor
-          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Run ZAP Baseline Scan (inject Bearer)
         uses: zaproxy/action-baseline@v0.12.0
@@ -251,7 +242,7 @@ jobs:
           name: zap-dast-report
           path: reports/zap-report.*
 
-      - name: Upload login response (debug)
+      - name: Upload login response (debug on failure)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -287,10 +278,10 @@ jobs:
             find collected-artifacts -type f | sort | sed 's|^collected-artifacts/|- |'
             echo ""
             echo "## Notes"
-            echo "- CodeQL results are in GitHub Security (Code scanning alerts)."
-            echo "- Gitleaks SARIF is uploaded to GitHub Security and also saved as artifact."
-            echo "- ZAP reports are saved as HTML/MD/JSON."
-            echo "- SBOM is saved as CycloneDX JSON/XML."
+            echo "- CodeQL SARIF is saved as artifact (codeql-sarif). If Code Scanning is enabled, you can also upload it to GitHub Security."
+            echo "- Gitleaks SARIF is saved as artifact (gitleaks-report) and uploaded to GitHub Security (if enabled)."
+            echo "- ZAP reports are saved as HTML/MD/JSON (zap-dast-report)."
+            echo "- SBOM is saved as CycloneDX JSON/XML (sbom-cyclonedx)."
           } > reports/INDEX.md
 
       - name: Upload consolidated index

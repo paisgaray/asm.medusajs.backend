@@ -1,0 +1,202 @@
+name: DevSecOps - OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+
+jobs:
+  devsecops:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare evidence directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
+          echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
+
+      - name: Context log
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "=== Context ==="
+            echo "Event: ${GITHUB_EVENT_NAME}"
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "SHA: ${GITHUB_SHA}"
+            echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
+            echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
+            echo "==============="
+          } | tee artifacts/logs/01-context.txt
+
+      - name: Setup Node (Corepack + Yarn)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install deps (yarn) - NON-BLOCKING
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          yarn --version | tee artifacts/logs/10-yarn-version.txt
+
+          if [ -f yarn.lock ]; then
+            # Yarn classic (v1) usa --frozen-lockfile; Yarn Berry (v2+) usa --immutable.
+            if yarn --version | grep -Eq '^1\.'; then
+              yarn install --frozen-lockfile 2>&1 | tee artifacts/logs/10-install.txt
+            else
+              yarn install --immutable 2>&1 | tee artifacts/logs/10-install.txt
+            fi
+          else
+            echo "⚠️ yarn.lock not found. This project should commit yarn.lock for reproducible builds." \
+              | tee artifacts/logs/10-install.txt
+            yarn install 2>&1 | tee -a artifacts/logs/10-install.txt
+          fi
+
+      # =========================================================
+      # SCA - GitHub Dependency Review (PR only)
+      # =========================================================
+      - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+
+      - name: SCA - Export technical report (Dependency Review JSON) - PR only
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          OUT="artifacts/sca/dependency-review.json"
+
+          curl -sS \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -X POST "https://api.github.com/repos/${REPO}/dependency-graph/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
+            | tee "$OUT" >/dev/null || true
+
+          if [[ ! -s "$OUT" ]]; then
+            echo "Dependency Review JSON could not be exported. See PR check output." \
+              > artifacts/sca/DEPENDENCY_REVIEW_EXPORT_FAILED.txt
+          else
+            echo "✅ Exported SCA technical report to $OUT" | tee artifacts/logs/20-sca-export.txt
+          fi
+
+      # =========================================================
+      # DAST - OWASP ZAP (RUN VIA DOCKER TO AVOID INTERNAL ARTIFACT UPLOAD)
+      # =========================================================
+      - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Ensure container can write to workspace
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+
+          docker pull ghcr.io/zaproxy/zaproxy:stable -q
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
+            --network=host \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "${DAST_TARGET_URL}" \
+              -J /zap/wrk/artifacts/dast/zap-report.json \
+              -w /zap/wrk/artifacts/dast/zap-report.md \
+              -r /zap/wrk/artifacts/dast/zap-report.html \
+              -a -I -m 5
+
+      - name: DAST - Validate reports + placeholder
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -s artifacts/dast/zap-report.html && ! -s artifacts/dast/zap-report.json && ! -s artifacts/dast/zap-report.md ]]; then
+            echo "ZAP did not generate reports. Check workflow logs." > artifacts/dast/ZAP_EMPTY.txt
+          fi
+
+      # =========================================================
+      # Technical summary report (index)
+      # =========================================================
+      - name: Generate technical index report (DAST + SCA)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "# DevSecOps - Technical Reports Index"
+            echo ""
+            echo "## Context"
+            echo "- Repo: ${GITHUB_REPOSITORY}"
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## DAST (OWASP ZAP)"
+            echo "- Target: ${DAST_TARGET_URL}"
+            echo "- artifacts/dast/zap-report.html"
+            echo "- artifacts/dast/zap-report.md"
+            echo "- artifacts/dast/zap-report.json"
+            echo ""
+            echo "## SCA (GitHub Dependency Review) - PR only"
+            echo "- artifacts/sca/dependency-review.json"
+            echo "- Note: Detailed results also appear in the PR check UI."
+          } > artifacts/reports/TECH_REPORTS_INDEX.md
+
+      - name: Upload evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devsecops-evidence
+          path: artifacts
+
+      - name: Job Summary (quick links)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Technical Reports"
+            echo ""
+            echo "- **Index:** artifacts/reports/TECH_REPORTS_INDEX.md"
+            echo "- **DAST:** artifacts/dast/zap-report.*"
+            echo "- **SCA (PR only):** artifacts/sca/dependency-review.json"
+            echo "- **Logs:** artifacts/logs/"
+            echo ""
+            echo "> Download the **devsecops-evidence** artifact."
+          } >> "$GITHUB_STEP_SUMMARY"

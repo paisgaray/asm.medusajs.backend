@@ -1,0 +1,300 @@
+name: Security Pipeline (SAST/DAST/SCA/Secrets) - JWT
+
+on:
+  push:
+    branches:
+      - security/ci-sast-dast
+  pull_request:
+    branches:
+      - security/ci-sast-dast
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: security-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sast_codeql:
+    name: SAST - CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  sca_dependency_review:
+    name: SCA - Dependency Review (PR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependency Review (license policy)
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # Política inicial (denylist copyleft forte):
+          deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+
+  sca_sbom:
+    name: SCA - SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          mkdir -p reports
+          npm i -g @cyclonedx/cyclonedx-npm
+          cyclonedx-npm --output-file reports/sbom-cyclonedx.json --json
+          cyclonedx-npm --output-file reports/sbom-cyclonedx.xml --output-format xml
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: reports/sbom-cyclonedx.*
+
+  secrets_gitleaks:
+    name: Secrets - Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks (SARIF)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: >
+            detect
+            --source .
+            --no-git
+            --report-format sarif
+            --report-path reports/gitleaks.sarif
+            --redact
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: reports/gitleaks.sarif
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/gitleaks.sarif
+          category: gitleaks
+
+  dast_zap_jwt:
+    name: DAST - OWASP ZAP (JWT Auth)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+      DAST_LOGIN_URL: ${{ vars.DAST_LOGIN_URL }}         # opcional (recomendado)
+      DAST_LOGIN_BODY: ${{ vars.DAST_LOGIN_BODY }}       # opcional
+      DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}     # opcional (default token)
+      DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
+      DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
+
+    steps:
+      - name: Guard - ensure target URL is set
+        run: |
+          if [ -z "${DAST_TARGET_URL}" ]; then
+            echo "DAST_TARGET_URL is not set. Define repo variable 'DAST_TARGET_URL'."
+            exit 1
+          fi
+
+      - name: Install jq
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Get JWT token (try configured endpoint or common endpoints)
+        id: jwt
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+
+          # Defaults
+          TOKEN_FIELD="${DAST_TOKEN_FIELD:-token}"
+
+          # Default login body (se não setar vars.DAST_LOGIN_BODY)
+          # Usa placeholders __USER__ e __PASS__
+          BODY_TEMPLATE="${DAST_LOGIN_BODY:-{"email":"__USER__","password":"__PASS__"}}"
+          BODY="${BODY_TEMPLATE/__USER__/${DAST_USERNAME}}"
+          BODY="${BODY/__PASS__/${DAST_PASSWORD}}"
+
+          # Lista de endpoints comuns (caso DAST_LOGIN_URL não seja setado)
+          # Ajuste aqui se você souber o endpoint exato do seu Admin.
+          CANDIDATES=()
+          if [ -n "${DAST_LOGIN_URL:-}" ]; then
+            CANDIDATES+=("${DAST_LOGIN_URL}")
+          else
+            CANDIDATES+=("${DAST_TARGET_URL%/}/admin/auth")
+            CANDIDATES+=("${DAST_TARGET_URL%/}/admin/auth/token")
+            CANDIDATES+=("${DAST_TARGET_URL%/}/admin/login")
+            CANDIDATES+=("${DAST_TARGET_URL%/}/auth/admin")
+            CANDIDATES+=("${DAST_TARGET_URL%/}/api/admin/auth")
+          fi
+
+          echo "Trying login endpoints (count=${#CANDIDATES[@]})..."
+
+          TOKEN=""
+          USED_URL=""
+          RESP_FILE="reports/login-response.json"
+
+          for url in "${CANDIDATES[@]}"; do
+            echo "Attempting: $url"
+            # Não imprimir BODY nem credenciais no log
+            http_code=$(curl -sS -o "${RESP_FILE}" -w "%{http_code}" \
+              -X POST "$url" \
+              -H "Content-Type: application/json" \
+              -d "$BODY" || true)
+
+            if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+              # Tenta extrair token em campos comuns
+              TOKEN=$(jq -r --arg f "$TOKEN_FIELD" '
+                .[$f] // .token // .access_token // .accessToken // .jwt // .data.token // .data.access_token // empty
+              ' "${RESP_FILE}" || true)
+
+              if [ -n "${TOKEN}" ] && [ "${TOKEN}" != "null" ]; then
+                USED_URL="$url"
+                break
+              fi
+            fi
+          done
+
+          if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "null" ]; then
+            echo "Failed to obtain JWT token."
+            echo "Tip: set vars.DAST_LOGIN_URL to the exact endpoint and vars.DAST_LOGIN_BODY with the correct JSON payload."
+            echo "Response sample saved at reports/login-response.json (may include sensitive info; keep artifacts restricted)."
+            exit 1
+          fi
+
+          echo "Login OK via: ${USED_URL}"
+          # Exporta token para próximos steps sem logar o valor
+          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+
+      - name: Run ZAP Baseline Scan (inject Bearer)
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: ${{ env.DAST_TARGET_URL }}
+          cmd_options: >
+            -a
+            -I
+            -m 5
+            -r zap-report.html
+            -w zap-report.md
+            -J zap-report.json
+            -z "-config replacer.full_list(0).description=authbearer
+                -config replacer.full_list(0).enabled=true
+                -config replacer.full_list(0).matchtype=REQ_HEADER
+                -config replacer.full_list(0).matchstr=Authorization
+                -config replacer.full_list(0).regex=false
+                -config replacer.full_list(0).replacement=Bearer ${{ steps.jwt.outputs.token }}"
+
+      - name: Move ZAP reports to reports/
+        run: |
+          mkdir -p reports
+          mv zap-report.html reports/ || true
+          mv zap-report.md reports/ || true
+          mv zap-report.json reports/ || true
+
+      - name: Upload ZAP artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-dast-report
+          path: reports/zap-report.*
+
+      - name: Upload login response (debug)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-login-debug
+          path: reports/login-response.json
+
+  unify_reports:
+    name: Reports - Consolidate & Index
+    runs-on: ubuntu-latest
+    needs:
+      - sast_codeql
+      - sca_sbom
+      - secrets_gitleaks
+      - dast_zap_jwt
+    if: always()
+    timeout-minutes: 15
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: collected-artifacts
+
+      - name: Build consolidated index
+        run: |
+          mkdir -p reports
+          {
+            echo "# Security Pipeline Reports"
+            echo ""
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo ""
+            echo "## Artifacts"
+            echo ""
+            find collected-artifacts -type f | sort | sed 's|^collected-artifacts/|- |'
+            echo ""
+            echo "## Notes"
+            echo "- CodeQL results are in GitHub Security (Code scanning alerts)."
+            echo "- Gitleaks SARIF is uploaded to GitHub Security and also saved as artifact."
+            echo "- ZAP reports are saved as HTML/MD/JSON."
+            echo "- SBOM is saved as CycloneDX JSON/XML."
+          } > reports/INDEX.md
+
+      - name: Upload consolidated index
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-index
+          path: reports/INDEX.md

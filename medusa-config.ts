@@ -1,5 +1,5 @@
 import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
-import { defineConfig, loadEnv } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, defineConfig, loadEnv, Modules } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -95,6 +95,19 @@ modules.push(
     resolve: '@medusajs/medusa/translation',
   },
   {
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+          options: {},
+        },
+      ],
+    },
+  },
+  {
     resolve: '@medusajs/medusa/notification',
     options: {
       providers: [
@@ -102,8 +115,9 @@ modules.push(
           resolve: '@medusajs/notification-sendgrid',
           id: 'sendgrid',
           options: {
+            channels: ['email'],
             api_key: process.env.SENDGRID_API_KEY,
-            from: process.env.SENDGRID_FROM_EMAIL,
+            from: process.env.SENDGRID_FROM_EMAIL || process.env.SENDGRID_FROM,
           },
         },
       ],
@@ -136,32 +150,11 @@ if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
   });
 }
 
-// Módulo de Notificação com SendGrid (opcional - apenas se SENDGRID_FROM estiver configurado)
-// Nota: Para salvar contatos no CRM, apenas SENDGRID_API_KEY é necessária
-// O módulo de notificação só é necessário se você quiser enviar emails via SendGrid
-if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM) {
-  modules.push({
-    resolve: '@medusajs/medusa/notification',
-    options: {
-      providers: [
-        {
-          resolve: '@medusajs/medusa/notification-sendgrid',
-          id: 'sendgrid',
-          options: {
-            channels: ['email'],
-            api_key: process.env.SENDGRID_API_KEY,
-            from: process.env.SENDGRID_FROM,
-          },
-        },
-      ],
-    },
-  });
-}
-
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL || redisUrl,
+    workerMode: process.env.MEDUSA_WORKER_MODE || 'shared', // ✅ CRÍTICO: 'shared' para processar eventos no mesmo processo
     http: {
       storeCors: process.env.STORE_CORS,
       adminCors: process.env.ADMIN_CORS,

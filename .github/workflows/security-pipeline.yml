@@ -28,10 +28,8 @@ jobs:
       fail-fast: false
       matrix:
         language: [javascript-typescript]
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -43,9 +41,7 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
 
-      # IMPORTANT:
-      # Em repositórios privados/organizacionais, Code Scanning pode não estar habilitado.
-      # Para não quebrar o pipeline, fazemos upload=false e geramos SARIF como artifact.
+      # Evita falhar caso Code Scanning não esteja habilitado na org/repo
       - name: Analyze (no upload)
         uses: github/codeql-action/analyze@v3
         with:
@@ -59,17 +55,13 @@ jobs:
           name: codeql-sarif
           path: results/**/*.sarif
 
-      # Se Code Scanning estiver habilitado, você pode trocar upload:false para true
-      # OU adicionar um step upload-sarif apontando para results/**/*.sarif
-
   sca_dependency_review:
     name: SCA - Dependency Review (PR)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: ${{ github.event_name == 'pull_request' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Dependency Review (license policy)
         uses: actions/dependency-review-action@v4
@@ -82,8 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -95,11 +86,9 @@ jobs:
           set -euo pipefail
           if [ -f pnpm-lock.yaml ]; then
             corepack enable
-            pnpm -v
             pnpm i --frozen-lockfile
           elif [ -f yarn.lock ]; then
             corepack enable
-            yarn -v
             yarn install --frozen-lockfile
           elif [ -f package-lock.json ]; then
             npm ci
@@ -109,10 +98,11 @@ jobs:
 
       - name: Generate SBOM (CycloneDX)
         run: |
+          set -euo pipefail
           mkdir -p reports
           npm i -g @cyclonedx/cyclonedx-npm
-          cyclonedx-npm --output-file reports/sbom-cyclonedx.json --json
-          cyclonedx-npm --output-file reports/sbom-cyclonedx.xml --output-format xml
+          cyclonedx-npm --output-file reports/sbom-cyclonedx.json --output-format json
+          cyclonedx-npm --output-file reports/sbom-cyclonedx.xml  --output-format xml
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
@@ -125,16 +115,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks -> SARIF
+      - name: Run Gitleaks -> SARIF (GHCR image)
         run: |
           set -euo pipefail
           mkdir -p reports
-          docker run --rm -v "$PWD:/repo" -w /repo gitleaks/gitleaks:latest \
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:latest \
             detect --source . --no-git \
             --report-format sarif --report-path reports/gitleaks.sarif --redact
 
@@ -144,8 +133,7 @@ jobs:
           name: gitleaks-report
           path: reports/gitleaks.sarif
 
-      # Se seu GitHub Security aceitar SARIF, isso adiciona na aba Security.
-      # Caso não esteja habilitado, comente este step.
+      # Se o Security/Code Scanning não estiver habilitado, comente este step.
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
@@ -160,7 +148,6 @@ jobs:
     env:
       DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
       DAST_LOGIN_URL: ${{ vars.DAST_LOGIN_URL }}
-      DAST_LOGIN_BODY: ${{ vars.DAST_LOGIN_BODY }}
       DAST_TOKEN_FIELD: ${{ vars.DAST_TOKEN_FIELD }}
       DAST_USERNAME: ${{ secrets.DAST_USERNAME }}
       DAST_PASSWORD: ${{ secrets.DAST_PASSWORD }}
@@ -169,15 +156,15 @@ jobs:
       - name: Guard - ensure required vars/secrets are set
         run: |
           set -euo pipefail
-          for v in DAST_TARGET_URL DAST_LOGIN_URL DAST_LOGIN_BODY DAST_TOKEN_FIELD; do
+          for v in DAST_TARGET_URL DAST_LOGIN_URL DAST_TOKEN_FIELD; do
             if [ -z "${!v:-}" ]; then
-              echo "$v is not set. Configure it in Settings -> Secrets and variables -> Actions."
+              echo "$v is not set."
               exit 1
             fi
           done
           for s in DAST_USERNAME DAST_PASSWORD; do
             if [ -z "${!s:-}" ]; then
-              echo "$s secret is not set. Configure it in Settings -> Secrets and variables -> Actions -> Secrets."
+              echo "$s secret is not set."
               exit 1
             fi
           done
@@ -193,11 +180,11 @@ jobs:
           set -euo pipefail
           mkdir -p reports
 
-          BODY='${DAST_LOGIN_BODY}'
-          BODY="${BODY/__USER__/${DAST_USERNAME}}"
-          BODY="${BODY/__PASS__/${DAST_PASSWORD}}"
+          # JSON seguro (não depende de template / substituição)
+          BODY=$(jq -n --arg email "$DAST_USERNAME" --arg password "$DAST_PASSWORD" \
+            '{email:$email, password:$password}')
 
-          RESPONSE=$(curl -sS -X POST "${DAST_LOGIN_URL}" \
+          RESPONSE=$(curl -sS -X POST "$DAST_LOGIN_URL" \
             -H "Content-Type: application/json" \
             -d "$BODY")
 
@@ -205,6 +192,7 @@ jobs:
 
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "Failed to obtain JWT token"
+            # cuidado: pode conter info sensível; use apenas para debug
             echo "$RESPONSE" > reports/login-response.json
             exit 1
           fi
@@ -278,10 +266,10 @@ jobs:
             find collected-artifacts -type f | sort | sed 's|^collected-artifacts/|- |'
             echo ""
             echo "## Notes"
-            echo "- CodeQL SARIF is saved as artifact (codeql-sarif). If Code Scanning is enabled, you can also upload it to GitHub Security."
-            echo "- Gitleaks SARIF is saved as artifact (gitleaks-report) and uploaded to GitHub Security (if enabled)."
-            echo "- ZAP reports are saved as HTML/MD/JSON (zap-dast-report)."
-            echo "- SBOM is saved as CycloneDX JSON/XML (sbom-cyclonedx)."
+            echo "- CodeQL SARIF: artifact (codeql-sarif)."
+            echo "- Gitleaks SARIF: artifact (gitleaks-report) e upload no Security (se habilitado)."
+            echo "- ZAP DAST: artifact (zap-dast-report) HTML/MD/JSON."
+            echo "- SBOM: artifact (sbom-cyclonedx) JSON/XML."
           } > reports/INDEX.md
 
       - name: Upload consolidated index

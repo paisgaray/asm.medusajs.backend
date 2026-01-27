@@ -1,19 +1,19 @@
 /**
  * Subscriber para evento auth.password_reset do Medusa v2
- * 
+ *
  * Este subscriber escuta o evento nativo do módulo de Auth do Medusa
  * e envia o email de reset de senha usando o módulo de Notificação.
- * 
+ *
  * Estrutura do evento:
  * - entity_id: email do usuário
  * - token: JWT token gerado pelo Medusa
  * - actor_type: 'customer' ou 'user'
- * 
+ *
  * Referência: https://docs.medusajs.com/resources/commerce-modules/auth/reset-password
  */
 
-import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
+import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 
 import { SENDGRID_TEMPLATES } from '../utils/sendgrid-templates';
 
@@ -25,7 +25,7 @@ export default async function resetPasswordTokenHandler({
   container,
 }: SubscriberArgs<{ entity_id: string; token: string; actor_type: string }>) {
   console.log('[Password Reset Subscriber] Evento recebido:', JSON.stringify(data, null, 2));
-  
+
   const email = data.entity_id; // email do usuário
   const token = data.token; // JWT token gerado pelo Medusa (não hexadecimal!)
   const actorType = data.actor_type; // 'customer' ou 'user'
@@ -42,7 +42,7 @@ export default async function resetPasswordTokenHandler({
 
   try {
     console.log('[Password Reset Subscriber] Iniciando processamento do email...');
-    
+
     const notificationModuleService = container.resolve(Modules.NOTIFICATION);
     console.log('[Password Reset Subscriber] Módulo de Notificação resolvido');
 
@@ -50,7 +50,7 @@ export default async function resetPasswordTokenHandler({
     // Usa STORE_URL do env ou fallback para localhost
     const storeUrl = process.env.STORE_URL || 'http://localhost:8000';
     console.log('[Password Reset Subscriber] STORE_URL:', storeUrl);
-    
+
     // URL formatada conforme pedido do front-end: /account?token=...&email=...
     // IMPORTANTE: O token JWT é passado diretamente na URL. Para evitar corrupção do token
     // pelo SendGrid Click Tracking:
@@ -70,7 +70,7 @@ export default async function resetPasswordTokenHandler({
         fields: ['first_name'],
         filters: { email },
       });
-      
+
       if (customers && customers.length > 0) {
         firstName = customers[0]?.first_name || email.split('@')[0] || 'Cliente';
       }

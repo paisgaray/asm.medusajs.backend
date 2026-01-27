@@ -1,22 +1,22 @@
 /**
  * API Route: Request Password Reset
- * 
+ *
  * Esta rota utiliza o workflow generateResetPasswordTokenWorkflow diretamente,
  * garantindo que o evento auth.password_reset seja emitido corretamente.
- * 
+ *
  * POST /store/auth/reset-password
  * Body: { email: string }
- * 
+ *
  * IMPORTANTE: O workflow só funciona se o email tiver uma identidade de autenticação
  * vinculada ao provider 'emailpass'. Isso significa que o customer deve ter sido criado
  * através do fluxo de registro (/auth/customer/emailpass/register) ou ter uma auth_identity
  * criada manualmente.
- * 
+ *
  * O workflow:
  * - Valida se existe uma identidade de autenticação para o email
  * - Gera token JWT
  * - Emite evento auth.password_reset automaticamente após conclusão bem-sucedida
- * 
+ *
  * Referência: https://docs.medusajs.com/resources/references/medusa-workflows/generateResetPasswordTokenWorkflow
  */
 
@@ -47,17 +47,6 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
       // Continua mesmo assim, mas o workflow pode falhar
     }
 
-    // Executa o workflow nativo que gera o token e emite o evento
-    // O workflow só completa com sucesso se existir uma auth_identity para o email
-    // IMPORTANTE: É necessário passar o secret explicitamente para gerar o token JWT
-    console.log('[Password Reset] Executando workflow generateResetPasswordTokenWorkflow');
-    console.log('[Password Reset] Input:', { 
-      entityId: email, 
-      actorType: 'customer', 
-      provider: 'emailpass',
-      secret: jwtSecret ? '***configurado***' : 'NÃO CONFIGURADO',
-    });
-
     await generateResetPasswordTokenWorkflow(req.scope).run({
       input: {
         entityId: email,
@@ -76,10 +65,10 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
     // - "Provider identity not found" (email não tem senha cadastrada)
     // - Email não existe
     // - Outros erros de validação
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(`[Password Reset] Erro silencioso: ${errorMessage}`);
-    
+
     // Log detalhado apenas em desenvolvimento para debug
     if (process.env.NODE_ENV === 'development') {
       if (error instanceof Error) {
@@ -88,7 +77,7 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
         console.error('[Password Reset] Erro detalhado:', JSON.stringify(error, null, 2));
       }
     }
-    
+
     // Não relançamos o erro para o cliente (segurança)
   }
 

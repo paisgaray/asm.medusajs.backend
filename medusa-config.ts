@@ -154,7 +154,6 @@ export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL || redisUrl,
-    workerMode: process.env.MEDUSA_WORKER_MODE || 'shared', // ✅ CRÍTICO: 'shared' para processar eventos no mesmo processo
     http: {
       storeCors: process.env.STORE_CORS,
       adminCors: process.env.ADMIN_CORS,

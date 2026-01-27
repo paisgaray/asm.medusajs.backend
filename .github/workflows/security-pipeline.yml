@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - security/github-actions-sast-dast
-      - main
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:

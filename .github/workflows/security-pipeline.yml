@@ -54,18 +54,32 @@ jobs:
             echo "==============="
           } | tee artifacts/logs/01-context.txt
 
-      - name: Setup Node
+      - name: Setup Node (Corepack + Yarn)
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
 
-      - name: Install deps (auto) - NON-BLOCKING
+      - name: Install deps (yarn) - NON-BLOCKING
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          ( if [ -f package-lock.json ]; then npm ci; else npm install; fi ) \
-            2>&1 | tee artifacts/logs/10-install.txt
+          corepack enable
+          yarn --version | tee artifacts/logs/10-yarn-version.txt
+
+          if [ -f yarn.lock ]; then
+            # Yarn classic (v1) usa --frozen-lockfile; Yarn Berry (v2+) usa --immutable.
+            if yarn --version | grep -Eq '^1\.'; then
+              yarn install --frozen-lockfile 2>&1 | tee artifacts/logs/10-install.txt
+            else
+              yarn install --immutable 2>&1 | tee artifacts/logs/10-install.txt
+            fi
+          else
+            echo "⚠️ yarn.lock not found. This project should commit yarn.lock for reproducible builds." \
+              | tee artifacts/logs/10-install.txt
+            yarn install 2>&1 | tee -a artifacts/logs/10-install.txt
+          fi
 
       # =========================================================
       # SCA - GitHub Dependency Review (PR only)
@@ -86,12 +100,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          PR_NUMBER="${{ github.event.pull_request.number }}"
           REPO="${GITHUB_REPOSITORY}"
           OUT="artifacts/sca/dependency-review.json"
 
-          # Dependency Review API (Preview). Produz um JSON técnico com findings.
           curl -sS \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
@@ -107,29 +118,36 @@ jobs:
           fi
 
       # =========================================================
-      # DAST - OWASP ZAP (PUBLIC LOGIN PAGE, NO AUTH)
+      # DAST - OWASP ZAP (RUN VIA DOCKER TO AVOID INTERNAL ARTIFACT UPLOAD)
       # =========================================================
-      - name: DAST - OWASP ZAP Baseline (Admin Login) - NON-BLOCKING
+      - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
         continue-on-error: true
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: ${{ env.DAST_TARGET_URL }}
-          allow_issue_writing: false
-          cmd_options: >
-            -a
-            -I
-            -m 5
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Collect ZAP reports + placeholders
+          # Ensure container can write to workspace
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+
+          docker pull ghcr.io/zaproxy/zaproxy:stable -q
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
+            --network=host \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "${DAST_TARGET_URL}" \
+              -J /zap/wrk/artifacts/dast/zap-report.json \
+              -w /zap/wrk/artifacts/dast/zap-report.md \
+              -r /zap/wrk/artifacts/dast/zap-report.html \
+              -a -I -m 5
+
+      - name: DAST - Validate reports + placeholder
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          mv -f report_html.html artifacts/dast/zap-report.html 2>/dev/null || true
-          mv -f report_md.md     artifacts/dast/zap-report.md   2>/dev/null || true
-          mv -f report_json.json artifacts/dast/zap-report.json 2>/dev/null || true
-
-          if [[ ! -f artifacts/dast/zap-report.html && ! -f artifacts/dast/zap-report.json && ! -f artifacts/dast/zap-report.md ]]; then
+          if [[ ! -s artifacts/dast/zap-report.html && ! -s artifacts/dast/zap-report.json && ! -s artifacts/dast/zap-report.md ]]; then
             echo "ZAP did not generate reports. Check workflow logs." > artifacts/dast/ZAP_EMPTY.txt
           fi
 

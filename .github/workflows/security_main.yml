@@ -1,4 +1,4 @@
-name: DevSecOps - OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
+name: DevSecOps - Sonar (SAST) + OWASP ZAP (DAST) + GitHub Dependency Review (SCA)
 
 on:
   push:
@@ -11,8 +11,8 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  security-events: write
   actions: read
-  # security-events: write  # (remova se você não publica SARIF)
 
 concurrency:
   group: devsecops-${{ github.workflow }}-${{ github.ref }}
@@ -21,6 +21,10 @@ concurrency:
 env:
   NODE_VERSION: "20"
   DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+
+  # Sonar vars
+  SONAR_ORG: ${{ vars.SONAR_ORG }}
+  SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
 jobs:
   devsecops:
@@ -36,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/{logs,reports,dast,sca}
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca artifacts/sast
           echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
 
       - name: Context log
@@ -45,16 +49,17 @@ jobs:
           set -euo pipefail
           {
             echo "=== Context ==="
-            echo "Workflow: ${GITHUB_WORKFLOW}"
             echo "Event: ${GITHUB_EVENT_NAME}"
             echo "Branch: ${GITHUB_REF_NAME}"
             echo "SHA: ${GITHUB_SHA}"
             echo "Run: ${GITHUB_RUN_NUMBER} Attempt: ${GITHUB_RUN_ATTEMPT}"
             echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
+            echo "SONAR_ORG: ${SONAR_ORG}"
+            echo "SONAR_PROJECT_KEY: ${SONAR_PROJECT_KEY}"
             echo "==============="
           } | tee artifacts/logs/01-context.txt
 
-      - name: Setup Node (Corepack + Yarn cache)
+      - name: Setup Node (Corepack + Yarn)
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -66,24 +71,22 @@ jobs:
         run: |
           set -euo pipefail
           corepack enable
-          YVER="$(yarn --version)"
-          echo "$YVER" | tee artifacts/logs/10-yarn-version.txt
+          yarn --version | tee artifacts/logs/10-yarn-version.txt
 
-          if [ ! -f yarn.lock ]; then
-            echo "⚠️ yarn.lock not found. Commit yarn.lock for reproducible builds." \
+          if [ -f yarn.lock ]; then
+            if yarn --version | grep -Eq '^1\.'; then
+              yarn install --frozen-lockfile 2>&1 | tee artifacts/logs/10-install.txt
+            else
+              yarn install --immutable 2>&1 | tee artifacts/logs/10-install.txt
+            fi
+          else
+            echo "⚠️ yarn.lock not found. This project should commit yarn.lock for reproducible builds." \
               | tee artifacts/logs/10-install.txt
             yarn install 2>&1 | tee -a artifacts/logs/10-install.txt
-            exit 0
-          fi
-
-          if echo "$YVER" | grep -Eq '^1\.'; then
-            yarn install --frozen-lockfile 2>&1 | tee artifacts/logs/10-install.txt
-          else
-            yarn install --immutable 2>&1 | tee artifacts/logs/10-install.txt
           fi
 
       # =========================================================
-      # SCA - Dependency Review (PR only)
+      # SCA - GitHub Dependency Review (PR only)
       # =========================================================
       - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
         if: ${{ github.event_name == 'pull_request' }}
@@ -119,6 +122,33 @@ jobs:
           fi
 
       # =========================================================
+      # SAST - SonarCloud (OFFICIAL)
+      # =========================================================
+      - name: SAST - SonarCloud Scan - NON-BLOCKING
+        continue-on-error: true
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ env.SONAR_ORG }}
+          SONAR_PROJECT_KEY: ${{ env.SONAR_PROJECT_KEY }}
+
+      - name: SAST evidence (Sonar links)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          SONAR_DASHBOARD="https://sonarcloud.io/dashboard?id=${SONAR_PROJECT_KEY}"
+          SONAR_ISSUES="https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}"
+          {
+            echo "# SAST (SonarCloud) Evidence"
+            echo ""
+            echo "- Dashboard: ${SONAR_DASHBOARD}"
+            echo "- Issues: ${SONAR_ISSUES}"
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit: ${GITHUB_SHA}"
+          } > artifacts/sast/SONAR_EVIDENCE.md
+
+      # =========================================================
       # DAST - OWASP ZAP (Docker)
       # =========================================================
       - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
@@ -126,14 +156,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
-
           docker pull ghcr.io/zaproxy/zaproxy:stable -q
-          docker image inspect ghcr.io/zaproxy/zaproxy:stable --format '{{.Id}}' \
-            | tee artifacts/logs/30-zap-image-id.txt || true
-
-          # Timeout defensivo (10 min) para não travar job em rede
           timeout 600 docker run --rm \
             -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
             --network=host \
@@ -158,7 +182,7 @@ jobs:
       # =========================================================
       # Technical index
       # =========================================================
-      - name: Generate technical index report (DAST + SCA)
+      - name: Generate technical index report (SAST + DAST + SCA)
         if: always()
         shell: bash
         run: |
@@ -177,6 +201,9 @@ jobs:
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Commit: ${GITHUB_SHA}"
             echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## SAST (SonarCloud)"
+            echo "- Evidence: artifacts/sast/SONAR_EVIDENCE.md"
             echo ""
             echo "## DAST (OWASP ZAP)"
             echo "- Target: ${DAST_TARGET_URL}"
@@ -205,6 +232,7 @@ jobs:
             echo "## Technical Reports"
             echo ""
             echo "- **Index:** artifacts/reports/TECH_REPORTS_INDEX.md"
+            echo "- **SAST:** artifacts/sast/SONAR_EVIDENCE.md (links only)"
             echo "- **DAST:** artifacts/dast/zap-report.*"
             echo "- **SCA (PR only):** artifacts/sca/dependency-graph-compare.json"
             echo "- **Logs:** artifacts/logs/"

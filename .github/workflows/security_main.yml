@@ -1,9 +1,8 @@
-name: DevSecOps (MAIN) - Sonar + ZAP (DAST) + SCA(PR) + PDF
+name: DevSecOps (MAIN) - Sonar(SAST) + ZAP(DAST) + Trivy/OSV(SCA) + HTML Evidence
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
@@ -12,6 +11,8 @@ permissions:
   contents: read
   pull-requests: read
   actions: read
+  # Se quiser publicar SARIF no GitHub Code Scanning, habilite:
+  # security-events: write
 
 concurrency:
   group: devsecops-security-${{ github.ref }}
@@ -20,6 +21,8 @@ concurrency:
 env:
   NODE_VERSION: "20"
   DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+  TRIVY_SEVERITY: "HIGH,CRITICAL"
+  TRIVY_IGNORE_UNFIXED: "true"
 
 jobs:
   devsecops:
@@ -35,13 +38,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
-          echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca artifacts/sast
+          {
+            echo "✅ Evidence directories created."
+            echo "Repo: ${GITHUB_REPOSITORY}"
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "Commit: ${GITHUB_SHA}"
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "Event: ${GITHUB_EVENT_NAME}"
+          } | tee artifacts/logs/00-init.txt
 
-     # -------------------------
-      # Sonar Scan Unificado
       # -------------------------
-      - name: SonarCloud Scan
+      # SAST - SonarCloud
+      # -------------------------
+      - name: SAST - SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -54,61 +64,149 @@ jobs:
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
             -Dsonar.sourceEncoding=UTF-8
             -Dsonar.branch.name=main
-      # -------------------------
-      # SCA - GitHub Dependency Review (PR only) + export JSON
-      # -------------------------
-      - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
-        if: ${{ github.event_name == 'pull_request' }}
-        continue-on-error: true
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-          deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+            -Dsonar.verbose=true
 
-      - name: SCA - Export dependency graph diff (JSON) - PR only
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        continue-on-error: true
+      - name: SAST - Evidence marker (Sonar execution)
+        if: always()
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          REPO="${GITHUB_REPOSITORY}"
-          OUT="artifacts/sca/dependency-graph-compare.json"
-
-          curl -sS \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -X POST "https://api.github.com/repos/${REPO}/dependency-graph/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
-            | tee "$OUT" >/dev/null || true
-
-          if [[ ! -s "$OUT" ]]; then
-            echo "Dependency graph compare JSON could not be exported. See PR check output." \
-              > artifacts/sca/EXPORT_FAILED.txt
-          fi
+          {
+            echo "SAST (SonarCloud) executed via action."
+            echo "ProjectKey: ${{ vars.SONAR_PROJECT_KEY }}"
+            echo "Org: ${{ vars.SONAR_ORG }}"
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } | tee artifacts/sast/SONAR_EVIDENCE.txt
 
       # -------------------------
-      # DAST - OWASP ZAP (Docker)
+      # SCA - Trivy (Docker) -> HTML + JSON
       # -------------------------
+      - name: SCA - Download Trivy HTML template (official)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Template oficial do Trivy (contrib/html.tpl)
+          curl -sSLo artifacts/sca/trivy-html.tpl \
+            https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl
+          ls -lah artifacts/sca | tee artifacts/logs/20-trivy-template.txt
+
+      - name: SCA - Trivy FS scan (HTML) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+          docker pull aquasec/trivy:latest -q
+
+          # HTML
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/work:rw \
+            aquasec/trivy:latest \
+            fs /work \
+            --scanners vuln,misconfig,secret,license \
+            --severity "${TRIVY_SEVERITY}" \
+            $( [[ "${TRIVY_IGNORE_UNFIXED}" == "true" ]] && echo "--ignore-unfixed" ) \
+            --format template \
+            --template "@/work/artifacts/sca/trivy-html.tpl" \
+            -o /work/artifacts/sca/trivy-report.html \
+            2>&1 | tee artifacts/logs/21-trivy-html.txt
+
+          ls -lah artifacts/sca | tee -a artifacts/logs/21-trivy-html.txt || true
+
+      - name: SCA - Trivy FS scan (JSON) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull aquasec/trivy:latest -q
+
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/work:rw \
+            aquasec/trivy:latest \
+            fs /work \
+            --scanners vuln,misconfig,secret,license \
+            --severity "${TRIVY_SEVERITY}" \
+            $( [[ "${TRIVY_IGNORE_UNFIXED}" == "true" ]] && echo "--ignore-unfixed" ) \
+            --format json \
+            -o /work/artifacts/sca/trivy-report.json \
+            2>&1 | tee artifacts/logs/22-trivy-json.txt
+
+          ls -lah artifacts/sca | tee -a artifacts/logs/22-trivy-json.txt || true
+
+      # -------------------------
+      # SCA - OSV-Scanner (optional) -> JSON
+      # -------------------------
+      - name: SCA - OSV-Scanner (JSON) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        uses: google/osv-scanner-action@v2
+        with:
+          scan-args: |
+            --format=json
+            --output=artifacts/sca/osv-report.json
+            .
+
+      - name: SCA - Validate SCA reports + placeholders
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -s artifacts/sca/trivy-report.html ]] || echo "Trivy HTML not generated. See logs/21-trivy-html.txt" > artifacts/sca/TRIVY_HTML_EMPTY.txt
+          [[ -s artifacts/sca/trivy-report.json ]] || echo "Trivy JSON not generated. See logs/22-trivy-json.txt" > artifacts/sca/TRIVY_JSON_EMPTY.txt
+          [[ -s artifacts/sca/osv-report.json ]]  || echo "OSV JSON not generated. See job logs." > artifacts/sca/OSV_JSON_EMPTY.txt
+
+      # -------------------------
+      # DAST - OWASP ZAP (Docker baseline)
+      # -------------------------
+      - name: DAST - Preflight (connectivity / redirects / headers)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Target: ${DAST_TARGET_URL}"
+            echo ""
+            echo "== DNS =="
+            HOST="$(echo "${DAST_TARGET_URL}" | awk -F[/:] '{print $4}')"
+            echo "Host: ${HOST}"
+            getent hosts "${HOST}" || true
+            echo ""
+            echo "== CURL (headers, follow redirects) =="
+            curl -k -sS -I -L --max-time 30 "${DAST_TARGET_URL}" || true
+            echo ""
+            echo "== CURL (first bytes) =="
+            curl -k -sS -L --max-time 30 "${DAST_TARGET_URL}" | head -c 4000 || true
+            echo ""
+          } | tee artifacts/logs/30-dast-preflight.txt
+
       - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
+        if: always()
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
           sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
           docker pull ghcr.io/zaproxy/zaproxy:stable -q
-          timeout 600 docker run --rm \
+
+          # Aumenta timeout e habilita debug (-d) para evidência de falhas
+          timeout 1200 docker run --rm \
+            -u 0 \
             -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
-            --network=host \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
               -t "${DAST_TARGET_URL}" \
               -J /zap/wrk/artifacts/dast/zap-report.json \
               -w /zap/wrk/artifacts/dast/zap-report.md \
               -r /zap/wrk/artifacts/dast/zap-report.html \
-              -a -I -m 5 \
+              -a -I -m 10 -d \
             2>&1 | tee artifacts/logs/31-zap-run.txt || true
+
+          echo "== LS artifacts/dast ==" | tee -a artifacts/logs/31-zap-run.txt
+          ls -lah artifacts/dast | tee -a artifacts/logs/31-zap-run.txt || true
 
       - name: DAST - Validate reports + placeholder
         if: always()
@@ -116,52 +214,126 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -s artifacts/dast/zap-report.html && ! -s artifacts/dast/zap-report.json && ! -s artifacts/dast/zap-report.md ]]; then
-            echo "ZAP did not generate reports. Check workflow logs." > artifacts/dast/ZAP_EMPTY.txt
+            echo "ZAP did not generate reports. Check artifacts/logs/30-dast-preflight.txt and artifacts/logs/31-zap-run.txt" \
+              > artifacts/dast/ZAP_EMPTY.txt
           fi
 
       # -------------------------
-      # PDF (DAST + SCA)
+      # Unified HTML report (index)
       # -------------------------
-      - name: Build DAST+SCA PDF report (FREE)
+      - name: Build Unified Security HTML Report
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y pandoc wkhtmltopdf
+          OUT="artifacts/reports/SECURITY_REPORT.html"
 
-          REPORT_MD="artifacts/reports/DAST_SCA_REPORT.md"
-          REPORT_PDF="artifacts/reports/DAST_SCA_REPORT.pdf"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
+          cat > "$OUT" <<EOF
+          <!doctype html>
+          <html lang="pt-br">
+          <head>
+            <meta charset="utf-8"/>
+            <meta name="viewport" content="width=device-width,initial-scale=1"/>
+            <title>Relatório Unificado - Segurança (SAST/DAST/SCA)</title>
+            <style>
+              body{font-family:Arial,Helvetica,sans-serif;margin:24px;line-height:1.45}
+              .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
+              code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+              a{word-break:break-all}
+              .ok{color:#0a7a0a;font-weight:bold}
+              .fail{color:#b00020;font-weight:bold}
+              ul{margin-top:8px}
+            </style>
+          </head>
+          <body>
+            <h1>Relatório Unificado - Segurança (SAST / DAST / SCA)</h1>
+
+            <div class="card">
+              <h2>Contexto</h2>
+              <ul>
+                <li>Repositório: <code>${GITHUB_REPOSITORY}</code></li>
+                <li>Branch: <code>${GITHUB_REF_NAME}</code></li>
+                <li>Commit: <code>${GITHUB_SHA}</code></li>
+                <li>Evento: <code>${GITHUB_EVENT_NAME}</code></li>
+                <li>CI Run: <a href="${RUN_URL}">${RUN_URL}</a></li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h2>SAST (SonarCloud)</h2>
+              <p>Evidência: <a href="../sast/SONAR_EVIDENCE.txt">SONAR_EVIDENCE.txt</a></p>
+              <p>Detalhes completos no run: <a href="${RUN_URL}">${RUN_URL}</a></p>
+            </div>
+
+            <div class="card">
+              <h2>DAST (OWASP ZAP - Baseline)</h2>
+              <ul>
+                <li>Target: <code>${DAST_TARGET_URL}</code></li>
+                <li>Preflight: <a href="../logs/30-dast-preflight.txt">30-dast-preflight.txt</a></li>
+                <li>Log ZAP: <a href="../logs/31-zap-run.txt">31-zap-run.txt</a></li>
+                <li>Relatório HTML: <a href="../dast/zap-report.html">zap-report.html</a></li>
+                <li>Relatório JSON: <a href="../dast/zap-report.json">zap-report.json</a></li>
+                <li>Relatório MD: <a href="../dast/zap-report.md">zap-report.md</a></li>
+              </ul>
+          EOF
+
+          if [[ -s artifacts/dast/zap-report.html || -s artifacts/dast/zap-report.json || -s artifacts/dast/zap-report.md ]]; then
+            echo '<p>Status: <span class="ok">OK (relatórios gerados)</span></p>' >> "$OUT"
+          else
+            echo '<p>Status: <span class="fail">FALHA (relatórios não encontrados — ver logs)</span></p>' >> "$OUT"
+          fi
+
+          cat >> "$OUT" <<EOF
+            </div>
+
+            <div class="card">
+              <h2>SCA (Trivy + OSV)</h2>
+              <ul>
+                <li>Trivy HTML: <a href="../sca/trivy-report.html">trivy-report.html</a></li>
+                <li>Trivy JSON: <a href="../sca/trivy-report.json">trivy-report.json</a></li>
+                <li>OSV JSON: <a href="../sca/osv-report.json">osv-report.json</a></li>
+                <li>Logs Trivy: <a href="../logs/21-trivy-html.txt">21-trivy-html.txt</a> / <a href="../logs/22-trivy-json.txt">22-trivy-json.txt</a></li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h2>Evidências</h2>
+              <p>Baixe o artifact <code>devsecops-evidence-security</code> desta execução para obter todos os relatórios e logs.</p>
+            </div>
+
+          </body>
+          </html>
+          EOF
+
+      # -------------------------
+      # Failure bundle (detalhes quando algo quebra)
+      # -------------------------
+      - name: Failure diagnostics bundle
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
           {
-            echo "# Relatório Técnico - DAST + SCA (SECURITY BRANCH)"
+            echo "== FAILURE DIAGNOSTICS =="
+            echo "Date: $(date -u)"
+            echo "Runner: $(uname -a)"
             echo ""
-            echo "## Contexto"
-            echo "- Repositório: ${GITHUB_REPOSITORY}"
-            echo "- Branch: ${GITHUB_REF_NAME}"
-            echo "- Commit: ${GITHUB_SHA}"
-            echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "== Disk =="
+            df -h || true
             echo ""
-            echo "## DAST (OWASP ZAP)"
-            echo "- Target: ${DAST_TARGET_URL}"
-            echo "- Evidências: artifacts/dast/zap-report.*"
+            echo "== Docker =="
+            docker version || true
+            docker ps -a || true
             echo ""
-            echo "## SCA (Dependency Review) - PR only"
-            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-              echo "- Evidência: artifacts/sca/dependency-graph-compare.json"
-            else
-              echo "- N/A (não é PR)"
-            fi
-            echo ""
-            if [[ -s artifacts/dast/zap-report.md ]]; then
-              echo "### Saída ZAP (trecho)"
-              echo ""
-              sed -n '1,200p' artifacts/dast/zap-report.md
-            fi
-          } > "$REPORT_MD"
+            echo "== Artifacts tree =="
+            find artifacts -maxdepth 3 -type f -print || true
+          } | tee artifacts/logs/99-failure-diagnostics.txt
 
-          pandoc "$REPORT_MD" -o "$REPORT_PDF" --pdf-engine=wkhtmltopdf
-
+      # -------------------------
+      # Upload evidence
+      # -------------------------
       - name: Upload evidence artifact
         if: always()
         uses: actions/upload-artifact@v4

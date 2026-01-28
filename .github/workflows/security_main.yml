@@ -53,6 +53,7 @@ jobs:
             -Dsonar.inclusions=src/**,*.ts,*.js,package.json,medusa-config.ts
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
             -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.branch.name=main
       # -------------------------
       # SCA - GitHub Dependency Review (PR only) + export JSON
       # -------------------------

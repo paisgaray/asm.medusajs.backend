@@ -12,6 +12,8 @@ permissions:
   contents: read
   pull-requests: read
   actions: read
+  # Para publicar SARIF no GitHub Code Scanning, habilite também:
+  # security-events: write
 
 concurrency:
   group: devsecops-security-${{ github.ref }}
@@ -19,11 +21,15 @@ concurrency:
 
 env:
   NODE_VERSION: "20"
+
+  # DAST
   DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+
+  # SCA - Trivy
   TRIVY_SEVERITY: "HIGH,CRITICAL"
   TRIVY_IGNORE_UNFIXED: "true"
-  # Defina como repo variable (Settings > Variables) para ficar auditável:
-  # OSV_SCANNER_VERSION = v2.1.0 (ou outra versão que você escolher fixar)
+
+  # SCA - OSV (você já criou a variável com v2.3.2)
   OSV_SCANNER_VERSION: ${{ vars.OSV_SCANNER_VERSION }}
 
 jobs:
@@ -48,6 +54,8 @@ jobs:
             echo "Commit: ${GITHUB_SHA}"
             echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "Event: ${GITHUB_EVENT_NAME}"
+            echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
+            echo "OSV_SCANNER_VERSION: ${OSV_SCANNER_VERSION:-<not set>}"
           } | tee artifacts/logs/00-init.txt
 
       # -------------------------
@@ -140,21 +148,18 @@ jobs:
       # -------------------------
       # SCA - OSV (OFICIAL via CLI) -> HTML + JSON
       # -------------------------
-      - name: SCA - Install OSV-Scanner CLI (pinned) - NON-BLOCKING
+      - name: SCA - Install OSV-Scanner CLI (pinned by vars.OSV_SCANNER_VERSION) - NON-BLOCKING
         if: always()
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-
-          # Se a variável não estiver definida, evita quebrar e deixa evidência clara
           if [[ -z "${OSV_SCANNER_VERSION:-}" ]]; then
             echo "OSV_SCANNER_VERSION is not set (repo variable). Skipping OSV install." \
               | tee artifacts/sca/OSV_SKIPPED.txt
             exit 0
           fi
 
-          # Baixa binário oficial da release (Linux x86_64)
           URL="https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
           curl -fL "$URL" -o osv-scanner
           chmod +x osv-scanner
@@ -166,7 +171,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ ! -x ./osv-scanner ]]; then
             echo "osv-scanner binary not available. See 23-osv-version.txt / OSV_SKIPPED.txt" \
               | tee artifacts/sca/OSV_BINARY_MISSING.txt
@@ -182,7 +186,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ ! -x ./osv-scanner ]]; then
             echo "osv-scanner binary not available. See 23-osv-version.txt / OSV_SKIPPED.txt" \
               | tee -a artifacts/sca/OSV_BINARY_MISSING.txt
@@ -227,7 +230,7 @@ jobs:
             echo ""
           } | tee artifacts/logs/30-dast-preflight.txt
 
-      - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
+      - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING (FIXED REPORT PATHS)
         if: always()
         continue-on-error: true
         shell: bash
@@ -236,15 +239,16 @@ jobs:
           sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
           docker pull ghcr.io/zaproxy/zaproxy:stable -q
 
+          # IMPORTANT: use RELATIVE paths under /zap/wrk to avoid /zap/wrk/zap/wrk duplication
           timeout 1200 docker run --rm \
             -u 0 \
             -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
               -t "${DAST_TARGET_URL}" \
-              -J /zap/wrk/artifacts/dast/zap-report.json \
-              -w /zap/wrk/artifacts/dast/zap-report.md \
-              -r /zap/wrk/artifacts/dast/zap-report.html \
+              -J artifacts/dast/zap-report.json \
+              -w artifacts/dast/zap-report.md \
+              -r artifacts/dast/zap-report.html \
               -a -I -m 10 -d \
             2>&1 | tee artifacts/logs/31-zap-run.txt || true
 
@@ -284,8 +288,6 @@ jobs:
               .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
               code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
               a{word-break:break-all}
-              .ok{color:#0a7a0a;font-weight:bold}
-              .fail{color:#b00020;font-weight:bold}
             </style>
           </head>
           <body>
@@ -299,22 +301,25 @@ jobs:
                 <li>Commit: <code>${GITHUB_SHA}</code></li>
                 <li>Evento: <code>${GITHUB_EVENT_NAME}</code></li>
                 <li>CI Run: <a href="${RUN_URL}">${RUN_URL}</a></li>
+                <li>DAST Target: <code>${DAST_TARGET_URL}</code></li>
               </ul>
             </div>
 
             <div class="card">
               <h2>SAST (SonarCloud)</h2>
-              <p>Evidência: <a href="../sast/SONAR_EVIDENCE.txt">SONAR_EVIDENCE.txt</a></p>
+              <ul>
+                <li>Evidência: <a href="../sast/SONAR_EVIDENCE.txt">SONAR_EVIDENCE.txt</a></li>
+              </ul>
             </div>
 
             <div class="card">
-              <h2>DAST (OWASP ZAP - Baseline)</h2>
+              <h2>DAST (OWASP ZAP)</h2>
               <ul>
-                <li>Target: <code>${DAST_TARGET_URL}</code></li>
                 <li>Preflight: <a href="../logs/30-dast-preflight.txt">30-dast-preflight.txt</a></li>
                 <li>Log ZAP: <a href="../logs/31-zap-run.txt">31-zap-run.txt</a></li>
                 <li>Relatório HTML: <a href="../dast/zap-report.html">zap-report.html</a></li>
                 <li>Relatório JSON: <a href="../dast/zap-report.json">zap-report.json</a></li>
+                <li>Relatório MD: <a href="../dast/zap-report.md">zap-report.md</a></li>
               </ul>
             </div>
 

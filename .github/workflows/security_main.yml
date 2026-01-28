@@ -1,0 +1,170 @@
+name: DevSecOps (MAIN) - Sonar + ZAP (DAST) + SCA(PR) + PDF
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: devsecops-security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+
+jobs:
+  devsecops:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare evidence directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca
+          echo "✅ Evidence directories created." | tee artifacts/logs/00-init.txt
+
+     # -------------------------
+      # Sonar Scan Unificado
+      # -------------------------
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.sources=.
+            -Dsonar.inclusions=src/**,*.ts,*.js,package.json,medusa-config.ts
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.branch.name=main
+      # -------------------------
+      # SCA - GitHub Dependency Review (PR only) + export JSON
+      # -------------------------
+      - name: SCA - GitHub Dependency Review (PR) - NON-BLOCKING
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later
+
+      - name: SCA - Export dependency graph diff (JSON) - PR only
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          OUT="artifacts/sca/dependency-graph-compare.json"
+
+          curl -sS \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -X POST "https://api.github.com/repos/${REPO}/dependency-graph/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
+            | tee "$OUT" >/dev/null || true
+
+          if [[ ! -s "$OUT" ]]; then
+            echo "Dependency graph compare JSON could not be exported. See PR check output." \
+              > artifacts/sca/EXPORT_FAILED.txt
+          fi
+
+      # -------------------------
+      # DAST - OWASP ZAP (Docker)
+      # -------------------------
+      - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+          docker pull ghcr.io/zaproxy/zaproxy:stable -q
+          timeout 600 docker run --rm \
+            -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
+            --network=host \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "${DAST_TARGET_URL}" \
+              -J /zap/wrk/artifacts/dast/zap-report.json \
+              -w /zap/wrk/artifacts/dast/zap-report.md \
+              -r /zap/wrk/artifacts/dast/zap-report.html \
+              -a -I -m 5 \
+            2>&1 | tee artifacts/logs/31-zap-run.txt || true
+
+      - name: DAST - Validate reports + placeholder
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -s artifacts/dast/zap-report.html && ! -s artifacts/dast/zap-report.json && ! -s artifacts/dast/zap-report.md ]]; then
+            echo "ZAP did not generate reports. Check workflow logs." > artifacts/dast/ZAP_EMPTY.txt
+          fi
+
+      # -------------------------
+      # PDF (DAST + SCA)
+      # -------------------------
+      - name: Build DAST+SCA PDF report (FREE)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y pandoc wkhtmltopdf
+
+          REPORT_MD="artifacts/reports/DAST_SCA_REPORT.md"
+          REPORT_PDF="artifacts/reports/DAST_SCA_REPORT.pdf"
+
+          {
+            echo "# Relatório Técnico - DAST + SCA (SECURITY BRANCH)"
+            echo ""
+            echo "## Contexto"
+            echo "- Repositório: ${GITHUB_REPOSITORY}"
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- CI Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## DAST (OWASP ZAP)"
+            echo "- Target: ${DAST_TARGET_URL}"
+            echo "- Evidências: artifacts/dast/zap-report.*"
+            echo ""
+            echo "## SCA (Dependency Review) - PR only"
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              echo "- Evidência: artifacts/sca/dependency-graph-compare.json"
+            else
+              echo "- N/A (não é PR)"
+            fi
+            echo ""
+            if [[ -s artifacts/dast/zap-report.md ]]; then
+              echo "### Saída ZAP (trecho)"
+              echo ""
+              sed -n '1,200p' artifacts/dast/zap-report.md
+            fi
+          } > "$REPORT_MD"
+
+          pandoc "$REPORT_MD" -o "$REPORT_PDF" --pdf-engine=wkhtmltopdf
+
+      - name: Upload evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devsecops-evidence-security
+          path: artifacts

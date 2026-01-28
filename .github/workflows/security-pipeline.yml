@@ -239,18 +239,18 @@ jobs:
           sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
           docker pull ghcr.io/zaproxy/zaproxy:stable -q
 
-          # IMPORTANT: use RELATIVE paths under /zap/wrk to avoid /zap/wrk/zap/wrk duplication
           timeout 1200 docker run --rm \
-            -u 0 \
-            -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
-            ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py \
-              -t "${DAST_TARGET_URL}" \
-              -J artifacts/dast/zap-report.json \
-              -w artifacts/dast/zap-report.md \
-              -r artifacts/dast/zap-report.html \
-              -a -I -m 10 -d \
-            2>&1 | tee artifacts/logs/31-zap-run.txt || true
+          -u 0 \
+          -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
+           ghcr.io/zaproxy/zaproxy:stable \
+          zap-baseline.py \
+          -t "${DAST_TARGET_URL}" \
+          -u "${DAST_TARGET_URL}" \
+          -J artifacts/dast/zap-report.json \
+          -w artifacts/dast/zap-report.md \
+          -r artifacts/dast/zap-report.html \
+          -a -I -m 10 -d \
+          2>&1 | tee artifacts/logs/31-zap-run.txt || true
 
           echo "== LS artifacts/dast ==" | tee -a artifacts/logs/31-zap-run.txt
           ls -lah artifacts/dast | tee -a artifacts/logs/31-zap-run.txt || true

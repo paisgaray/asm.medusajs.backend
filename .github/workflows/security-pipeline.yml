@@ -12,8 +12,6 @@ permissions:
   contents: read
   pull-requests: read
   actions: read
-  # Se quiser publicar SARIF no GitHub Code Scanning, habilite:
-  # security-events: write
 
 concurrency:
   group: devsecops-security-${{ github.ref }}
@@ -24,6 +22,9 @@ env:
   DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
   TRIVY_SEVERITY: "HIGH,CRITICAL"
   TRIVY_IGNORE_UNFIXED: "true"
+  # Defina como repo variable (Settings > Variables) para ficar auditável:
+  # OSV_SCANNER_VERSION = v2.1.0 (ou outra versão que você escolher fixar)
+  OSV_SCANNER_VERSION: ${{ vars.OSV_SCANNER_VERSION }}
 
 jobs:
   devsecops:
@@ -137,17 +138,59 @@ jobs:
           ls -lah artifacts/sca | tee -a artifacts/logs/22-trivy-json.txt || true
 
       # -------------------------
-      # SCA - OSV-Scanner (optional) -> JSON
+      # SCA - OSV (OFICIAL via CLI) -> HTML + JSON
       # -------------------------
+      - name: SCA - Install OSV-Scanner CLI (pinned) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Se a variável não estiver definida, evita quebrar e deixa evidência clara
+          if [[ -z "${OSV_SCANNER_VERSION:-}" ]]; then
+            echo "OSV_SCANNER_VERSION is not set (repo variable). Skipping OSV install." \
+              | tee artifacts/sca/OSV_SKIPPED.txt
+            exit 0
+          fi
+
+          # Baixa binário oficial da release (Linux x86_64)
+          URL="https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          curl -fL "$URL" -o osv-scanner
+          chmod +x osv-scanner
+          ./osv-scanner --version | tee artifacts/logs/23-osv-version.txt
+
       - name: SCA - OSV-Scanner (JSON) - NON-BLOCKING
         if: always()
         continue-on-error: true
-        uses: google/osv-scanner-action@v2
-        with:
-          scan-args: |
-            --format=json
-            --output=artifacts/sca/osv-report.json
-            .
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -x ./osv-scanner ]]; then
+            echo "osv-scanner binary not available. See 23-osv-version.txt / OSV_SKIPPED.txt" \
+              | tee artifacts/sca/OSV_BINARY_MISSING.txt
+            exit 0
+          fi
+
+          ./osv-scanner scan --format json --output artifacts/sca/osv-report.json . \
+            2>&1 | tee artifacts/logs/24-osv-json.txt
+
+      - name: SCA - OSV-Scanner (HTML) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -x ./osv-scanner ]]; then
+            echo "osv-scanner binary not available. See 23-osv-version.txt / OSV_SKIPPED.txt" \
+              | tee -a artifacts/sca/OSV_BINARY_MISSING.txt
+            exit 0
+          fi
+
+          ./osv-scanner scan --format html --output artifacts/sca/osv-report.html . \
+            2>&1 | tee artifacts/logs/25-osv-html.txt
 
       - name: SCA - Validate SCA reports + placeholders
         if: always()
@@ -156,7 +199,8 @@ jobs:
           set -euo pipefail
           [[ -s artifacts/sca/trivy-report.html ]] || echo "Trivy HTML not generated. See logs/21-trivy-html.txt" > artifacts/sca/TRIVY_HTML_EMPTY.txt
           [[ -s artifacts/sca/trivy-report.json ]] || echo "Trivy JSON not generated. See logs/22-trivy-json.txt" > artifacts/sca/TRIVY_JSON_EMPTY.txt
-          [[ -s artifacts/sca/osv-report.json ]]  || echo "OSV JSON not generated. See job logs." > artifacts/sca/OSV_JSON_EMPTY.txt
+          [[ -s artifacts/sca/osv-report.json  ]] || echo "OSV JSON not generated. See logs/24-osv-json.txt / 23-osv-version.txt" > artifacts/sca/OSV_JSON_EMPTY.txt
+          [[ -s artifacts/sca/osv-report.html  ]] || echo "OSV HTML not generated. See logs/25-osv-html.txt / 23-osv-version.txt" > artifacts/sca/OSV_HTML_EMPTY.txt
 
       # -------------------------
       # DAST - OWASP ZAP (Docker baseline)
@@ -261,7 +305,6 @@ jobs:
             <div class="card">
               <h2>SAST (SonarCloud)</h2>
               <p>Evidência: <a href="../sast/SONAR_EVIDENCE.txt">SONAR_EVIDENCE.txt</a></p>
-              <p>Detalhes completos no run: <a href="${RUN_URL}">${RUN_URL}</a></p>
             </div>
 
             <div class="card">
@@ -272,17 +315,7 @@ jobs:
                 <li>Log ZAP: <a href="../logs/31-zap-run.txt">31-zap-run.txt</a></li>
                 <li>Relatório HTML: <a href="../dast/zap-report.html">zap-report.html</a></li>
                 <li>Relatório JSON: <a href="../dast/zap-report.json">zap-report.json</a></li>
-                <li>Relatório MD: <a href="../dast/zap-report.md">zap-report.md</a></li>
               </ul>
-          EOF
-
-          if [[ -s artifacts/dast/zap-report.html || -s artifacts/dast/zap-report.json || -s artifacts/dast/zap-report.md ]]; then
-            echo '<p>Status: <span class="ok">OK (relatórios gerados)</span></p>' >> "$OUT"
-          else
-            echo '<p>Status: <span class="fail">FALHA (relatórios não encontrados — ver logs)</span></p>' >> "$OUT"
-          fi
-
-          cat >> "$OUT" <<EOF
             </div>
 
             <div class="card">
@@ -290,14 +323,10 @@ jobs:
               <ul>
                 <li>Trivy HTML: <a href="../sca/trivy-report.html">trivy-report.html</a></li>
                 <li>Trivy JSON: <a href="../sca/trivy-report.json">trivy-report.json</a></li>
+                <li>OSV HTML: <a href="../sca/osv-report.html">osv-report.html</a></li>
                 <li>OSV JSON: <a href="../sca/osv-report.json">osv-report.json</a></li>
-                <li>Logs Trivy: <a href="../logs/21-trivy-html.txt">21-trivy-html.txt</a> / <a href="../logs/22-trivy-json.txt">22-trivy-json.txt</a></li>
+                <li>Logs OSV: <a href="../logs/24-osv-json.txt">24-osv-json.txt</a> / <a href="../logs/25-osv-html.txt">25-osv-html.txt</a></li>
               </ul>
-            </div>
-
-            <div class="card">
-              <h2>Evidências</h2>
-              <p>Baixe o artifact <code>devsecops-evidence-security</code> desta execução para obter todos os relatórios e logs.</p>
             </div>
 
           </body>
@@ -317,7 +346,7 @@ jobs:
           wkhtmltopdf artifacts/reports/SECURITY_REPORT.html artifacts/reports/SECURITY_REPORT.pdf
 
       # -------------------------
-      # Failure bundle (detalhes quando algo quebra)
+      # Failure bundle
       # -------------------------
       - name: Failure diagnostics bundle
         if: failure()

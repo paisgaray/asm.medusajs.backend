@@ -4,6 +4,12 @@ import { z } from 'zod';
 export const selectParams = createSelectParams();
 export const findParams = createFindParams();
 
+export const ZipCodeListQuerySchema = createFindParams().merge(
+  z.object({
+    region_id: z.string().optional(),
+  }),
+);
+
 export const CreateZipCodeSchema = z.object({
   zipcode: z.string().nonempty(),
   region_id: z.string().nonempty(),
@@ -29,6 +35,8 @@ export const UpdateRegionZipcodeItemSchema = z.object({
 export const DeleteRegionZipcodeItemQuerySchema = z.object({
   id: z.string().nonempty(),
 });
+
+export type ZipCodeListQuerySchema = z.infer<typeof ZipCodeListQuerySchema>;
 
 export type CreateZipCodeSchema = z.infer<typeof CreateZipCodeSchema>;
 export type GetZipCodeQuerySchema = z.infer<typeof GetZipCodeQuerySchema>;

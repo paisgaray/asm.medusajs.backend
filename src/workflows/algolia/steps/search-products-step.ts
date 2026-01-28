@@ -1,10 +1,11 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { ALGOLIA_MODULE, type AlgoliaSearchHit } from '../../../modules/algolia';
+import { ALGOLIA_MODULE } from '../../../modules/algolia';
 import AlgoliaModuleService from '../../../modules/algolia/service';
+import { AlgoliaHit } from '../types';
 
 type SearchProductsStepInput = {
-  query: string;
+  searchQuery: string;
   filters?: string;
   page?: number;
   limit?: number;
@@ -12,80 +13,51 @@ type SearchProductsStepInput = {
   language?: string;
 };
 
+type SearchProductsStepOutput = {
+  hits: AlgoliaHit[];
+  total: number;
+  page: number;
+  nbHits: number;
+  nbPages: number;
+};
+
 export const searchProductsStep = createStep(
   'search-products-step',
-  async (input: SearchProductsStepInput, { container }) => {
-    try {
-      const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
+  async (input: SearchProductsStepInput, { container }): Promise<StepResponse<SearchProductsStepOutput>> => {
+    const algoliaService: AlgoliaModuleService = container.resolve(ALGOLIA_MODULE);
 
-      const page = input.page ?? 0;
-      const limit = input.limit ?? 20;
-      const validatedLanguage = algoliaService.validateLanguage(input.language);
+    const page = input.page ?? 0;
+    const limit = input.limit ?? 20;
+    const validatedLanguage = algoliaService.validateLanguage(input.language);
 
-      const result = await algoliaService.searchProducts(
-        input.query,
-        input.filters || '',
-        page,
-        limit,
-        input.sortBy,
-        validatedLanguage,
-      );
+    const result = await algoliaService.searchProducts(
+      input.searchQuery,
+      input.filters || '',
+      page,
+      limit,
+      input.sortBy,
+      validatedLanguage,
+    );
 
-      if (!result?.results?.[0]) {
-        const frontendPage = input.page ?? 0;
-        return new StepResponse<{
-          products: AlgoliaSearchHit[];
-          total: number;
-          page: number;
-          nbHits: number;
-          nbPages: number;
-          query: string;
-        }>({
-          products: [],
-          total: 0,
-          page: frontendPage,
-          nbHits: 0,
-          nbPages: 0,
-          query: input.query,
-        });
-      }
-
-      const firstResult = result.results[0];
-      const hits = firstResult.hits || [];
-
-      const algoliaPage = firstResult.page || 0;
-
-      return new StepResponse<{
-        products: AlgoliaSearchHit[];
-        total: number;
-        page: number;
-        nbHits: number;
-        nbPages: number;
-        query: string;
-      }>({
-        products: hits,
-        total: firstResult.nbHits || 0,
-        page: algoliaPage,
-        nbHits: firstResult.nbHits || 0,
-        nbPages: firstResult.nbPages || 0,
-        query: input.query,
-      });
-    } catch {
-      return new StepResponse<{
-        products: AlgoliaSearchHit[];
-        total: number;
-        page: number;
-        nbHits: number;
-        nbPages: number;
-        query: string;
-      }>({
-        products: [],
+    if (!result?.results?.[0]) {
+      return new StepResponse({
+        hits: [],
         total: 0,
-        page: 0,
+        page,
         nbHits: 0,
         nbPages: 0,
-        query: input.query || '',
       });
     }
+
+    const firstResult = result.results[0];
+    const hits = firstResult.hits || [];
+
+    return new StepResponse({
+      hits,
+      total: firstResult.nbHits || 0,
+      page: firstResult.page || 0,
+      nbHits: firstResult.nbHits || 0,
+      nbPages: firstResult.nbPages || 0,
+    });
   },
 );

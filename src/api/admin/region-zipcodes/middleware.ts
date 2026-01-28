@@ -1,11 +1,8 @@
 import { validateAndTransformBody, validateAndTransformQuery } from '@medusajs/framework';
 import { MiddlewareRoute } from '@medusajs/medusa';
-import { createFindParams } from '@medusajs/medusa/api/utils/validators';
 
 import { regionZipcodeItemMiddlewares } from './[id]/middleware';
-import { CreateZipCodeSchema } from './validators';
-
-export const findParams = createFindParams();
+import { CreateZipCodeSchema, ZipCodeListQuerySchema } from './validators';
 
 const bundledListQueryConfig = {
   defaults: ['id', 'region_id', 'zipcode', 'created_at'],
@@ -18,7 +15,7 @@ export const regionZipcodeMiddlewares: MiddlewareRoute[] = [
   {
     matcher: '/admin/region-zipcodes',
     methods: ['GET'],
-    middlewares: [validateAndTransformQuery(findParams, bundledListQueryConfig)],
+    middlewares: [validateAndTransformQuery(ZipCodeListQuerySchema, bundledListQueryConfig)],
   },
   {
     matcher: '/admin/region-zipcodes',

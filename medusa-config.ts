@@ -1,5 +1,5 @@
 import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
-import { defineConfig, loadEnv } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, defineConfig, loadEnv, Modules } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -19,6 +19,7 @@ const addLocalModuleIfExists = (relativePath: string) => {
 addLocalModuleIfExists('./src/modules/bundled-product');
 addLocalModuleIfExists('./src/modules/wishlist');
 addLocalModuleIfExists('./src/modules/subscriptions');
+addLocalModuleIfExists('./src/modules/newsletter');
 
 // Módulo Algolia
 const algoliaModulePath = path.resolve(process.cwd(), './src/modules/algolia');
@@ -35,6 +36,7 @@ if (fs.existsSync(algoliaModulePath)) {
       supportedLanguages: process.env.ALGOLIA_SUPPORTED_LANGUAGES
         ? process.env.ALGOLIA_SUPPORTED_LANGUAGES.split(',').map((l: string) => l.trim())
         : undefined,
+      envPrefix: process.env.ALGOLIA_ENV_PREFIX || undefined,
     },
   });
 }
@@ -106,6 +108,35 @@ modules.push(
   },
   {
     resolve: '@medusajs/medusa/translation',
+  },
+  {
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+          options: {},
+        },
+      ],
+    },
+  },
+  {
+    resolve: '@medusajs/medusa/notification',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/notification-sendgrid',
+          id: 'sendgrid',
+          options: {
+            channels: ['email'],
+            api_key: process.env.SENDGRID_API_KEY,
+            from: process.env.SENDGRID_FROM_EMAIL || process.env.SENDGRID_FROM,
+          },
+        },
+      ],
+    },
   },
 );
 

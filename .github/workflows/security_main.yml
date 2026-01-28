@@ -1,4 +1,4 @@
-name: DevSecOps (SECURITY BRANCH) - Sonar + ZAP (DAST) + SCA(PR) + PDF
+name: DevSecOps (MAIN) - Sonar + ZAP (DAST) + SCA(PR) + PDF
 
 on:
   push:

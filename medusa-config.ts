@@ -18,6 +18,7 @@ const addLocalModuleIfExists = (relativePath: string) => {
 
 addLocalModuleIfExists('./src/modules/bundled-product');
 addLocalModuleIfExists('./src/modules/wishlist');
+addLocalModuleIfExists('./src/modules/subscriptions');
 
 // Módulo Algolia
 const algoliaModulePath = path.resolve(process.cwd(), './src/modules/algolia');
@@ -42,6 +43,20 @@ if (fs.existsSync(algoliaModulePath)) {
 const redisUrl = process.env.REDIS_URL || process.env.EVENTS_REDIS_URL || process.env.CACHE_REDIS_URL;
 
 modules.push(
+  {
+    resolve: '@medusajs/medusa/payment',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/payment-stripe',
+          id: 'stripe',
+          options: {
+            apiKey: process.env.STRIPE_API_KEY,
+          },
+        },
+      ],
+    },
+  },
   {
     resolve: '@medusajs/medusa/caching',
     options: {

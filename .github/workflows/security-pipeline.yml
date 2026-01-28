@@ -55,6 +55,7 @@ jobs:
             -Dsonar.sources=src
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**
             -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.branch.name=security/github-actions-sast-dast
 
       - name: Sonar Scan (PR)
         if: ${{ github.event_name == 'pull_request' }}

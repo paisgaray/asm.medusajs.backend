@@ -150,6 +150,30 @@ if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
   });
 }
 
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  modules.push({
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+        },
+        {
+          resolve: '@medusajs/medusa/auth-google',
+          id: 'google',
+          options: {
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+          },
+        },
+      ],
+    },
+  });
+}
+
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,

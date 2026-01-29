@@ -403,7 +403,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker pull aquasec/trivy:latest -q
           docker run --rm \
             -v "$GITHUB_WORKSPACE":/work:rw \
             aquasec/trivy:latest \

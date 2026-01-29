@@ -490,10 +490,10 @@ jobs:
             getent hosts "${HOST}" || true
             echo ""
             echo "== CURL (headers, follow redirects) =="
-            curl -k -sS -I -L --max-time 30 "${DAST_TARGET_URL}" || true
+            curl -sS -I -L --max-time 30 "${DAST_TARGET_URL}" || true
             echo ""
             echo "== CURL (first bytes) =="
-            curl -k -sS -L --max-time 30 "${DAST_TARGET_URL}" | head -c 4000 || true
+            curl -sS -L --max-time 30 "${DAST_TARGET_URL}" | head -c 4000 || true
             echo ""
           } | tee artifacts/logs/30-dast-preflight.txt
 

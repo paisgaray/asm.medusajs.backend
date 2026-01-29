@@ -463,8 +463,29 @@ jobs:
               | tee -a artifacts/sca/OSV_BINARY_MISSING.txt
             exit 0
           fi
-          ./osv-scanner scan --format html --output artifacts/sca/osv-report.html . \
-            2>&1 | tee artifacts/logs/25-osv-html.txt
+          if [[ ! -s artifacts/sca/osv-report.json ]]; then
+            echo "OSV JSON report not available. See logs/24-osv-json.txt / 23-osv-version.txt" \
+              | tee artifacts/logs/25-osv-html.txt
+            exit 0
+          fi
+          {
+            echo '<!DOCTYPE html>'
+            echo '<html lang="en">'
+            echo '<head>'
+            echo '  <meta charset="UTF-8" />'
+            echo '  <title>OSV-Scanner Report</title>'
+            echo '  <style>body{font-family:Arial,Helvetica,sans-serif;font-size:14px;}pre{white-space:pre-wrap;word-wrap:break-word;}</style>'
+            echo '</head>'
+            echo '<body>'
+            echo '  <h1>OSV-Scanner Report</h1>'
+            echo '  <p>Generated from <code>osv-report.json</code>.</p>'
+            echo '  <pre>'
+            jq . artifacts/sca/osv-report.json
+            echo '  </pre>'
+            echo '</body>'
+            echo '</html>'
+          } > artifacts/sca/osv-report.html
+          echo "OSV HTML report generated from existing JSON report." | tee artifacts/logs/25-osv-html.txt
 
       - name: SCA - Validate SCA reports + placeholders
         if: always()

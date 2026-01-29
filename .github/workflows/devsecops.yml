@@ -430,7 +430,10 @@ jobs:
             exit 0
           fi
           URL="https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          CHECKSUM_URL="${URL}.sha256"
           curl -fL "$URL" -o osv-scanner
+          curl -fL "$CHECKSUM_URL" -o osv-scanner.sha256
+          sha256sum -c osv-scanner.sha256
           chmod +x osv-scanner
           ./osv-scanner --version | tee artifacts/logs/23-osv-version.txt
 

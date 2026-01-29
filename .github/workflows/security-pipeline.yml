@@ -59,8 +59,22 @@ jobs:
           } | tee artifacts/logs/00-init.txt
 
       # -------------------------
-      # SAST - SonarCloud
+      # SAST - SonarCloud (branch/PR corretos)
       # -------------------------
+      - name: SAST - SonarCloud (set branch name for non-PR)
+        if: ${{ github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SONAR_BRANCH_ARG=-Dsonar.branch.name=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: SAST - SonarCloud (set PR args)
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SONAR_PR_ARGS=-Dsonar.pullrequest.key=${{ github.event.pull_request.number }} -Dsonar.pullrequest.branch=${{ github.head_ref }} -Dsonar.pullrequest.base=${{ github.base_ref }}" >> $GITHUB_ENV
+
       - name: SAST - SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
         env:
@@ -69,14 +83,15 @@ jobs:
           args: >
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectBaseDir=.
             -Dsonar.sources=.
-            -Dsonar.inclusions=src/**,*.ts,*.js,package.json,medusa-config.ts
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/.github/**,**/artifacts/**,test/**,**/*.spec.ts
             -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.branch.name=security/github-actions-sast-dast
             -Dsonar.verbose=true
             -Dsonar.scanner.forceReloadAll=true
-
+            -Dsonar.inclusions=src/**,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,package.json,medusa-config.ts
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/.next/**,**/.medusa/**,**/coverage/**,**/.github/**,**/artifacts/**,**/*.spec.ts,**/*.test.ts,**/*.spec.tsx,**/*.test.tsx,**/test/**
+            ${{ env.SONAR_BRANCH_ARG }}
+            ${{ env.SONAR_PR_ARGS }}
 
       - name: SAST - Evidence marker (Sonar execution)
         if: always()
@@ -88,6 +103,10 @@ jobs:
             echo "ProjectKey: ${{ vars.SONAR_PROJECT_KEY }}"
             echo "Org: ${{ vars.SONAR_ORG }}"
             echo "Branch: ${GITHUB_REF_NAME}"
+            echo "Event: ${GITHUB_EVENT_NAME}"
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              echo "PR: #${{ github.event.pull_request.number }} (base=${{ github.base_ref }}, head=${{ github.head_ref }})"
+            fi
             echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } | tee artifacts/sast/SONAR_EVIDENCE.txt
 
@@ -234,7 +253,6 @@ jobs:
           sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
           docker pull ghcr.io/zaproxy/zaproxy:stable -q
 
-          # Mantém o path informado e limita spider ao subtree do TARGET
           TARGET="${DAST_TARGET_URL%/}"
           echo "ZAP Target (subtreeOnly): ${TARGET}" | tee artifacts/logs/31-zap-target.txt
 

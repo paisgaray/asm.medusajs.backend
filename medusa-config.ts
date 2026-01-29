@@ -1,5 +1,5 @@
 import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
-import { defineConfig, loadEnv } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, defineConfig, loadEnv, Modules } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -151,6 +151,30 @@ if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM) {
             channels: ['email'],
             api_key: process.env.SENDGRID_API_KEY,
             from: process.env.SENDGRID_FROM,
+          },
+        },
+      ],
+    },
+  });
+}
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  modules.push({
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+        },
+        {
+          resolve: '@medusajs/medusa/auth-google',
+          id: 'google',
+          options: {
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            callbackUrl: process.env.GOOGLE_CALLBACK_URL,
           },
         },
       ],

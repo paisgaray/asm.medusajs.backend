@@ -1,0 +1,658 @@
+name: DevSecOps (Develop/Release/Main) - Sonar(SAST) + Trivy/OSV(SCA) + ZAP(DAST Release Only) + HTML+PDF Evidence
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - "release/**"
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "release/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  # Para publicar SARIF no GitHub Code Scanning, habilite também:
+  # security-events: write
+
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+  # DAST
+  DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+
+  # SCA - Trivy
+  TRIVY_SEVERITY: "HIGH,CRITICAL"
+  TRIVY_IGNORE_UNFIXED: "true"
+
+  # SCA - OSV
+  OSV_SCANNER_VERSION: ${{ vars.OSV_SCANNER_VERSION }}
+
+jobs:
+  devsecops:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare evidence directories
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs artifacts/reports artifacts/dast artifacts/sca artifacts/sast
+          {
+            echo "✅ Evidence directories created."
+            echo "Repo: ${GITHUB_REPOSITORY}"
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "Commit: ${GITHUB_SHA}"
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "Event: ${GITHUB_EVENT_NAME}"
+            echo "DAST_TARGET_URL: ${DAST_TARGET_URL}"
+            echo "OSV_SCANNER_VERSION: ${OSV_SCANNER_VERSION:-<not set>}"
+          } | tee artifacts/logs/00-init.txt
+
+      # -------------------------
+      # SAST - SonarCloud (branch/PR corretos)
+      # -------------------------
+      - name: SAST - SonarCloud (set branch name for non-PR)
+        if: ${{ github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SONAR_BRANCH_ARG=-Dsonar.branch.name=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: SAST - SonarCloud (set PR args)
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "SONAR_PR_ARGS=-Dsonar.pullrequest.key=${{ github.event.pull_request.number }} -Dsonar.pullrequest.branch=${{ github.head_ref }} -Dsonar.pullrequest.base=${{ github.base_ref }}" >> $GITHUB_ENV
+
+      - name: SAST - SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectBaseDir=.
+            -Dsonar.sources=.
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.verbose=true
+            -Dsonar.scanner.forceReloadAll=true
+            -Dsonar.inclusions=src/**,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,package.json,medusa-config.ts
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/.next/**,**/.medusa/**,**/coverage/**,**/.github/**,**/artifacts/**,**/*.spec.ts,**/*.test.ts,**/*.spec.tsx,**/*.test.tsx,**/test/**
+            ${{ env.SONAR_BRANCH_ARG }}
+            ${{ env.SONAR_PR_ARGS }}
+
+      - name: SAST - Evidence marker (Sonar execution)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "SAST (SonarCloud) executed via action."
+            echo "ProjectKey: ${{ vars.SONAR_PROJECT_KEY }}"
+            echo "Org: ${{ vars.SONAR_ORG }}"
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "Event: ${GITHUB_EVENT_NAME}"
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              echo "PR: #${{ github.event.pull_request.number }} (base=${{ github.base_ref }}, head=${{ github.head_ref }})"
+            fi
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } | tee artifacts/sast/SONAR_EVIDENCE.txt
+
+      # -------------------------
+      # SAST - SonarCloud API Evidence (safe + HTML summary)
+      # -------------------------
+      - name: SAST - SonarCloud API (download issues/measures) - NON-BLOCKING (SAFE)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/sast artifacts/logs
+
+          Q=""
+          CONTEXT="branch=${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            Q="&pullRequest=${{ github.event.pull_request.number }}"
+            CONTEXT="pullRequest=${{ github.event.pull_request.number }}"
+          else
+            Q="&branch=${GITHUB_REF_NAME}"
+          fi
+
+          ISSUES_URL="https://sonarcloud.io/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&ps=1&facets=severities,types${Q}"
+          MEASURES_URL="https://sonarcloud.io/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,coverage,duplicated_lines_density,ncloc${Q}"
+
+          echo "SonarCloud Issues API: ${ISSUES_URL}" | tee artifacts/sast/SONAR_API_ISSUES_URL.txt
+          echo "SonarCloud Measures API: ${MEASURES_URL}" | tee artifacts/sast/SONAR_API_MEASURES_URL.txt
+
+          fetch() {
+            local url="$1"
+            local out="$2"
+            local status_file="$3"
+            http_code="$(curl -sS -u "${SONAR_TOKEN}:" -H "Accept: application/json" -o "${out}" -w "%{http_code}" "${url}" || true)"
+            echo "${http_code}" > "${status_file}"
+            if [[ "${http_code}" != "200" ]]; then
+              echo "HTTP ${http_code} for ${url}" | tee -a artifacts/logs/sonar-api-errors.txt
+              cp -f "${out}" "${out}.errorbody.json" 2>/dev/null || true
+              rm -f "${out}" || true
+            fi
+          }
+
+          fetch "${ISSUES_URL}" "artifacts/sast/sonar-issues-facets.json" "artifacts/sast/sonar-issues.http"
+          fetch "${MEASURES_URL}" "artifacts/sast/sonar-measures.json" "artifacts/sast/sonar-measures.http"
+
+          ISSUES_HTTP="$(cat artifacts/sast/sonar-issues.http 2>/dev/null || echo "")"
+          MEASURES_HTTP="$(cat artifacts/sast/sonar-measures.http 2>/dev/null || echo "")"
+
+          if [[ "${ISSUES_HTTP}" != "200" || "${MEASURES_HTTP}" != "200" ]]; then
+            {
+              echo "SONAR API EVIDENCE: NOT AVAILABLE"
+              echo "Reason: API returned non-200 (likely token missing permission or project not accessible)."
+              echo "Context: ${CONTEXT}"
+              echo "Issues HTTP: ${ISSUES_HTTP}"
+              echo "Measures HTTP: ${MEASURES_HTTP}"
+              echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            } | tee artifacts/sast/SONAR_API_NO_ACCESS.txt
+          fi
+
+      - name: SAST - Build Sonar summary (TXT + HTML) - NON-BLOCKING (SAFE)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/sast
+
+          python3 - << 'PY'
+          import json, os, datetime, html
+
+          issues_path = "artifacts/sast/sonar-issues-facets.json"
+          meas_path   = "artifacts/sast/sonar-measures.json"
+          no_access   = "artifacts/sast/SONAR_API_NO_ACCESS.txt"
+
+          out_txt  = "artifacts/sast/SONAR_SUMMARY.txt"
+          out_html = "artifacts/sast/sonar-summary.html"
+
+          now = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+          repo = os.environ.get("GITHUB_REPOSITORY","")
+          branch = os.environ.get("GITHUB_REF_NAME","")
+          event = os.environ.get("GITHUB_EVENT_NAME","")
+          run_url = f"{os.environ.get('GITHUB_SERVER_URL','')}/{repo}/actions/runs/{os.environ.get('GITHUB_RUN_ID','')}"
+
+          def exists_nonempty(p):
+            return os.path.exists(p) and os.path.getsize(p) > 0
+
+          def load_json(p):
+            with open(p, "r", encoding="utf-8") as f:
+              return json.load(f)
+
+          if exists_nonempty(no_access) or (not exists_nonempty(issues_path)) or (not exists_nonempty(meas_path)):
+            msg = open(no_access, "r", encoding="utf-8").read().strip() if exists_nonempty(no_access) else \
+                  "Sonar API evidence not available (missing JSON files)."
+
+            with open(out_txt, "w", encoding="utf-8") as f:
+              f.write("== SONARCLOUD SUMMARY (API EVIDENCE) ==\n")
+              f.write(f"Generated (UTC): {now}\nRepo: {repo}\nBranch: {branch}\nEvent: {event}\nRun: {run_url}\n\n")
+              f.write(msg + "\n")
+
+            esc = html.escape(msg)
+            html_doc = f"""<!doctype html>
+            <html lang="pt-br"><head>
+              <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+              <title>SonarCloud Summary (Evidence)</title>
+              <style>
+                body{{font-family:Arial,Helvetica,sans-serif;margin:24px;line-height:1.45}}
+                .card{{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}}
+                code{{background:#f6f8fa;padding:2px 6px;border-radius:6px}}
+                .warn{{border-left:6px solid #f0ad4e;padding-left:12px}}
+                .muted{{color:#666}}
+              </style>
+            </head><body>
+              <h1>SonarCloud - Summary (Evidence)</h1>
+              <div class="card">
+                <h2>Contexto</h2>
+                <ul>
+                  <li>Repositório: <code>{html.escape(repo)}</code></li>
+                  <li>Branch: <code>{html.escape(branch)}</code></li>
+                  <li>Evento: <code>{html.escape(event)}</code></li>
+                  <li>Gerado (UTC): <code>{html.escape(now)}</code></li>
+                  <li>CI Run: <a href="{html.escape(run_url)}">{html.escape(run_url)}</a></li>
+                </ul>
+              </div>
+              <div class="card warn">
+                <h2>Evidência via API indisponível</h2>
+                <p>O pipeline executou o SAST via Sonar, porém não foi possível coletar métricas/issues via API (ex.: permissão insuficiente do token).</p>
+                <pre style="white-space:pre-wrap">{esc}</pre>
+                <p class="muted">Obs.: a análise SAST (scan) continua válida; esta etapa apenas enriquece a evidência.</p>
+              </div>
+            </body></html>"""
+            with open(out_html, "w", encoding="utf-8") as f:
+              f.write(html_doc)
+            raise SystemExit(0)
+
+          issues = load_json(issues_path)
+          facets = {f.get("property"): f.get("values", []) for f in issues.get("facets", [])}
+          total_issues = issues.get("total", 0)
+          sev = {v.get("val"): v.get("count") for v in facets.get("severities", [])}
+          typ = {v.get("val"): v.get("count") for v in facets.get("types", [])}
+
+          meas = load_json(meas_path)
+          measures = {m.get("metric"): m.get("value") for m in meas.get("component", {}).get("measures", [])}
+
+          lines = []
+          lines.append("== SONARCLOUD SUMMARY (API EVIDENCE) ==")
+          lines.append(f"Generated (UTC): {now}")
+          lines.append(f"Repo: {repo}")
+          lines.append(f"Branch: {branch}")
+          lines.append(f"Event: {event}")
+          lines.append(f"Run: {run_url}")
+          lines.append("")
+          lines.append(f"Issues (total): {total_issues}")
+          lines.append("By Severity:")
+          for k in ["BLOCKER","CRITICAL","MAJOR","MINOR","INFO"]:
+            if k in sev: lines.append(f"  - {k}: {sev[k]}")
+          lines.append("By Type:")
+          for k in ["VULNERABILITY","BUG","CODE_SMELL","SECURITY_HOTSPOT"]:
+            if k in typ: lines.append(f"  - {k}: {typ[k]}")
+          lines.append("")
+          lines.append("Measures snapshot:")
+          for k in ["vulnerabilities","security_hotspots","bugs","code_smells","coverage","duplicated_lines_density","ncloc"]:
+            if k in measures: lines.append(f"  - {k}: {measures[k]}")
+          lines.append("")
+          with open(out_txt, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+          def v(metric, default="n/a"): return html.escape(str(measures.get(metric, default)))
+          sev_rows = "".join(
+            f"<tr><td><code>{html.escape(k)}</code></td><td><b>{sev[k]}</b></td></tr>"
+            for k in ["BLOCKER","CRITICAL","MAJOR","MINOR","INFO"] if k in sev
+          ) or "<tr><td colspan='2'>n/a</td></tr>"
+          typ_rows = "".join(
+            f"<tr><td><code>{html.escape(k)}</code></td><td><b>{typ[k]}</b></td></tr>"
+            for k in ["VULNERABILITY","BUG","CODE_SMELL","SECURITY_HOTSPOT"] if k in typ
+          ) or "<tr><td colspan='2'>n/a</td></tr>"
+
+          html_doc = f"""<!doctype html>
+          <html lang="pt-br"><head>
+            <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+            <title>SonarCloud Summary (Evidence)</title>
+            <style>
+              body{{font-family:Arial,Helvetica,sans-serif;margin:24px;line-height:1.45}}
+              .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}}
+              .card{{border:1px solid #ddd;border-radius:12px;padding:16px}}
+              code{{background:#f6f8fa;padding:2px 6px;border-radius:6px}}
+              table{{width:100%;border-collapse:collapse}}
+              td,th{{border-bottom:1px solid #eee;padding:8px;text-align:left}}
+              .kpi{{font-size:28px;margin:0}}
+              .muted{{color:#666}}
+              a{{word-break:break-all}}
+            </style>
+          </head><body>
+            <h1>SonarCloud - Summary (Evidence)</h1>
+            <div class="card">
+              <h2>Contexto</h2>
+              <ul>
+                <li>Repositório: <code>{html.escape(repo)}</code></li>
+                <li>Branch: <code>{html.escape(branch)}</code></li>
+                <li>Evento: <code>{html.escape(event)}</code></li>
+                <li>Gerado (UTC): <code>{html.escape(now)}</code></li>
+                <li>CI Run: <a href="{html.escape(run_url)}">{html.escape(run_url)}</a></li>
+              </ul>
+            </div>
+
+            <div class="grid">
+              <div class="card"><p class="muted">Total de Issues</p><p class="kpi">{html.escape(str(total_issues))}</p></div>
+              <div class="card"><p class="muted">Vulnerabilities</p><p class="kpi">{v("vulnerabilities")}</p></div>
+              <div class="card"><p class="muted">Security Hotspots</p><p class="kpi">{v("security_hotspots")}</p></div>
+              <div class="card"><p class="muted">Coverage</p><p class="kpi">{v("coverage")}%</p></div>
+              <div class="card"><p class="muted">Duplication</p><p class="kpi">{v("duplicated_lines_density")}%</p></div>
+              <div class="card"><p class="muted">NCLOC</p><p class="kpi">{v("ncloc")}</p></div>
+            </div>
+
+            <div class="grid">
+              <div class="card">
+                <h2>Issues por Severidade</h2>
+                <table><thead><tr><th>Severidade</th><th>Qtde</th></tr></thead><tbody>{sev_rows}</tbody></table>
+              </div>
+              <div class="card">
+                <h2>Issues por Tipo</h2>
+                <table><thead><tr><th>Tipo</th><th>Qtde</th></tr></thead><tbody>{typ_rows}</tbody></table>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Arquivos de Evidência</h2>
+              <ul>
+                <li><a href="./sonar-issues-facets.json">sonar-issues-facets.json</a></li>
+                <li><a href="./sonar-measures.json">sonar-measures.json</a></li>
+                <li><a href="./SONAR_SUMMARY.txt">SONAR_SUMMARY.txt</a></li>
+              </ul>
+            </div>
+          </body></html>"""
+          with open(out_html, "w", encoding="utf-8") as f:
+            f.write(html_doc)
+          PY
+
+      - name: SAST - Validate Sonar summary files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -s artifacts/sast/sonar-summary.html ]] || echo "Sonar summary HTML not generated." > artifacts/sast/SONAR_SUMMARY_HTML_EMPTY.txt
+          [[ -s artifacts/sast/SONAR_SUMMARY.txt ]] || echo "Sonar summary TXT not generated." > artifacts/sast/SONAR_SUMMARY_EMPTY.txt
+          if [[ ! -s artifacts/sast/sonar-issues-facets.json || ! -s artifacts/sast/sonar-measures.json ]]; then
+            [[ -s artifacts/sast/SONAR_API_NO_ACCESS.txt ]] || echo "Sonar API JSON missing but no NO_ACCESS marker found." > artifacts/sast/SONAR_API_INCONSISTENT.txt
+          fi
+
+      # -------------------------
+      # SCA - Trivy (Docker) -> HTML + JSON
+      # -------------------------
+      - name: SCA - Download Trivy HTML template (official)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSLo artifacts/sca/trivy-html.tpl \
+            https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl
+          ls -lah artifacts/sca | tee artifacts/logs/20-trivy-template.txt
+
+      - name: SCA - Trivy FS scan (HTML) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+          docker pull aquasec/trivy:latest -q
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/work:rw \
+            aquasec/trivy:latest \
+            fs /work \
+            --scanners vuln,misconfig,secret,license \
+            --severity "${TRIVY_SEVERITY}" \
+            $( [[ "${TRIVY_IGNORE_UNFIXED}" == "true" ]] && echo "--ignore-unfixed" ) \
+            --format template \
+            --template "@/work/artifacts/sca/trivy-html.tpl" \
+            -o /work/artifacts/sca/trivy-report.html \
+            2>&1 | tee artifacts/logs/21-trivy-html.txt
+          ls -lah artifacts/sca | tee -a artifacts/logs/21-trivy-html.txt || true
+
+      - name: SCA - Trivy FS scan (JSON) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull aquasec/trivy:latest -q
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/work:rw \
+            aquasec/trivy:latest \
+            fs /work \
+            --scanners vuln,misconfig,secret,license \
+            --severity "${TRIVY_SEVERITY}" \
+            $( [[ "${TRIVY_IGNORE_UNFIXED}" == "true" ]] && echo "--ignore-unfixed" ) \
+            --format json \
+            -o /work/artifacts/sca/trivy-report.json \
+            2>&1 | tee artifacts/logs/22-trivy-json.txt
+          ls -lah artifacts/sca | tee -a artifacts/logs/22-trivy-json.txt || true
+
+      # -------------------------
+      # SCA - OSV (CLI) -> HTML + JSON
+      # -------------------------
+      - name: SCA - Install OSV-Scanner CLI (pinned) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${OSV_SCANNER_VERSION:-}" ]]; then
+            echo "OSV_SCANNER_VERSION is not set (repo variable). Skipping OSV install." \
+              | tee artifacts/sca/OSV_SKIPPED.txt
+            exit 0
+          fi
+          URL="https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          curl -fL "$URL" -o osv-scanner
+          chmod +x osv-scanner
+          ./osv-scanner --version | tee artifacts/logs/23-osv-version.txt
+
+      - name: SCA - OSV-Scanner (JSON) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -x ./osv-scanner ]]; then
+            echo "osv-scanner binary not available. See 23-osv-version.txt / OSV_SKIPPED.txt" \
+              | tee artifacts/sca/OSV_BINARY_MISSING.txt
+            exit 0
+          fi
+          ./osv-scanner scan --format json --output artifacts/sca/osv-report.json . \
+            2>&1 | tee artifacts/logs/24-osv-json.txt
+
+      - name: SCA - OSV-Scanner (HTML) - NON-BLOCKING
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -x ./osv-scanner ]]; then
+            echo "osv-scanner binary not available. See 23-osv-version.txt / OSV_SKIPPED.txt" \
+              | tee -a artifacts/sca/OSV_BINARY_MISSING.txt
+            exit 0
+          fi
+          ./osv-scanner scan --format html --output artifacts/sca/osv-report.html . \
+            2>&1 | tee artifacts/logs/25-osv-html.txt
+
+      - name: SCA - Validate SCA reports + placeholders
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -s artifacts/sca/trivy-report.html ]] || echo "Trivy HTML not generated. See logs/21-trivy-html.txt" > artifacts/sca/TRIVY_HTML_EMPTY.txt
+          [[ -s artifacts/sca/trivy-report.json ]] || echo "Trivy JSON not generated. See logs/22-trivy-json.txt" > artifacts/sca/TRIVY_JSON_EMPTY.txt
+          [[ -s artifacts/sca/osv-report.json  ]] || echo "OSV JSON not generated. See logs/24-osv-json.txt / 23-osv-version.txt" > artifacts/sca/OSV_JSON_EMPTY.txt
+          [[ -s artifacts/sca/osv-report.html  ]] || echo "OSV HTML not generated. See logs/25-osv-html.txt / 23-osv-version.txt" > artifacts/sca/OSV_HTML_EMPTY.txt
+
+      # -------------------------
+      # DAST - OWASP ZAP (release/* only) - focus subtree
+      # -------------------------
+      - name: DAST - Preflight (connectivity / redirects / headers)
+        if: ${{ always() && startsWith(github.ref_name, 'release/') }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Target: ${DAST_TARGET_URL}"
+            echo ""
+            echo "== DNS =="
+            HOST="$(echo "${DAST_TARGET_URL}" | awk -F[/:] '{print $4}')"
+            echo "Host: ${HOST}"
+            getent hosts "${HOST}" || true
+            echo ""
+            echo "== CURL (headers, follow redirects) =="
+            curl -k -sS -I -L --max-time 30 "${DAST_TARGET_URL}" || true
+            echo ""
+            echo "== CURL (first bytes) =="
+            curl -k -sS -L --max-time 30 "${DAST_TARGET_URL}" | head -c 4000 || true
+            echo ""
+          } | tee artifacts/logs/30-dast-preflight.txt
+
+      - name: DAST - OWASP ZAP Baseline (docker) - NON-BLOCKING (FOCUS PATH)
+        if: ${{ always() && startsWith(github.ref_name, 'release/') }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo chmod -R a+rwx "$GITHUB_WORKSPACE" || true
+          docker pull ghcr.io/zaproxy/zaproxy:stable -q
+
+          TARGET="${DAST_TARGET_URL%/}"
+          echo "ZAP Target (subtreeOnly): ${TARGET}" | tee artifacts/logs/31-zap-target.txt
+
+          timeout 1200 docker run --rm \
+            -u 0 \
+            -v "$GITHUB_WORKSPACE":/zap/wrk:rw \
+            -w /zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "${TARGET}" \
+              -J artifacts/dast/zap-report.json \
+              -w artifacts/dast/zap-report.md \
+              -r artifacts/dast/zap-report.html \
+              -a -I -m 10 -d \
+              -z "-config spider.subtreeOnly=true -config spider.maxDepth=10" \
+            2>&1 | tee artifacts/logs/31-zap-run.txt || true
+
+          echo "== LS artifacts/dast ==" | tee -a artifacts/logs/31-zap-run.txt
+          ls -lah artifacts/dast | tee -a artifacts/logs/31-zap-run.txt || true
+
+      - name: DAST - Validate reports + placeholder
+        if: ${{ always() && startsWith(github.ref_name, 'release/') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -s artifacts/dast/zap-report.html && ! -s artifacts/dast/zap-report.json && ! -s artifacts/dast/zap-report.md ]]; then
+            echo "ZAP did not generate reports. Check artifacts/logs/30-dast-preflight.txt and artifacts/logs/31-zap-run.txt" \
+              > artifacts/dast/ZAP_EMPTY.txt
+          fi
+
+      - name: DAST - Placeholder when skipped (non-release branch)
+        if: ${{ always() && !startsWith(github.ref_name, 'release/') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "DAST (ZAP) skipped."
+            echo "This pipeline runs ZAP only on release/* branches."
+            echo "Current branch: ${GITHUB_REF_NAME}"
+          } | tee artifacts/dast/ZAP_SKIPPED.txt
+
+      # -------------------------
+      # Unified HTML report (index)
+      # -------------------------
+      - name: Build Unified Security HTML Report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="artifacts/reports/SECURITY_REPORT.html"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          cat > "$OUT" <<EOF
+          <!doctype html>
+          <html lang="pt-br">
+          <head>
+            <meta charset="utf-8"/>
+            <meta name="viewport" content="width=device-width,initial-scale=1"/>
+            <title>Relatório Unificado - Segurança (SAST/DAST/SCA)</title>
+            <style>
+              body{font-family:Arial,Helvetica,sans-serif;margin:24px;line-height:1.45}
+              .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
+              code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+              a{word-break:break-all}
+            </style>
+          </head>
+          <body>
+            <h1>Relatório Unificado - Segurança (SAST / DAST / SCA)</h1>
+            <div class="card">
+              <h2>Contexto</h2>
+              <ul>
+                <li>Repositório: <code>${GITHUB_REPOSITORY}</code></li>
+                <li>Branch: <code>${GITHUB_REF_NAME}</code></li>
+                <li>Commit: <code>${GITHUB_SHA}</code></li>
+                <li>Evento: <code>${GITHUB_EVENT_NAME}</code></li>
+                <li>CI Run: <a href="${RUN_URL}">${RUN_URL}</a></li>
+                <li>DAST Target: <code>${DAST_TARGET_URL}</code></li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h2>SAST (SonarCloud)</h2>
+              <ul>
+                <li>Evidência: <a href="../sast/SONAR_EVIDENCE.txt">SONAR_EVIDENCE.txt</a></li>
+                <li>Resumo (HTML): <a href="../sast/sonar-summary.html">sonar-summary.html</a></li>
+                <li>Resumo (TXT): <a href="../sast/SONAR_SUMMARY.txt">SONAR_SUMMARY.txt</a></li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h2>DAST (OWASP ZAP)</h2>
+              <ul>
+                <li>Preflight: <a href="../logs/30-dast-preflight.txt">30-dast-preflight.txt</a></li>
+                <li>Log ZAP: <a href="../logs/31-zap-run.txt">31-zap-run.txt</a></li>
+                <li>Relatório HTML: <a href="../dast/zap-report.html">zap-report.html</a></li>
+                <li>Relatório JSON: <a href="../dast/zap-report.json">zap-report.json</a></li>
+                <li>Relatório MD: <a href="../dast/zap-report.md">zap-report.md</a></li>
+                <li>Se pulado: <a href="../dast/ZAP_SKIPPED.txt">ZAP_SKIPPED.txt</a></li>
+              </ul>
+            </div>
+
+            <div class="card">
+              <h2>SCA (Trivy + OSV)</h2>
+              <ul>
+                <li>Trivy HTML: <a href="../sca/trivy-report.html">trivy-report.html</a></li>
+                <li>Trivy JSON: <a href="../sca/trivy-report.json">trivy-report.json</a></li>
+                <li>OSV HTML: <a href="../sca/osv-report.html">osv-report.html</a></li>
+                <li>OSV JSON: <a href="../sca/osv-report.json">osv-report.json</a></li>
+                <li>Logs OSV: <a href="../logs/24-osv-json.txt">24-osv-json.txt</a> / <a href="../logs/25-osv-html.txt">25-osv-html.txt</a></li>
+              </ul>
+            </div>
+          </body>
+          </html>
+          EOF
+
+      - name: Build PDF report (FREE)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y wkhtmltopdf
+          wkhtmltopdf artifacts/reports/SECURITY_REPORT.html artifacts/reports/SECURITY_REPORT.pdf
+
+      - name: Failure diagnostics bundle
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "== FAILURE DIAGNOSTICS =="
+            echo "Date: $(date -u)"
+            echo "Runner: $(uname -a)"
+            echo ""
+            echo "== Disk =="
+            df -h || true
+            echo ""
+            echo "== Docker =="
+            docker version || true
+            docker ps -a || true
+            echo ""
+            echo "== Artifacts tree =="
+            find artifacts -maxdepth 3 -type f -print || true
+          } | tee artifacts/logs/99-failure-diagnostics.txt
+
+      - name: Upload evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devsecops-evidence
+          path: artifacts

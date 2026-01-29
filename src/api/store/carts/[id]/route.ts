@@ -65,6 +65,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
         'shipping_address.*',
         'billing_address.*',
         'payment_collection.*',
+        'payment_collection.payment_sessions.*',
       ],
       filters: {
         id: cartId,

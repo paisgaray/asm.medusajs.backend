@@ -1,84 +1,90 @@
 /**
  * API Route: Request Password Reset
- * Endpoint para solicitar redefinição de senha
+ *
+ * Esta rota utiliza o workflow generateResetPasswordTokenWorkflow diretamente,
+ * garantindo que o evento auth.password_reset seja emitido corretamente.
  *
  * POST /store/auth/reset-password
  * Body: { email: string }
  *
- * Este endpoint:
- * 1. Valida se o email existe
- * 2. Gera token de reset (via Auth Module)
- * 3. Dispara evento para enviar email AUTOMATICAMENTE
+ * IMPORTANTE: O workflow só funciona se o email tiver uma identidade de autenticação
+ * vinculada ao provider 'emailpass'. Isso significa que o customer deve ter sido criado
+ * através do fluxo de registro (/auth/customer/emailpass/register) ou ter uma auth_identity
+ * criada manualmente.
  *
- * Referência: https://docs.medusajs.com/resources/infrastructure-modules/auth
+ * O workflow:
+ * - Valida se existe uma identidade de autenticação para o email
+ * - Gera token JWT
+ * - Emite evento auth.password_reset automaticamente após conclusão bem-sucedida
+ *
+ * Referência: https://docs.medusajs.com/resources/references/medusa-workflows/generateResetPasswordTokenWorkflow
  */
 
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { Modules } from '@medusajs/framework/utils';
-import crypto from 'crypto';
+import { generateResetPasswordTokenWorkflow } from '@medusajs/medusa/core-flows';
 
 interface ResetPasswordRequest {
   email: string;
 }
 
 export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: MedusaResponse) {
-  try {
-    const { email } = req.body;
+  const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        error: 'Email is required',
-        message: 'Por favor, forneça um endereço de email',
-      });
-    }
-
-    // Resolver serviços necessários
-    const customerModuleService = req.scope.resolve(Modules.CUSTOMER);
-    const eventBusService = req.scope.resolve(Modules.EVENT_BUS);
-
-    // 1. Verificar se o email existe
-    const customers = await customerModuleService.listCustomers({
-      email,
+  if (!email) {
+    return res.status(400).json({
+      error: 'Email is required',
+      message: 'Por favor, forneça um endereço de email',
     });
+  }
 
-    if (!customers || customers.length === 0) {
-      // Por segurança, não revelamos se o email existe ou não
-      // Retorna sucesso mesmo se email não existe (segurança)
-      return res.status(200).json({
-        success: true,
-        message: 'Se o email existir, você receberá instruções para redefinir sua senha',
-      });
+  try {
+    // Resolver o configModule para obter o jwtSecret
+    const config = req.scope.resolve('configModule');
+    const jwtSecret = config.projectConfig.http.jwtSecret;
+
+    if (!jwtSecret) {
+      console.error('[Password Reset] ❌ JWT_SECRET não configurado no medusa-config.ts');
+      // Continua mesmo assim, mas o workflow pode falhar
     }
 
-    const customer = customers[0];
-
-    // 2. Gerar token de reset de senha (seguro, 32 bytes)
-    const resetToken = crypto.randomBytes(32).toString('hex');
-
-    // 3. Token expira em 1 hora
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1);
-
-    // 4. DISPARAR EVENTO AUTOMATICAMENTE
-    await eventBusService.emit({
-      name: 'user.password_reset_requested',
-      data: {
-        id: customer.id,
-        email: customer.email,
-        token: resetToken,
-        expires_at: expiresAt.toISOString(),
+    await generateResetPasswordTokenWorkflow(req.scope).run({
+      input: {
+        entityId: email,
+        actorType: 'customer',
+        provider: 'emailpass',
+        secret: jwtSecret, // ✅ CRÍTICO: Secret necessário para gerar o token JWT
       },
     });
 
-    // 5. Retornar sucesso
-    return res.status(200).json({
-      success: true,
-      message: 'Se o email existir, você receberá instruções para redefinir sua senha',
-    });
-  } catch {
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Erro ao processar solicitação',
-    });
+    console.log('[Password Reset] ✅ Workflow executado com sucesso');
+    console.log('[Password Reset] ⏳ Evento auth.password_reset deve ser emitido e capturado pelo subscriber...');
+  } catch (error: unknown) {
+    // Logamos o erro internamente para debug
+    // IMPORTANTE: Não revelamos o erro ao cliente para evitar user enumeration
+    // O erro pode ser:
+    // - "Provider identity not found" (email não tem senha cadastrada)
+    // - Email não existe
+    // - Outros erros de validação
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[Password Reset] Erro silencioso: ${errorMessage}`);
+
+    // Log detalhado apenas em desenvolvimento para debug
+    if (process.env.NODE_ENV === 'development') {
+      if (error instanceof Error) {
+        console.error('[Password Reset] Stack:', error.stack);
+      } else if (error && typeof error === 'object') {
+        console.error('[Password Reset] Erro detalhado:', JSON.stringify(error, null, 2));
+      }
+    }
+
+    // Não relançamos o erro para o cliente (segurança)
   }
+
+  // Sempre retornamos 200 para o cliente por segurança
+  // Não revelamos se o email existe ou não (evita user enumeration)
+  return res.status(200).json({
+    success: true,
+    message: 'Se o email existir, você receberá instruções para redefinir sua senha',
+  });
 }

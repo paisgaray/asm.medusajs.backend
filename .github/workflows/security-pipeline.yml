@@ -111,6 +111,256 @@ jobs:
           } | tee artifacts/sast/SONAR_EVIDENCE.txt
 
       # -------------------------
+      # SAST - SonarCloud API Evidence (safe + HTML summary)
+      # -------------------------
+      - name: SAST - SonarCloud API (download issues/measures) - NON-BLOCKING (SAFE)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/sast artifacts/logs
+
+          Q=""
+          CONTEXT="branch=${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            Q="&pullRequest=${{ github.event.pull_request.number }}"
+            CONTEXT="pullRequest=${{ github.event.pull_request.number }}"
+          else
+            Q="&branch=${GITHUB_REF_NAME}"
+          fi
+
+          ISSUES_URL="https://sonarcloud.io/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&ps=1&facets=severities,types${Q}"
+          MEASURES_URL="https://sonarcloud.io/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,coverage,duplicated_lines_density,ncloc${Q}"
+
+          echo "SonarCloud Issues API: ${ISSUES_URL}" | tee artifacts/sast/SONAR_API_ISSUES_URL.txt
+          echo "SonarCloud Measures API: ${MEASURES_URL}" | tee artifacts/sast/SONAR_API_MEASURES_URL.txt
+
+          fetch() {
+            local url="$1"
+            local out="$2"
+            local status_file="$3"
+
+            http_code="$(curl -sS -u "${SONAR_TOKEN}:" -H "Accept: application/json" -o "${out}" -w "%{http_code}" "${url}" || true)"
+            echo "${http_code}" > "${status_file}"
+
+            if [[ "${http_code}" != "200" ]]; then
+              echo "HTTP ${http_code} for ${url}" | tee -a artifacts/logs/sonar-api-errors.txt
+              cp -f "${out}" "${out}.errorbody.json" 2>/dev/null || true
+              rm -f "${out}" || true
+            fi
+          }
+
+          fetch "${ISSUES_URL}" "artifacts/sast/sonar-issues-facets.json" "artifacts/sast/sonar-issues.http"
+          fetch "${MEASURES_URL}" "artifacts/sast/sonar-measures.json" "artifacts/sast/sonar-measures.http"
+
+          ISSUES_HTTP="$(cat artifacts/sast/sonar-issues.http 2>/dev/null || echo "")"
+          MEASURES_HTTP="$(cat artifacts/sast/sonar-measures.http 2>/dev/null || echo "")"
+
+          if [[ "${ISSUES_HTTP}" != "200" || "${MEASURES_HTTP}" != "200" ]]; then
+            {
+              echo "SONAR API EVIDENCE: NOT AVAILABLE"
+              echo "Reason: API returned non-200 (likely token missing permission or project not accessible)."
+              echo "Context: ${CONTEXT}"
+              echo "Issues HTTP: ${ISSUES_HTTP}"
+              echo "Measures HTTP: ${MEASURES_HTTP}"
+              echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            } | tee artifacts/sast/SONAR_API_NO_ACCESS.txt
+          fi
+
+      - name: SAST - Build Sonar summary (TXT + HTML) - NON-BLOCKING (SAFE)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/sast
+
+          python3 - << 'PY'
+          import json, os, datetime, html
+
+          issues_path = "artifacts/sast/sonar-issues-facets.json"
+          meas_path   = "artifacts/sast/sonar-measures.json"
+          no_access   = "artifacts/sast/SONAR_API_NO_ACCESS.txt"
+
+          out_txt  = "artifacts/sast/SONAR_SUMMARY.txt"
+          out_html = "artifacts/sast/sonar-summary.html"
+
+          now = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+          repo = os.environ.get("GITHUB_REPOSITORY","")
+          branch = os.environ.get("GITHUB_REF_NAME","")
+          event = os.environ.get("GITHUB_EVENT_NAME","")
+          run_url = f"{os.environ.get('GITHUB_SERVER_URL','')}/{repo}/actions/runs/{os.environ.get('GITHUB_RUN_ID','')}"
+
+          def exists_nonempty(p):
+            return os.path.exists(p) and os.path.getsize(p) > 0
+
+          def load_json(p):
+            with open(p, "r", encoding="utf-8") as f:
+              return json.load(f)
+
+          if exists_nonempty(no_access) or (not exists_nonempty(issues_path)) or (not exists_nonempty(meas_path)):
+            msg = open(no_access, "r", encoding="utf-8").read().strip() if exists_nonempty(no_access) else \
+                  "Sonar API evidence not available (missing JSON files)."
+
+            with open(out_txt, "w", encoding="utf-8") as f:
+              f.write("== SONARCLOUD SUMMARY (API EVIDENCE) ==\n")
+              f.write(f"Generated (UTC): {now}\nRepo: {repo}\nBranch: {branch}\nEvent: {event}\nRun: {run_url}\n\n")
+              f.write(msg + "\n")
+
+            esc = html.escape(msg)
+            html_doc = f"""<!doctype html>
+            <html lang="pt-br"><head>
+              <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+              <title>SonarCloud Summary (Evidence)</title>
+              <style>
+                body{{font-family:Arial,Helvetica,sans-serif;margin:24px;line-height:1.45}}
+                .card{{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}}
+                code{{background:#f6f8fa;padding:2px 6px;border-radius:6px}}
+                .warn{{border-left:6px solid #f0ad4e;padding-left:12px}}
+                .muted{{color:#666}}
+              </style>
+            </head><body>
+              <h1>SonarCloud - Summary (Evidence)</h1>
+              <div class="card">
+                <h2>Contexto</h2>
+                <ul>
+                  <li>Repositório: <code>{html.escape(repo)}</code></li>
+                  <li>Branch: <code>{html.escape(branch)}</code></li>
+                  <li>Evento: <code>{html.escape(event)}</code></li>
+                  <li>Gerado (UTC): <code>{html.escape(now)}</code></li>
+                  <li>CI Run: <a href="{html.escape(run_url)}">{html.escape(run_url)}</a></li>
+                </ul>
+              </div>
+              <div class="card warn">
+                <h2>Evidência via API indisponível</h2>
+                <p>O pipeline executou o SAST via Sonar, porém não foi possível coletar métricas/issues via API (ex.: permissão insuficiente do token).</p>
+                <pre style="white-space:pre-wrap">{esc}</pre>
+                <p class="muted">Obs.: a análise SAST (scan) continua válida; esta etapa apenas enriquece a evidência.</p>
+              </div>
+            </body></html>"""
+            with open(out_html, "w", encoding="utf-8") as f:
+              f.write(html_doc)
+            raise SystemExit(0)
+
+          issues = load_json(issues_path)
+          facets = {f.get("property"): f.get("values", []) for f in issues.get("facets", [])}
+          total_issues = issues.get("total", 0)
+          sev = {v.get("val"): v.get("count") for v in facets.get("severities", [])}
+          typ = {v.get("val"): v.get("count") for v in facets.get("types", [])}
+
+          meas = load_json(meas_path)
+          measures = {m.get("metric"): m.get("value") for m in meas.get("component", {}).get("measures", [])}
+
+          lines = []
+          lines.append("== SONARCLOUD SUMMARY (API EVIDENCE) ==")
+          lines.append(f"Generated (UTC): {now}")
+          lines.append(f"Repo: {repo}")
+          lines.append(f"Branch: {branch}")
+          lines.append(f"Event: {event}")
+          lines.append(f"Run: {run_url}")
+          lines.append("")
+          lines.append(f"Issues (total): {total_issues}")
+          lines.append("By Severity:")
+          for k in ["BLOCKER","CRITICAL","MAJOR","MINOR","INFO"]:
+            if k in sev: lines.append(f"  - {k}: {sev[k]}")
+          lines.append("By Type:")
+          for k in ["VULNERABILITY","BUG","CODE_SMELL","SECURITY_HOTSPOT"]:
+            if k in typ: lines.append(f"  - {k}: {typ[k]}")
+          lines.append("")
+          lines.append("Measures snapshot:")
+          for k in ["vulnerabilities","security_hotspots","bugs","code_smells","coverage","duplicated_lines_density","ncloc"]:
+            if k in measures: lines.append(f"  - {k}: {measures[k]}")
+          lines.append("")
+          with open(out_txt, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+          def v(metric, default="n/a"): return html.escape(str(measures.get(metric, default)))
+          sev_rows = "".join(
+            f"<tr><td><code>{html.escape(k)}</code></td><td><b>{sev[k]}</b></td></tr>"
+            for k in ["BLOCKER","CRITICAL","MAJOR","MINOR","INFO"] if k in sev
+          ) or "<tr><td colspan='2'>n/a</td></tr>"
+          typ_rows = "".join(
+            f"<tr><td><code>{html.escape(k)}</code></td><td><b>{typ[k]}</b></td></tr>"
+            for k in ["VULNERABILITY","BUG","CODE_SMELL","SECURITY_HOTSPOT"] if k in typ
+          ) or "<tr><td colspan='2'>n/a</td></tr>"
+
+          html_doc = f"""<!doctype html>
+          <html lang="pt-br"><head>
+            <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+            <title>SonarCloud Summary (Evidence)</title>
+            <style>
+              body{{font-family:Arial,Helvetica,sans-serif;margin:24px;line-height:1.45}}
+              .grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}}
+              .card{{border:1px solid #ddd;border-radius:12px;padding:16px}}
+              code{{background:#f6f8fa;padding:2px 6px;border-radius:6px}}
+              table{{width:100%;border-collapse:collapse}}
+              td,th{{border-bottom:1px solid #eee;padding:8px;text-align:left}}
+              .kpi{{font-size:28px;margin:0}}
+              .muted{{color:#666}}
+              a{{word-break:break-all}}
+            </style>
+          </head><body>
+            <h1>SonarCloud - Summary (Evidence)</h1>
+            <div class="card">
+              <h2>Contexto</h2>
+              <ul>
+                <li>Repositório: <code>{html.escape(repo)}</code></li>
+                <li>Branch: <code>{html.escape(branch)}</code></li>
+                <li>Evento: <code>{html.escape(event)}</code></li>
+                <li>Gerado (UTC): <code>{html.escape(now)}</code></li>
+                <li>CI Run: <a href="{html.escape(run_url)}">{html.escape(run_url)}</a></li>
+              </ul>
+            </div>
+
+            <div class="grid">
+              <div class="card"><p class="muted">Total de Issues</p><p class="kpi">{html.escape(str(total_issues))}</p></div>
+              <div class="card"><p class="muted">Vulnerabilities</p><p class="kpi">{v("vulnerabilities")}</p></div>
+              <div class="card"><p class="muted">Security Hotspots</p><p class="kpi">{v("security_hotspots")}</p></div>
+              <div class="card"><p class="muted">Coverage</p><p class="kpi">{v("coverage")}%</p></div>
+              <div class="card"><p class="muted">Duplication</p><p class="kpi">{v("duplicated_lines_density")}%</p></div>
+              <div class="card"><p class="muted">NCLOC</p><p class="kpi">{v("ncloc")}</p></div>
+            </div>
+
+            <div class="grid">
+              <div class="card">
+                <h2>Issues por Severidade</h2>
+                <table><thead><tr><th>Severidade</th><th>Qtde</th></tr></thead><tbody>{sev_rows}</tbody></table>
+              </div>
+              <div class="card">
+                <h2>Issues por Tipo</h2>
+                <table><thead><tr><th>Tipo</th><th>Qtde</th></tr></thead><tbody>{typ_rows}</tbody></table>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>Arquivos de Evidência</h2>
+              <ul>
+                <li><a href="./sonar-issues-facets.json">sonar-issues-facets.json</a></li>
+                <li><a href="./sonar-measures.json">sonar-measures.json</a></li>
+                <li><a href="./SONAR_SUMMARY.txt">SONAR_SUMMARY.txt</a></li>
+              </ul>
+            </div>
+          </body></html>"""
+          with open(out_html, "w", encoding="utf-8") as f:
+            f.write(html_doc)
+          PY
+
+      - name: SAST - Validate Sonar summary files
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -s artifacts/sast/sonar-summary.html ]] || echo "Sonar summary HTML not generated." > artifacts/sast/SONAR_SUMMARY_HTML_EMPTY.txt
+          [[ -s artifacts/sast/SONAR_SUMMARY.txt ]] || echo "Sonar summary TXT not generated." > artifacts/sast/SONAR_SUMMARY_EMPTY.txt
+          if [[ ! -s artifacts/sast/sonar-issues-facets.json || ! -s artifacts/sast/sonar-measures.json ]]; then
+            [[ -s artifacts/sast/SONAR_API_NO_ACCESS.txt ]] || echo "Sonar API JSON missing but no NO_ACCESS marker found." > artifacts/sast/SONAR_API_INCONSISTENT.txt
+          fi
+
+      # -------------------------
       # SCA - Trivy (Docker) -> HTML + JSON
       # -------------------------
       - name: SCA - Download Trivy HTML template (official)
@@ -324,6 +574,8 @@ jobs:
               <h2>SAST (SonarCloud)</h2>
               <ul>
                 <li>Evidência: <a href="../sast/SONAR_EVIDENCE.txt">SONAR_EVIDENCE.txt</a></li>
+                <li>Resumo (HTML): <a href="../sast/sonar-summary.html">sonar-summary.html</a></li>
+                <li>Resumo (TXT): <a href="../sast/SONAR_SUMMARY.txt">SONAR_SUMMARY.txt</a></li>
               </ul>
             </div>
             <div class="card">

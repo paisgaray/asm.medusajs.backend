@@ -1,13 +1,13 @@
 /**
  * Script para extrair mapa de categorias do Excel e gerar JSON
- * 
+ *
  * Uso: npx medusa exec ./src/scripts/product-import/extract-category-map.ts <input-excel> <output-json>
  */
 
-import XLSX from 'xlsx';
+import { ExecArgs } from '@medusajs/framework/types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecArgs } from '@medusajs/framework/types';
+import XLSX from 'xlsx';
 
 interface CategoryChild {
   name: string;
@@ -33,19 +33,19 @@ function generateHandle(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export default async function extractCategoryMap({
-  args,
-}: ExecArgs) {
+export default async function extractCategoryMap({ args }: ExecArgs) {
   const [inputPath, outputPath] = args;
 
   if (!inputPath) {
     console.error('❌ Erro: Caminho do arquivo Excel não fornecido');
-    console.log('Uso: npx medusa exec ./src/scripts/product-import/extract-category-map.ts <input-excel> <output-json>');
+    console.log(
+      'Uso: npx medusa exec ./src/scripts/product-import/extract-category-map.ts <input-excel> <output-json>',
+    );
     process.exit(1);
   }
 
   const inputFile = path.resolve(process.cwd(), inputPath);
-  const outputFile = outputPath 
+  const outputFile = outputPath
     ? path.resolve(process.cwd(), outputPath)
     : path.resolve(process.cwd(), 'src/utils/category-map.json');
 
@@ -60,11 +60,16 @@ export default async function extractCategoryMap({
     const workbook = XLSX.readFile(inputFile);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
-    const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { 
+
+    type ExcelRow = {
+      'Product Category'?: string;
+      [key: string]: unknown;
+    };
+
+    const rawData: ExcelRow[] = XLSX.utils.sheet_to_json(worksheet, {
       defval: '',
-      raw: false
-    });
+      raw: false,
+    }) as ExcelRow[];
 
     if (rawData.length === 0) {
       console.error('❌ Erro: Arquivo Excel está vazio');
@@ -78,7 +83,7 @@ export default async function extractCategoryMap({
 
     for (const row of rawData) {
       let categoryPath = String(row['Product Category'] || '').trim();
-      
+
       if (!categoryPath || !categoryPath.includes('»')) {
         continue;
       }
@@ -90,12 +95,12 @@ export default async function extractCategoryMap({
       }
 
       // Separa hierarquia: "Pai » Filho"
-      const parts = categoryPath.split('»').map(p => p.trim());
-      
+      const parts = categoryPath.split('»').map((p) => p.trim());
+
       if (parts.length >= 2) {
         const parentName = parts[0];
         const childName = parts[parts.length - 1];
-        
+
         const parentHandle = generateHandle(parentName);
         const childHandle = generateHandle(childName);
 
@@ -122,7 +127,7 @@ export default async function extractCategoryMap({
       for (const row of rawData) {
         const categoryPath = String(row['Product Category'] || '').trim();
         if (categoryPath.includes('»')) {
-          const parts = categoryPath.split('»').map(p => p.trim());
+          const parts = categoryPath.split('»').map((p) => p.trim());
           if (parts.length >= 2 && generateHandle(parts[0]) === parentHandle) {
             parentName = parts[0];
             break;
@@ -148,7 +153,7 @@ export default async function extractCategoryMap({
     console.log(`📊 Estatísticas:`);
     console.log(`   - Categorias PAI: ${categoryTree.length}`);
     console.log(`   - Total de categorias FILHO: ${categoryTree.reduce((sum, cat) => sum + cat.children.length, 0)}`);
-    
+
     console.log(`\n📋 Estrutura de Categorias:`);
     categoryTree.forEach((parent, index) => {
       console.log(`\n   ${index + 1}. ${parent.parent} (${parent.handle_pai})`);
@@ -156,7 +161,6 @@ export default async function extractCategoryMap({
         console.log(`      ${childIndex + 1}.1. ${child.name} (${child.handle_filho})`);
       });
     });
-
   } catch (error) {
     console.error('❌ Erro ao processar arquivo:', error);
     process.exit(1);

@@ -1,4 +1,5 @@
 import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
+import type { BatchProductWorkflowInput } from '@medusajs/medusa/core-flows';
 import { batchProductsWorkflow } from '@medusajs/medusa/core-flows';
 
 import { normalizeCsvToBatchRequestStep } from './steps/normalize-csv-to-batch-request-step';
@@ -56,9 +57,17 @@ export const importProductsWithCategoriesWorkflow = createWorkflow(
     // O categoryMapping será recuperado via cache no hook productsCreated
     // NOTA: Removemos os steps de notificação porque requerem um provider de notificações
     // configurado para o canal "feed", que pode não estar disponível
-    batchProductsWorkflow
-      .runAsStep({ input: batchRequest })
-      .config({ async: true, backgroundExecution: true });
+    // O batchRequest já tem os tipos numéricos normalizados pelo normalizeCsvToBatchRequestStep
+    // Fazemos um cast duplo (via unknown) porque o TypeScript não consegue inferir que os tipos numéricos foram normalizados
+    // em runtime, mesmo que o step normalizeVariantNumericFields converta string -> number
+    const batchInput = transform({ batchRequest }, (data) => {
+      return {
+        create: data.batchRequest.create,
+        update: data.batchRequest.update,
+      } as unknown as BatchProductWorkflowInput;
+    });
+
+    batchProductsWorkflow.runAsStep({ input: batchInput }).config({ async: true, backgroundExecution: true });
 
     // Retornar summary (igual ao importProductsWorkflow oficial)
     return new WorkflowResponse(summary);

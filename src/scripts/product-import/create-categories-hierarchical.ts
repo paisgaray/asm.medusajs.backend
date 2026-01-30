@@ -1,18 +1,19 @@
 /**
  * Script para criar categorias com hierarquia completa (pai/filho)
- * 
+ *
  * Este script lê o Excel ORIGINAL do cliente para extrair a hierarquia completa
  * e cria primeiro as categorias PAI, depois as FILHO com parent_category_id
- * 
+ *
  * Uso:
  * npx medusa exec ./src/scripts/product-import/create-categories-hierarchical.ts <excel-file>
  */
 
-import XLSX from 'xlsx';
-import * as fs from 'fs';
-import * as path from 'path';
 import { ExecArgs } from '@medusajs/framework/types';
 import { createProductCategoriesWorkflow } from '@medusajs/medusa/core-flows';
+import type { ProductCategoryDTO } from '@medusajs/types';
+import * as fs from 'fs';
+import * as path from 'path';
+import XLSX from 'xlsx';
 
 interface CategoryHierarchy {
   parent: {
@@ -48,31 +49,36 @@ function extractHierarchyFromExcel(filePath: string): Map<string, CategoryHierar
   const workbook = XLSX.readFile(filePath);
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  
-  const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { 
+
+  type ExcelRow = {
+    'Product Category'?: string;
+    [key: string]: unknown;
+  };
+
+  const rawData: ExcelRow[] = XLSX.utils.sheet_to_json(worksheet, {
     defval: '',
-    raw: false
-  });
+    raw: false,
+  }) as ExcelRow[];
 
   const hierarchyMap = new Map<string, CategoryHierarchy>();
 
   for (const row of rawData) {
     const categoryPath = String(row['Product Category'] || '').trim();
-    
+
     if (!categoryPath || !categoryPath.includes('»')) {
       continue;
     }
 
     // Separa hierarquia: "Pai » Filho"
-    const parts = categoryPath.split('»').map(p => p.trim());
-    
+    const parts = categoryPath.split('»').map((p) => p.trim());
+
     if (parts.length >= 2) {
       const parentName = parts[0];
       const childName = parts[parts.length - 1]; // Pega o último (pode ter mais níveis)
-      
+
       const parentHandle = generateHandle(parentName);
       const childHandle = generateHandle(childName);
-      
+
       // Usa childHandle como chave (único por produto)
       if (!hierarchyMap.has(childHandle)) {
         hierarchyMap.set(childHandle, {
@@ -92,10 +98,7 @@ function extractHierarchyFromExcel(filePath: string): Map<string, CategoryHierar
   return hierarchyMap;
 }
 
-export default async function createCategoriesHierarchical({
-  container,
-  args,
-}: ExecArgs) {
+export default async function createCategoriesHierarchical({ container, args }: ExecArgs) {
   const [excelPath] = args;
 
   if (!excelPath) {
@@ -115,7 +118,7 @@ export default async function createCategoriesHierarchical({
 
   try {
     const hierarchyMap = extractHierarchyFromExcel(excelFile);
-    
+
     if (hierarchyMap.size === 0) {
       console.warn('⚠️  Nenhuma hierarquia de categoria encontrada no Excel');
       return;
@@ -124,7 +127,6 @@ export default async function createCategoriesHierarchical({
     console.log(`✅ Encontradas ${hierarchyMap.size} categorias filho com hierarquia`);
 
     const productModule = container.resolve('product');
-    const logger = container.resolve('logger');
 
     // Coleta todos os pais e filhos únicos
     const uniqueParents = new Map<string, { name: string; handle: string }>();
@@ -141,27 +143,27 @@ export default async function createCategoriesHierarchical({
 
     // Verifica categorias existentes
     const existingCategories = await productModule.listProductCategories({});
-    const existingHandles = new Map<string, any>();
-    
-    existingCategories.forEach((cat: any) => {
-      existingHandles.set(cat.handle, cat);
+    const existingHandles = new Map<string, ProductCategoryDTO>();
+
+    existingCategories.forEach((cat: ProductCategoryDTO) => {
+      if (cat.handle) {
+        existingHandles.set(cat.handle, cat);
+      }
     });
 
     console.log(`\n🔍 Verificando categorias existentes...`);
     console.log(`   Encontradas ${existingCategories.length} categorias no banco`);
 
     // 1. Cria categorias PAI que não existem
-    const parentsToCreate = Array.from(uniqueParents.values()).filter(
-      parent => !existingHandles.has(parent.handle)
-    );
+    const parentsToCreate = Array.from(uniqueParents.values()).filter((parent) => !existingHandles.has(parent.handle));
 
     if (parentsToCreate.length > 0) {
       console.log(`\n📝 Criando ${parentsToCreate.length} categorias PAI...`);
-      
+
       try {
         const { result: createdParents } = await createProductCategoriesWorkflow(container).run({
           input: {
-            product_categories: parentsToCreate.map(p => ({
+            product_categories: parentsToCreate.map((p) => ({
               name: p.name,
               handle: p.handle,
               is_active: true,
@@ -170,33 +172,45 @@ export default async function createCategoriesHierarchical({
         });
 
         // Atualiza mapa de existentes
-        createdParents.forEach((cat: any) => {
-          existingHandles.set(cat.handle, cat);
-          console.log(`   ✅ Criada PAI: ${cat.name} (${cat.handle})`);
-        });
-      } catch (error: any) {
-        console.error(`❌ Erro ao criar categorias pai:`, error.message);
+        if (createdParents && Array.isArray(createdParents)) {
+          createdParents.forEach((cat: ProductCategoryDTO) => {
+            if (cat.handle) {
+              existingHandles.set(cat.handle, cat);
+              console.log(`   ✅ Criada PAI: ${cat.name || ''} (${cat.handle})`);
+            }
+          });
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Erro ao criar categorias pai:`, errorMessage);
         // Tenta criar uma por uma
         for (const parent of parentsToCreate) {
           try {
             const { result } = await createProductCategoriesWorkflow(container).run({
               input: {
-                product_categories: [{
-                  name: parent.name,
-                  handle: parent.handle,
-                  is_active: true,
-                }],
+                product_categories: [
+                  {
+                    name: parent.name,
+                    handle: parent.handle,
+                    is_active: true,
+                  },
+                ],
               },
             });
-            const cat = result[0];
-            existingHandles.set(cat.handle, cat);
-            console.log(`   ✅ Criada PAI: ${cat.name} (${cat.handle})`);
-          } catch (individualError: any) {
-            if (individualError.message?.includes('already exists') || 
-                individualError.message?.includes('unique')) {
+            if (result && Array.isArray(result) && result[0]) {
+              const cat = result[0] as ProductCategoryDTO;
+              if (cat.handle) {
+                existingHandles.set(cat.handle, cat);
+                console.log(`   ✅ Criada PAI: ${cat.name || ''} (${cat.handle})`);
+              }
+            }
+          } catch (individualError: unknown) {
+            const individualErrorMessage =
+              individualError instanceof Error ? individualError.message : String(individualError);
+            if (individualErrorMessage.includes('already exists') || individualErrorMessage.includes('unique')) {
               console.log(`   ⚠️  PAI ${parent.handle} já existe, pulando...`);
             } else {
-              console.error(`   ❌ Erro ao criar ${parent.handle}:`, individualError.message);
+              console.error(`   ❌ Erro ao criar ${parent.handle}:`, individualErrorMessage);
             }
           }
         }
@@ -207,40 +221,46 @@ export default async function createCategoriesHierarchical({
 
     // 2. Cria categorias FILHO com parent_category_id
     const childrenToCreate = Array.from(uniqueChildren.values()).filter(
-      hierarchy => !existingHandles.has(hierarchy.child.handle)
+      (hierarchy) => !existingHandles.has(hierarchy.child.handle),
     );
 
     if (childrenToCreate.length > 0) {
       console.log(`\n📝 Criando ${childrenToCreate.length} categorias FILHO...`);
-      
+
       for (const hierarchy of childrenToCreate) {
         try {
           const parentCategory = existingHandles.get(hierarchy.parent.handle);
-          
+
           if (!parentCategory) {
             console.warn(`   ⚠️  PAI ${hierarchy.parent.handle} não encontrado, criando filho sem pai...`);
           }
 
           const { result } = await createProductCategoriesWorkflow(container).run({
             input: {
-              product_categories: [{
-                name: hierarchy.child.name,
-                handle: hierarchy.child.handle,
-                is_active: true,
-                parent_category_id: parentCategory?.id,
-              }],
+              product_categories: [
+                {
+                  name: hierarchy.child.name,
+                  handle: hierarchy.child.handle,
+                  is_active: true,
+                  parent_category_id: parentCategory?.id,
+                },
+              ],
             },
           });
 
-          const cat = result[0];
-          existingHandles.set(cat.handle, cat);
-          console.log(`   ✅ Criada FILHO: ${cat.name} (${cat.handle}) → PAI: ${hierarchy.parent.name}`);
-        } catch (error: any) {
-          if (error.message?.includes('already exists') || 
-              error.message?.includes('unique')) {
+          if (result && Array.isArray(result) && result[0]) {
+            const cat = result[0] as ProductCategoryDTO;
+            if (cat.handle) {
+              existingHandles.set(cat.handle, cat);
+              console.log(`   ✅ Criada FILHO: ${cat.name || ''} (${cat.handle}) → PAI: ${hierarchy.parent.name}`);
+            }
+          }
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('already exists') || errorMessage.includes('unique')) {
             console.log(`   ⚠️  FILHO ${hierarchy.child.handle} já existe, pulando...`);
           } else {
-            console.error(`   ❌ Erro ao criar ${hierarchy.child.handle}:`, error.message);
+            console.error(`   ❌ Erro ao criar ${hierarchy.child.handle}:`, errorMessage);
           }
         }
       }
@@ -253,7 +273,6 @@ export default async function createCategoriesHierarchical({
     console.log(`   1. Verifique as categorias no Admin: Settings > Product Categories`);
     console.log(`   2. Confirme que a hierarquia está correta (pais → filhos)`);
     console.log(`   3. Execute o import do CSV sanitizado`);
-
   } catch (error) {
     console.error('❌ Erro ao processar:', error);
     process.exit(1);

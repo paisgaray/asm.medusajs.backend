@@ -1,22 +1,22 @@
 /**
  * Script para hidratar CSV sanitizado com IDs de ambiente específico
- * 
+ *
  * Este script preenche as colunas:
  * - Shipping Profile Id
  * - Product Sales Channel 1
- * 
+ *
  * Com os IDs corretos do ambiente (Local/Dev/Prod)
- * 
+ *
  * Uso:
  * npx medusa exec ./src/scripts/product-import/hydrate-ids.ts <input-csv> <output-csv> <sales-channel-id> <shipping-profile-id>
- * 
+ *
  * Ou interativo:
  * npx medusa exec ./src/scripts/product-import/hydrate-ids.ts <input-csv> <output-csv>
  */
 
+import { ExecArgs } from '@medusajs/framework/types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecArgs } from '@medusajs/framework/types';
 
 interface CSVRow {
   [key: string]: string;
@@ -27,8 +27,8 @@ interface CSVRow {
  */
 function readCSV(filePath: string): CSVRow[] {
   const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n').filter(line => line.trim());
-  
+  const lines = content.split('\n').filter((line) => line.trim());
+
   if (lines.length === 0) {
     return [];
   }
@@ -39,11 +39,11 @@ function readCSV(filePath: string): CSVRow[] {
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
     const row: CSVRow = {};
-    
+
     headers.forEach((header, index) => {
       row[header] = values[index] || '';
     });
-    
+
     rows.push(row);
   }
 
@@ -85,8 +85,8 @@ function parseCSVLine(line: string): string[] {
  * Escreve array de objetos para CSV
  */
 function writeCSV(filePath: string, rows: CSVRow[], headers: string[]): void {
-  const csvRows = rows.map(row => {
-    return headers.map(header => {
+  const csvRows = rows.map((row) => {
+    return headers.map((header) => {
       const value = row[header] || '';
       // Escapa valores que contêm vírgulas ou aspas
       if (String(value).includes(',') || String(value).includes('"') || String(value).includes('\n')) {
@@ -96,30 +96,24 @@ function writeCSV(filePath: string, rows: CSVRow[], headers: string[]): void {
     });
   });
 
-  const csvContent = [
-    headers.join(','),
-    ...csvRows.map(row => row.join(','))
-  ].join('\n');
+  const csvContent = [headers.join(','), ...csvRows.map((row) => row.join(','))].join('\n');
 
   fs.writeFileSync(filePath, csvContent, 'utf-8');
 }
 
-export default async function hydrateIDs({
-  container,
-  args,
-}: ExecArgs) {
+export default async function hydrateIDs({ container, args }: ExecArgs) {
   const [inputPath, outputPath, salesChannelId, shippingProfileId] = args;
 
   if (!inputPath) {
     console.error('❌ Erro: Caminho do arquivo CSV não fornecido');
-    console.log('Uso: npx medusa exec ./src/scripts/product-import/hydrate-ids.ts <input-csv> <output-csv> [sales-channel-id] [shipping-profile-id]');
+    console.log(
+      'Uso: npx medusa exec ./src/scripts/product-import/hydrate-ids.ts <input-csv> <output-csv> [sales-channel-id] [shipping-profile-id]',
+    );
     process.exit(1);
   }
 
   const inputFile = path.resolve(process.cwd(), inputPath);
-  const outputFile = outputPath 
-    ? path.resolve(process.cwd(), outputPath)
-    : inputFile.replace('.csv', '_hydrated.csv');
+  const outputFile = outputPath ? path.resolve(process.cwd(), outputPath) : inputFile.replace('.csv', '_hydrated.csv');
 
   if (!fs.existsSync(inputFile)) {
     console.error(`❌ Erro: Arquivo não encontrado: ${inputFile}`);
@@ -130,42 +124,48 @@ export default async function hydrateIDs({
 
   try {
     const rows = readCSV(inputFile);
-    
+
     if (rows.length === 0) {
       console.error('❌ Erro: CSV está vazio');
       process.exit(1);
     }
 
     const headers = Object.keys(rows[0]);
-    
+
     // Se IDs não foram fornecidos, tenta buscar do banco
     let finalSalesChannelId = salesChannelId;
     let finalShippingProfileId = shippingProfileId;
 
     if (!finalSalesChannelId || !finalShippingProfileId) {
       console.log('🔍 Buscando IDs do banco de dados...');
-      
+
       try {
         // Busca Sales Channel
         if (!finalSalesChannelId) {
           try {
             const salesChannelModule = container.resolve('salesChannel');
             const salesChannels = await salesChannelModule.listSalesChannels({});
-            
+
             if (salesChannels && salesChannels.length > 0) {
               // Tenta encontrar "Default" ou pega o primeiro
-              const defaultChannel = salesChannels.find((sc: any) => 
-                sc.name?.toLowerCase().includes('default') || 
-                sc.is_default === true
-              ) || salesChannels[0];
-              
+              type SalesChannel = {
+                id: string;
+                name?: string | null;
+                is_default?: boolean;
+              };
+              const defaultChannel =
+                (salesChannels as SalesChannel[]).find(
+                  (sc) => sc.name?.toLowerCase().includes('default') || sc.is_default === true,
+                ) || (salesChannels as SalesChannel[])[0];
+
               finalSalesChannelId = defaultChannel.id;
               console.log(`✅ Sales Channel encontrado: ${defaultChannel.name} (${finalSalesChannelId})`);
             } else {
               console.warn('⚠️  Nenhum Sales Channel encontrado no banco');
             }
-          } catch (error: any) {
-            console.warn(`⚠️  Erro ao buscar Sales Channel: ${error.message}`);
+          } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`⚠️  Erro ao buscar Sales Channel: ${errorMessage}`);
           }
         }
 
@@ -174,20 +174,25 @@ export default async function hydrateIDs({
           try {
             const shippingProfileModule = container.resolve('shippingProfile');
             const shippingProfiles = await shippingProfileModule.listShippingProfiles({});
-            
+
             if (shippingProfiles && shippingProfiles.length > 0) {
               // Tenta encontrar "default" ou pega o primeiro
-              const defaultProfile = shippingProfiles.find((sp: any) => 
-                sp.name?.toLowerCase().includes('default')
-              ) || shippingProfiles[0];
-              
+              type ShippingProfile = {
+                id: string;
+                name?: string | null;
+              };
+              const defaultProfile =
+                (shippingProfiles as ShippingProfile[]).find((sp) => sp.name?.toLowerCase().includes('default')) ||
+                (shippingProfiles as ShippingProfile[])[0];
+
               finalShippingProfileId = defaultProfile.id;
               console.log(`✅ Shipping Profile encontrado: ${defaultProfile.name} (${finalShippingProfileId})`);
             } else {
               console.warn('⚠️  Nenhum Shipping Profile encontrado no banco');
             }
-          } catch (error: any) {
-            console.warn(`⚠️  Erro ao buscar Shipping Profile: ${error.message}`);
+          } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`⚠️  Erro ao buscar Shipping Profile: ${errorMessage}`);
           }
         }
       } catch (error) {
@@ -202,25 +207,27 @@ export default async function hydrateIDs({
       console.log('   SELECT id, name FROM sales_channel;');
       console.log('   SELECT id, name FROM shipping_profile;');
       console.log('\n   Ou forneça os IDs como argumentos:');
-      console.log('   npx medusa exec ./src/scripts/product-import/hydrate-ids.ts <input-csv> <output-csv> <sales-channel-id> <shipping-profile-id>');
+      console.log(
+        '   npx medusa exec ./src/scripts/product-import/hydrate-ids.ts <input-csv> <output-csv> <sales-channel-id> <shipping-profile-id>',
+      );
       process.exit(1);
     }
 
     // Hidrata as linhas
     let hydratedCount = 0;
-    const hydratedRows = rows.map(row => {
+    const hydratedRows = rows.map((row) => {
       const hydratedRow = { ...row };
-      
+
       if (!row['Product Sales Channel 1'] || row['Product Sales Channel 1'].trim() === '') {
         hydratedRow['Product Sales Channel 1'] = finalSalesChannelId;
         hydratedCount++;
       }
-      
+
       if (!row['Shipping Profile Id'] || row['Shipping Profile Id'].trim() === '') {
         hydratedRow['Shipping Profile Id'] = finalShippingProfileId;
         hydratedCount++;
       }
-      
+
       return hydratedRow;
     });
 
@@ -242,7 +249,6 @@ export default async function hydrateIDs({
     console.log(`   - IDs hidratados: ${hydratedCount} linhas`);
     console.log(`   - Sales Channel ID: ${finalSalesChannelId}`);
     console.log(`   - Shipping Profile ID: ${finalShippingProfileId}`);
-
   } catch (error) {
     console.error('❌ Erro ao processar arquivo:', error);
     process.exit(1);

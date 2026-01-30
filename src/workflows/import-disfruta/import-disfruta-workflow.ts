@@ -18,7 +18,7 @@ export const importDisfrutaCatalogWorkflow = createWorkflow(
 
     // Passo 2: Garantir que categorias existem
     const categoryMapData = transform({ transformResult }, (data) => {
-      return data.transformResult.categoryMap || new Map();
+      return data.transformResult?.categoryMap || new Map();
     });
 
     const categoriesResult = ensureCategoriesStep({
@@ -29,8 +29,8 @@ export const importDisfrutaCatalogWorkflow = createWorkflow(
     const productsWithCategoryIds = transform(
       { transformResult, categoriesResult },
       (data) => {
-        const products = data.transformResult.products || [];
-        const categoryHandles = data.categoriesResult.categoryHandles || new Map();
+        const products = data.transformResult?.products || [];
+        const categoryHandles = data.categoriesResult?.categoryHandles || new Map();
 
         if (!Array.isArray(products)) {
           return [];
@@ -60,7 +60,7 @@ export const importDisfrutaCatalogWorkflow = createWorkflow(
     return new WorkflowResponse(
       transform({ transformResult, createdProducts }, (data) => ({
         products: data.createdProducts || [],
-        total: Array.isArray(data.transformResult.products) ? data.transformResult.products.length : 0,
+        total: Array.isArray(data.transformResult?.products) ? data.transformResult.products.length : 0,
       }))
     );
   }

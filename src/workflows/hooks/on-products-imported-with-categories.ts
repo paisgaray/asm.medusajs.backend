@@ -467,9 +467,82 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
       }
     }
 
+    // 8. Associar Sales Channel padrão aos produtos (se não tiverem nenhum)
+    logger.info('[HOOK] productsCreated: Associando Sales Channel padrão aos produtos...');
+    let salesChannelsAssociated = 0;
+
+    try {
+      const salesChannelModule = container.resolve(Modules.SALES_CHANNEL);
+      type SalesChannel = {
+        id: string;
+        name?: string | null;
+        is_default?: boolean;
+      };
+      const salesChannels = (await salesChannelModule.listSalesChannels({})) as SalesChannel[];
+      let defaultSalesChannelId: string | undefined;
+
+      if (salesChannels && salesChannels.length > 0) {
+        // Tenta encontrar "Default Sales Channel" ou o canal padrão (is_default) ou o primeiro
+        const defaultChannel =
+          salesChannels.find((sc) => sc.name?.toLowerCase().includes('default') || sc.is_default === true) ||
+          salesChannels[0];
+        defaultSalesChannelId = defaultChannel.id;
+        logger.info(
+          `[HOOK] productsCreated: ✅ Sales Channel padrão encontrado: ${defaultChannel.name || 'N/A'} (${defaultSalesChannelId})`,
+        );
+      }
+
+      if (defaultSalesChannelId) {
+        for (const product of products || []) {
+          try {
+            // Tentar associar o Sales Channel padrão diretamente
+            // Se já existir, o linkModule.create vai lançar um erro que vamos ignorar
+            try {
+              await linkModule.create({
+                [Modules.PRODUCT]: { product_id: product.id },
+                [Modules.SALES_CHANNEL]: { sales_channel_id: defaultSalesChannelId },
+              });
+              salesChannelsAssociated++;
+              logger.info(
+                `[HOOK] productsCreated: ✅ Sales Channel padrão associado ao produto ${product.handle || product.id}`,
+              );
+            } catch (linkError) {
+              // Se o erro for de duplicação, significa que já existe - isso é OK
+              const errorMessage =
+                linkError instanceof Error ? linkError.message.toLowerCase() : String(linkError).toLowerCase();
+              if (
+                errorMessage.includes('already exists') ||
+                errorMessage.includes('duplicate') ||
+                errorMessage.includes('unique constraint')
+              ) {
+                logger.info(
+                  `[HOOK] productsCreated: ℹ️ Produto ${product.handle || product.id} já possui Sales Channel associado`,
+                );
+              } else {
+                logger.warn(
+                  `[HOOK] productsCreated: ⚠️ Erro ao associar Sales Channel padrão ao produto ${product.handle || product.id}: ${linkError instanceof Error ? linkError.message : String(linkError)}`,
+                );
+              }
+            }
+          } catch (error) {
+            logger.warn(
+              `[HOOK] productsCreated: ⚠️ Erro ao processar Sales Channel para o produto ${product.handle || product.id}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      } else {
+        logger.warn('[HOOK] productsCreated: ⚠️ Nenhum Sales Channel padrão encontrado no banco');
+      }
+    } catch (error) {
+      logger.warn(
+        `[HOOK] productsCreated: ⚠️ Erro ao processar Sales Channels: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     logger.info('[HOOK] productsCreated: ========================================');
     logger.info(`[HOOK] productsCreated: ✅ Processamento concluído!`);
-    logger.info(`[HOOK] productsCreated:   - Produtos associados: ${productsAssociated}`);
+    logger.info(`[HOOK] productsCreated:   - Produtos associados a categorias: ${productsAssociated}`);
+    logger.info(`[HOOK] productsCreated:   - Produtos associados a Sales Channels: ${salesChannelsAssociated}`);
     logger.info(
       `[HOOK] productsCreated:   - Categorias criadas: ${Object.keys(parentCategoriesCreated).length + Object.keys(childCategoriesCreated).length}`,
     );

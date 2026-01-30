@@ -2,6 +2,10 @@ import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 import { createProductsWorkflow, createProductCategoriesWorkflow } from '@medusajs/medusa/core-flows';
 
 import { getCategoryMappingFromCache } from '../../api/admin/products/imports/file-cache';
+import { ALGOLIA_MODULE } from '../../modules/algolia';
+import { areSubscribersEnabled } from '../../modules/algolia/feature-flags';
+import AlgoliaModuleService from '../../modules/algolia/service';
+import { indexProductWorkflow } from '../../workflows/algolia/index-product';
 
 /**
  * Hook Handler para processar categorias após criação de produtos via importProductsWorkflow
@@ -338,11 +342,13 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
 
     logger.info(`[HOOK] productsCreated: ✅ Total de ${Object.keys(allCategoryIds).length} categorias disponíveis`);
 
-    // 7. Associar produtos às categorias (suportando múltiplas categorias)
-    // Usar Link Module diretamente (mesmo padrão usado para sales channels)
-    // As categorias de produtos no MedusaJS são gerenciadas via Link Module
+    // 7. Verificar se categorias já foram associadas pelo batchProductsWorkflow
+    // O batchProductsWorkflow já associa categorias quando o campo "categories" está presente no input
+    // Vamos verificar se as categorias já foram associadas antes de tentar criar links manualmente
+    logger.info('[HOOK] productsCreated: Verificando se categorias já foram associadas pelo batchProductsWorkflow...');
     const linkModule = container.resolve(ContainerRegistrationKeys.LINK);
     let productsAssociated = 0;
+    let productsAlreadyAssociated = 0;
 
     for (const product of products || []) {
       const productHandle = product.handle;
@@ -353,106 +359,94 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
 
       if (categoryIds.length > 0) {
         try {
-          // Remover associações existentes primeiro (se houver)
-          // Buscar links existentes para este produto com categorias
-          try {
-            const existingLinks = await linkModule.list({
-              [Modules.PRODUCT]: { product_id: product.id },
-            });
+          // Verificar se o produto já tem categorias associadas
+          const productWithCategories = await query.graph({
+            entity: 'product',
+            fields: ['id', 'categories.id', 'categories.handle'],
+            filters: {
+              id: product.id,
+            },
+          });
 
-            // Deletar apenas links de categorias
-            for (const link of existingLinks || []) {
-              // Verificar se é um link de categoria
-              // O formato pode variar, vamos verificar todas as chaves
-              const linkKeys = Object.keys(link || {});
-              for (const key of linkKeys) {
+          const existingCategories =
+            (productWithCategories?.data?.[0] as { categories?: Array<{ id?: string }> })?.categories || [];
+          const existingCategoryIds = existingCategories.map((cat) => cat.id).filter(Boolean) as string[];
+
+          // Verificar se todas as categorias esperadas já estão associadas
+          const allCategoriesAssociated = categoryIds.every((expectedId) => existingCategoryIds.includes(expectedId));
+
+          if (allCategoriesAssociated && existingCategoryIds.length > 0) {
+            productsAlreadyAssociated++;
+            logger.info(
+              `[HOOK] productsCreated: ✅ Produto "${productHandle}" já possui categorias associadas pelo batchProductsWorkflow: ${existingCategoryIds.length} categorias`,
+            );
+          } else {
+            // Categorias não foram associadas ou estão incompletas - tentar associar via Link Module
+            logger.info(
+              `[HOOK] productsCreated: Produto "${productHandle}" não possui todas as categorias. Esperadas: ${categoryIds.length}, Encontradas: ${existingCategoryIds.length}. Tentando associar via Link Module...`,
+            );
+
+            let linksCreated = 0;
+
+            for (const categoryId of categoryIds) {
+              // Pular se já está associada
+              if (existingCategoryIds.includes(categoryId)) {
+                continue;
+              }
+
+              try {
+                // Tentar criar link usando o formato correto do MedusaJS
+                // O formato correto é: { [Modules.PRODUCT]: { product_id }, product_category: { id } }
+                await linkModule.create({
+                  [Modules.PRODUCT]: { product_id: product.id },
+                  product_category: { id: categoryId },
+                });
+                linksCreated++;
+                logger.info(
+                  `[HOOK] productsCreated: ✅ Link criado para categoria ${categoryId} no produto ${productHandle}`,
+                );
+              } catch (linkError) {
+                const errorMessage = linkError instanceof Error ? linkError.message : String(linkError);
+                // Se o erro for de duplicação, significa que já existe - isso é OK
                 if (
-                  key !== Modules.PRODUCT &&
-                  (key.toLowerCase().includes('category') || key.includes('PRODUCT_CATEGORY'))
+                  errorMessage.toLowerCase().includes('already exists') ||
+                  errorMessage.toLowerCase().includes('duplicate') ||
+                  errorMessage.toLowerCase().includes('unique constraint')
                 ) {
-                  try {
-                    await linkModule.delete({
-                      [Modules.PRODUCT]: { product_id: product.id },
-                      [key]: link[key],
-                    });
-                  } catch {
-                    // Ignorar erros ao deletar
-                  }
+                  logger.info(
+                    `[HOOK] productsCreated: ℹ️ Categoria ${categoryId} já está associada ao produto ${productHandle}`,
+                  );
+                  linksCreated++; // Contar como sucesso
+                } else {
+                  logger.warn(
+                    `[HOOK] productsCreated: ⚠️ Erro ao criar link para categoria ${categoryId} no produto ${productHandle}: ${errorMessage}`,
+                  );
                 }
               }
             }
-          } catch {
-            // Ignorar erros ao listar (pode não haver links existentes)
-          }
 
-          // Criar novos links para cada categoria
-          // No MedusaJS, o link entre produto e categoria usa o formato:
-          // { [Modules.PRODUCT]: { product_id }, [Modules.PRODUCT_CATEGORY]: { product_category_id } }
-          // Mas como não temos certeza do nome exato do módulo, vamos tentar diferentes formatos
-          let linksCreated = 0;
-          for (const categoryId of categoryIds) {
-            try {
-              // Formato 1: Tentar com Modules.PRODUCT_CATEGORY (se existir)
-              try {
-                await linkModule.create({
-                  [Modules.PRODUCT]: { product_id: product.id },
-                  product_category: { product_category_id: categoryId },
-                });
-                linksCreated++;
-              } catch {
-                // Formato 2: Tentar com 'product_category' como string
-                try {
-                  await linkModule.create({
-                    [Modules.PRODUCT]: { product_id: product.id },
-                    product_category: { product_category_id: categoryId },
-                  });
-                  linksCreated++;
-                } catch {
-                  // Formato 3: Tentar com 'product_category' e apenas 'id'
-                  try {
-                    await linkModule.create({
-                      [Modules.PRODUCT]: { product_id: product.id },
-                      product_category: { id: categoryId },
-                    });
-                    linksCreated++;
-                  } catch {
-                    logger.warn(
-                      `[HOOK] productsCreated: Não foi possível criar link para categoria ${categoryId} (handle: ${categoryHandles[categoryIds.indexOf(categoryId)]}) no produto ${productHandle}. Tentando próximo formato...`,
-                    );
-                    // Formato 4: Tentar usando apenas o ID da categoria diretamente
-                    try {
-                      await linkModule.create({
-                        [Modules.PRODUCT]: { product_id: product.id },
-                        product_category: { id: categoryId },
-                      });
-                      linksCreated++;
-                    } catch {
-                      logger.error(
-                        `[HOOK] productsCreated: Todos os formatos falharam para categoria ${categoryId} no produto ${productHandle}`,
-                      );
-                    }
-                  }
-                }
-              }
-            } catch (linkError) {
-              logger.warn(
-                `[HOOK] productsCreated: Erro ao criar link para categoria ${categoryId} no produto ${productHandle}: ${linkError}`,
+            if (linksCreated > 0) {
+              productsAssociated++;
+              logger.info(
+                `[HOOK] productsCreated: ✅ Produto "${productHandle}" associado a ${linksCreated}/${categoryIds.length} categorias via Link Module`,
+              );
+            } else if (existingCategoryIds.length > 0) {
+              // Produto já tinha algumas categorias, mas não todas
+              productsAlreadyAssociated++;
+              logger.info(
+                `[HOOK] productsCreated: ℹ️ Produto "${productHandle}" já possui ${existingCategoryIds.length} categorias associadas`,
+              );
+            } else {
+              logger.error(
+                `[HOOK] productsCreated: ❌ Nenhum link foi criado para o produto "${productHandle}" (tentou ${categoryIds.length} categorias)`,
               );
             }
           }
-
-          if (linksCreated > 0) {
-            productsAssociated++;
-            logger.info(
-              `[HOOK] productsCreated: ✅ Produto "${productHandle}" associado a ${linksCreated}/${categoryIds.length} categorias: ${categoryHandles.join(', ')}`,
-            );
-          } else {
-            logger.error(
-              `[HOOK] productsCreated: ❌ Nenhum link foi criado para o produto "${productHandle}" (tentou ${categoryIds.length} categorias)`,
-            );
-          }
         } catch (error) {
-          logger.error(`[HOOK] productsCreated: ❌ Erro ao associar categorias ao produto ${productHandle}:`, error);
+          logger.error(
+            `[HOOK] productsCreated: ❌ Erro ao verificar/associar categorias ao produto ${productHandle}:`,
+            error,
+          );
           if (error instanceof Error) {
             logger.error(`[HOOK] productsCreated: Erro detalhado: ${error.message}`);
             if (error.stack) {
@@ -466,6 +460,9 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
         );
       }
     }
+
+    // Atualizar contador total
+    productsAssociated += productsAlreadyAssociated;
 
     // 8. Associar Sales Channel padrão aos produtos (se não tiverem nenhum)
     logger.info('[HOOK] productsCreated: Associando Sales Channel padrão aos produtos...');
@@ -539,10 +536,67 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
       );
     }
 
+    // 9. Garantir sincronização Algolia para todos os produtos criados/atualizados
+    logger.info('[HOOK] productsCreated: Sincronizando produtos com Algolia...');
+    let algoliaSynced = 0;
+
+    if (areSubscribersEnabled()) {
+      try {
+        const algoliaService = container.resolve(ALGOLIA_MODULE) as AlgoliaModuleService;
+        const supportedLanguages = algoliaService.getSupportedLanguages();
+
+        let regionId: string | undefined;
+        let currencyCode = 'eur';
+
+        try {
+          const regionModule = container.resolve('region');
+          const regions = await regionModule.listRegions({});
+          if (regions && regions.length > 0) {
+            regionId = regions[0].id;
+            currencyCode = regions[0].currency_code || 'eur';
+          }
+        } catch {
+          // Ignorar erro ao buscar região
+        }
+
+        for (const product of products || []) {
+          if (!product.id) continue;
+
+          for (const language of supportedLanguages) {
+            try {
+              await indexProductWorkflow(container).run({
+                input: {
+                  product_id: product.id,
+                  language,
+                  region_id: regionId,
+                  currency_code: currencyCode,
+                },
+              });
+              algoliaSynced++;
+              logger.info(
+                `[HOOK] productsCreated: ✅ Produto ${product.handle || product.id} indexado no Algolia (${language})`,
+              );
+            } catch (algoliaError) {
+              logger.warn(
+                `[HOOK] productsCreated: ⚠️ Erro ao indexar produto ${product.handle || product.id} no Algolia (${language}): ${algoliaError instanceof Error ? algoliaError.message : String(algoliaError)}`,
+              );
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn(
+          `[HOOK] productsCreated: ⚠️ Erro ao processar sincronização Algolia: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    } else {
+      logger.info('[HOOK] productsCreated: ℹ️ Subscribers Algolia desabilitados (feature flag)');
+    }
+
     logger.info('[HOOK] productsCreated: ========================================');
     logger.info(`[HOOK] productsCreated: ✅ Processamento concluído!`);
-    logger.info(`[HOOK] productsCreated:   - Produtos associados a categorias: ${productsAssociated}`);
+    logger.info(`[HOOK] productsCreated:   - Produtos com categorias (já associadas + novas): ${productsAssociated}`);
     logger.info(`[HOOK] productsCreated:   - Produtos associados a Sales Channels: ${salesChannelsAssociated}`);
+    logger.info(`[HOOK] productsCreated:   - Produtos sincronizados com Algolia: ${algoliaSynced}`);
     logger.info(
       `[HOOK] productsCreated:   - Categorias criadas: ${Object.keys(parentCategoriesCreated).length + Object.keys(childCategoriesCreated).length}`,
     );

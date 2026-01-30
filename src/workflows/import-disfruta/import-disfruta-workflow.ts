@@ -3,12 +3,22 @@ import { createProductsWorkflow } from '@medusajs/medusa/core-flows';
 
 import { ensureCategoriesStep } from './steps/ensure-categories-step';
 import { transformDisfrutaExcelStep } from './steps/transform-excel-step';
+import type { TransformedProduct } from './steps/transform-excel-step';
 
 type ImportDisfrutaCatalogInput = {
   filePath: string;
   salesChannelId?: string;
   shippingProfileId?: string;
 };
+
+/**
+ * Remove a propriedade category_handle de um produto transformado
+ */
+function omitCategoryHandle(product: TransformedProduct): Omit<TransformedProduct, 'category_handle'> {
+  const productEntries = Object.entries(product) as Array<[keyof TransformedProduct, unknown]>;
+  const filteredEntries = productEntries.filter(([key]) => key !== 'category_handle');
+  return Object.fromEntries(filteredEntries) as Omit<TransformedProduct, 'category_handle'>;
+}
 
 export const importDisfrutaCatalogWorkflow = createWorkflow(
   'import-disfruta-catalog',
@@ -26,29 +36,28 @@ export const importDisfrutaCatalogWorkflow = createWorkflow(
     });
 
     // Passo 3: Mapear category_handle para category_id nos produtos
-    const productsWithCategoryIds = transform(
-      { transformResult, categoriesResult },
-      (data) => {
-        const products = data.transformResult?.products || [];
-        const categoryHandles = data.categoriesResult?.categoryHandles || new Map();
+    const productsWithCategoryIds = transform({ transformResult, categoriesResult }, (data) => {
+      const products = data.transformResult?.products || [];
+      const categoryHandles = data.categoriesResult?.categoryHandles || new Map();
 
-        if (!Array.isArray(products)) {
-          return [];
-        }
-
-        return products.map((product: any) => {
-          if (product?.category_handle && categoryHandles.has(product.category_handle)) {
-            return {
-              ...product,
-              category_ids: [categoryHandles.get(product.category_handle)],
-              category_handle: undefined, // Remove handle, usa apenas ID
-            };
-          }
-          const { category_handle, ...rest } = product;
-          return rest;
-        });
+      if (!Array.isArray(products)) {
+        return [];
       }
-    );
+
+      return products.map((product: TransformedProduct) => {
+        if (product?.category_handle && categoryHandles.has(product.category_handle)) {
+          const categoryId = categoryHandles.get(product.category_handle);
+          if (!categoryId) {
+            return omitCategoryHandle(product);
+          }
+          return {
+            ...omitCategoryHandle(product),
+            category_ids: [categoryId],
+          };
+        }
+        return omitCategoryHandle(product);
+      });
+    });
 
     // Passo 4: Criar produtos usando workflow oficial
     const createdProducts = createProductsWorkflow().run({
@@ -61,7 +70,7 @@ export const importDisfrutaCatalogWorkflow = createWorkflow(
       transform({ transformResult, createdProducts }, (data) => ({
         products: data.createdProducts || [],
         total: Array.isArray(data.transformResult?.products) ? data.transformResult.products.length : 0,
-      }))
+      })),
     );
-  }
+  },
 );

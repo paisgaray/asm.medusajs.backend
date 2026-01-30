@@ -3,9 +3,9 @@
  * Executa: node src/scripts/product-import/run-etl.js
  */
 
-const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
 
 // Configuração
 const INPUT_EXCEL = path.resolve(__dirname, '../../utils/product-import-template_disfruta_ES_V1.xlsx');
@@ -55,31 +55,63 @@ function normalizePrice(value) {
 
 function extractCategoryHandle(categoryPath) {
   if (!categoryPath || typeof categoryPath !== 'string') return '';
-  
+
   // Primeiro, remove partes após pipe (|) se houver
   let cleanPath = categoryPath;
   if (categoryPath.includes('|')) {
     const partsByPipe = categoryPath.split('|');
     cleanPath = partsByPipe[0].trim(); // Pega apenas a primeira parte antes do pipe
   }
-  
+
   // Depois, separa por » e pega o último elemento (categoria filho)
-  const parts = cleanPath.split('»').map(p => p.trim());
+  const parts = cleanPath.split('»').map((p) => p.trim());
   const lastCategory = parts[parts.length - 1];
-  
+
   return generateHandle(lastCategory);
 }
 
 const OFFICIAL_HEADERS = [
-  'Product Id', 'Product Handle', 'Product Title', 'Product Subtitle', 'Product Description',
-  'Product Status', 'Product Thumbnail', 'Product Weight', 'Product Length', 'Product Width',
-  'Product Height', 'Product HS Code', 'Product Origin Country', 'Product MID Code', 'Product Material',
-  'Product Collection Id', 'Product Type Id', 'Product Tag 1', 'Product Discountable', 'Product External Id',
-  'Variant Id', 'Variant Title', 'Variant SKU', 'Variant Barcode', 'Variant Allow Backorder',
-  'Variant Manage Inventory', 'Variant Weight', 'Variant Length', 'Variant Width', 'Variant Height',
-  'Variant HS Code', 'Variant Origin Country', 'Variant MID Code', 'Variant Material',
-  'Variant Price EUR', 'Variant Price USD', 'Variant Option 1 Name', 'Variant Option 1 Value',
-  'Product Image 1 Url', 'Product Image 2 Url', 'Product Category 1'
+  'Product Id',
+  'Product Handle',
+  'Product Title',
+  'Product Subtitle',
+  'Product Description',
+  'Product Status',
+  'Product Thumbnail',
+  'Product Weight',
+  'Product Length',
+  'Product Width',
+  'Product Height',
+  'Product HS Code',
+  'Product Origin Country',
+  'Product MID Code',
+  'Product Material',
+  'Product Collection Id',
+  'Product Type Id',
+  'Product Tag 1',
+  'Product Discountable',
+  'Product External Id',
+  'Variant Id',
+  'Variant Title',
+  'Variant SKU',
+  'Variant Barcode',
+  'Variant Allow Backorder',
+  'Variant Manage Inventory',
+  'Variant Weight',
+  'Variant Length',
+  'Variant Width',
+  'Variant Height',
+  'Variant HS Code',
+  'Variant Origin Country',
+  'Variant MID Code',
+  'Variant Material',
+  'Variant Price EUR',
+  'Variant Price USD',
+  'Variant Option 1 Name',
+  'Variant Option 1 Value',
+  'Product Image 1 Url',
+  'Product Image 2 Url',
+  'Product Category 1',
 ];
 
 console.log('🚀 Iniciando processamento ETL...\n');
@@ -106,21 +138,23 @@ console.log(`✅ ${rawData.length} linhas encontradas\n`);
 // 2. Processar CSV sanitizado
 console.log('📝 Processando CSV sanitizado...');
 const rawHeaders = Object.keys(rawData[0]);
-const normalizedHeaders = rawHeaders.map(h => h.trim());
+const normalizedHeaders = rawHeaders.map((h) => h.trim());
 const sanitizedRows = [];
 
 for (const row of rawData) {
   const sanitizedRow = {};
-  
+
   for (const header of OFFICIAL_HEADERS) {
     let value = '';
-    const originalIndex = normalizedHeaders.findIndex(h => h === header || h === 'Product Category' && header === 'Product Category 1');
-    
+    const originalIndex = normalizedHeaders.findIndex(
+      (h) => h === header || (h === 'Product Category' && header === 'Product Category 1'),
+    );
+
     if (originalIndex !== -1) {
       const originalHeader = rawHeaders[originalIndex];
       value = row[originalHeader];
     }
-    
+
     if (header === 'Product Handle') {
       value = value || generateHandle(String(row['Product Title'] || ''));
     } else if (header === 'Product Category 1') {
@@ -150,10 +184,10 @@ for (const row of rawData) {
         value = '';
       }
     }
-    
+
     sanitizedRow[header] = value || '';
   }
-  
+
   sanitizedRow['Shipping Profile Id'] = 'REQ_HIDRATACAO';
   sanitizedRow['Product Sales Channel 1'] = 'REQ_HIDRATACAO';
   sanitizedRows.push(sanitizedRow);
@@ -163,17 +197,21 @@ for (const row of rawData) {
 const csvHeaders = [...OFFICIAL_HEADERS, 'Shipping Profile Id', 'Product Sales Channel 1'];
 const csvContent = [
   csvHeaders.join(','),
-  ...sanitizedRows.map(row => csvHeaders.map(h => {
-    const v = String(row[h] || '');
-    return (v.includes(',') || v.includes('"') || v.includes('\n')) ? `"${v.replace(/"/g, '""')}"` : v;
-  }).join(','))
+  ...sanitizedRows.map((row) =>
+    csvHeaders
+      .map((h) => {
+        const v = String(row[h] || '');
+        return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v;
+      })
+      .join(','),
+  ),
 ].join('\n');
 
 fs.writeFileSync(OUTPUT_CSV, csvContent, 'utf-8');
 console.log(`✅ CSV sanitizado salvo: ${OUTPUT_CSV}`);
 console.log(`   - Linhas: ${sanitizedRows.length}`);
-console.log(`   - Handles gerados: ${sanitizedRows.filter(r => r['Product Handle']).length}`);
-console.log(`   - Categorias: ${sanitizedRows.filter(r => r['Product Category 1']).length}\n`);
+console.log(`   - Handles gerados: ${sanitizedRows.filter((r) => r['Product Handle']).length}`);
+console.log(`   - Categorias: ${sanitizedRows.filter((r) => r['Product Category 1']).length}\n`);
 
 // 3. Gerar template de traduções
 console.log('📝 Gerando template de traduções...');
@@ -184,24 +222,26 @@ for (const row of rawData) {
     uniqueProducts.set(title, {
       handle: generateHandle(title),
       title_es: title,
-      description_es: String(row['Product Description'] || '').trim()
+      description_es: String(row['Product Description'] || '').trim(),
     });
   }
 }
 
 const translationsContent = [
   'product_handle,product_title_es,product_title_ca,product_description_ca',
-  ...Array.from(uniqueProducts.values()).map(p => [
-    p.handle,
-    p.title_es,
-    '', // product_title_ca - vazio para preencher
-    ''  // product_description_ca - vazio para preencher
-  ].map(v => {
-    const str = String(v);
-    return (str.includes(',') || str.includes('"') || str.includes('\n')) 
-      ? `"${str.replace(/"/g, '""')}"` 
-      : str;
-  }).join(','))
+  ...Array.from(uniqueProducts.values()).map((p) =>
+    [
+      p.handle,
+      p.title_es,
+      '', // product_title_ca - vazio para preencher
+      '', // product_description_ca - vazio para preencher
+    ]
+      .map((v) => {
+        const str = String(v);
+        return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
+      })
+      .join(','),
+  ),
 ].join('\n');
 
 fs.writeFileSync(OUTPUT_TRANSLATIONS, translationsContent, 'utf-8');
@@ -215,20 +255,20 @@ const categoryMap = new Map();
 for (const row of rawData) {
   let categoryPath = String(row['Product Category'] || '').trim();
   if (!categoryPath || !categoryPath.includes('»')) continue;
-  
+
   // Primeiro, remove partes após pipe (|) se houver
   if (categoryPath.includes('|')) {
     const partsByPipe = categoryPath.split('|');
     categoryPath = partsByPipe[0].trim(); // Pega apenas a primeira parte antes do pipe
   }
-  
-  const parts = categoryPath.split('»').map(p => p.trim());
+
+  const parts = categoryPath.split('»').map((p) => p.trim());
   if (parts.length >= 2) {
     const parentName = parts[0];
     const childName = parts[parts.length - 1];
     const parentHandle = generateHandle(parentName);
     const childHandle = generateHandle(childName);
-    
+
     if (!categoryMap.has(parentHandle)) {
       categoryMap.set(parentHandle, { name: parentName, children: new Map() });
     }
@@ -239,11 +279,13 @@ for (const row of rawData) {
   }
 }
 
-const categoryTree = Array.from(categoryMap.entries()).map(([handle, data]) => ({
-  parent: data.name,
-  handle_pai: handle,
-  children: Array.from(data.children.values())
-})).sort((a, b) => a.parent.localeCompare(b.parent));
+const categoryTree = Array.from(categoryMap.entries())
+  .map(([handle, data]) => ({
+    parent: data.name,
+    handle_pai: handle,
+    children: Array.from(data.children.values()),
+  }))
+  .sort((a, b) => a.parent.localeCompare(b.parent));
 
 fs.writeFileSync(OUTPUT_CATEGORIES, JSON.stringify(categoryTree, null, 2), 'utf-8');
 console.log(`✅ Mapa de categorias salvo: ${OUTPUT_CATEGORIES}`);

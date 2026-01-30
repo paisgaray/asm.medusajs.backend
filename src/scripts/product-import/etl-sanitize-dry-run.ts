@@ -3,10 +3,10 @@
  * Mostra preview das primeiras linhas sem salvar arquivo
  */
 
-import XLSX from 'xlsx';
+import { ExecArgs } from '@medusajs/framework/types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecArgs } from '@medusajs/framework/types';
+import XLSX from 'xlsx';
 
 interface ProductRow {
   [key: string]: string | number | boolean | undefined;
@@ -28,7 +28,7 @@ function generateHandle(title: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function normalizeBoolean(value: any): string {
+function normalizeBoolean(value: unknown): string {
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false';
   }
@@ -47,7 +47,7 @@ function normalizeBoolean(value: any): string {
   return 'false';
 }
 
-function normalizePrice(value: any): string {
+function normalizePrice(value: unknown): string {
   if (value === null || value === undefined || value === '') {
     return '';
   }
@@ -71,7 +71,7 @@ function extractCategoryHandle(categoryPath: string): string {
   if (!categoryPath || typeof categoryPath !== 'string') {
     return '';
   }
-  const parts = categoryPath.split('»').map(p => p.trim());
+  const parts = categoryPath.split('»').map((p) => p.trim());
   const lastCategory = parts[parts.length - 1];
   return generateHandle(lastCategory);
 }
@@ -124,9 +124,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Product Category': 'Product Category 1',
 };
 
-export default async function dryRunSanitize({
-  args,
-}: ExecArgs) {
+export default async function dryRunSanitize({ args }: ExecArgs) {
   const [inputPath] = args;
 
   if (!inputPath) {
@@ -149,10 +147,10 @@ export default async function dryRunSanitize({
     const workbook = XLSX.readFile(inputFile);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
-    const rawData: ProductRow[] = XLSX.utils.sheet_to_json(worksheet, { 
+
+    const rawData: ProductRow[] = XLSX.utils.sheet_to_json(worksheet, {
       defval: '',
-      raw: false
+      raw: false,
     });
 
     if (rawData.length === 0) {
@@ -163,22 +161,20 @@ export default async function dryRunSanitize({
     console.log(`✅ Encontradas ${rawData.length} linhas de dados\n`);
 
     const rawHeaders = Object.keys(rawData[0]);
-    const normalizedHeaders = rawHeaders.map(h => h.trim());
+    const normalizedHeaders = rawHeaders.map((h) => h.trim());
 
     // Processa apenas as primeiras 3 linhas
     const previewRows = rawData.slice(0, 3);
-    const sanitizedRows: any[] = [];
+    const sanitizedRows: ProductRow[] = [];
 
     for (let i = 0; i < previewRows.length; i++) {
       const row = previewRows[i];
-      const sanitizedRow: any = {};
+      const sanitizedRow: ProductRow = {};
 
       for (const header of OFFICIAL_HEADERS) {
-        let value: any = '';
+        let value: unknown = '';
 
-        const originalHeaderIndex = normalizedHeaders.findIndex(h => 
-          h === header || COLUMN_MAPPING[h] === header
-        );
+        const originalHeaderIndex = normalizedHeaders.findIndex((h) => h === header || COLUMN_MAPPING[h] === header);
 
         if (originalHeaderIndex !== -1) {
           const originalHeader = rawHeaders[originalHeaderIndex];
@@ -191,9 +187,11 @@ export default async function dryRunSanitize({
         } else if (header === 'Product Category 1') {
           const categoryPath = row['Product Category'] || value || '';
           value = extractCategoryHandle(String(categoryPath));
-        } else if (header === 'Product Discountable' || 
-                   header === 'Variant Allow Backorder' || 
-                   header === 'Variant Manage Inventory') {
+        } else if (
+          header === 'Product Discountable' ||
+          header === 'Variant Allow Backorder' ||
+          header === 'Variant Manage Inventory'
+        ) {
           value = normalizeBoolean(value);
         } else if (header === 'Variant Price EUR' || header === 'Variant Price USD') {
           value = normalizePrice(value);
@@ -201,7 +199,7 @@ export default async function dryRunSanitize({
           value = value ? String(value) : '';
         }
 
-        sanitizedRow[header] = value || '';
+        sanitizedRow[header] = (value || '') as string | number | boolean | undefined;
       }
 
       sanitizedRows.push(sanitizedRow);
@@ -210,7 +208,7 @@ export default async function dryRunSanitize({
     // Mostra preview
     console.log('📊 PREVIEW DAS PRIMEIRAS 3 LINHAS SANITIZADAS:\n');
     console.log('='.repeat(80));
-    
+
     sanitizedRows.forEach((row, index) => {
       console.log(`\n🔹 LINHA ${index + 1}:`);
       console.log(JSON.stringify(row, null, 2));
@@ -218,14 +216,20 @@ export default async function dryRunSanitize({
     });
 
     console.log(`\n✅ Campos críticos verificados:`);
-    console.log(`   - Product Handle: ${sanitizedRows[0]['Product Handle'] ? '✅ Gerado' : '❌ Vazio'}`);
-    console.log(`   - Product Category 1: ${sanitizedRows[0]['Product Category 1'] ? `✅ ${sanitizedRows[0]['Product Category 1']}` : '❌ Vazio'}`);
-    console.log(`   - Variant Price EUR: ${sanitizedRows[0]['Variant Price EUR'] ? `✅ ${sanitizedRows[0]['Variant Price EUR']}` : '⚠️  Vazio'}`);
-    console.log(`   - Variant Manage Inventory: ${sanitizedRows[0]['Variant Manage Inventory'] ? `✅ ${sanitizedRows[0]['Variant Manage Inventory']}` : '⚠️  Vazio'}`);
-    
+    const firstRow = sanitizedRows[0] as ProductRow;
+    console.log(`   - Product Handle: ${firstRow['Product Handle'] ? '✅ Gerado' : '❌ Vazio'}`);
+    console.log(
+      `   - Product Category 1: ${firstRow['Product Category 1'] ? `✅ ${firstRow['Product Category 1']}` : '❌ Vazio'}`,
+    );
+    console.log(
+      `   - Variant Price EUR: ${firstRow['Variant Price EUR'] ? `✅ ${firstRow['Variant Price EUR']}` : '⚠️  Vazio'}`,
+    );
+    console.log(
+      `   - Variant Manage Inventory: ${firstRow['Variant Manage Inventory'] ? `✅ ${firstRow['Variant Manage Inventory']}` : '⚠️  Vazio'}`,
+    );
+
     console.log(`\n💡 Para salvar o arquivo completo, execute:`);
     console.log(`   npx medusa exec ./src/scripts/product-import/etl-sanitize.ts ${inputPath} <output-csv>`);
-
   } catch (error) {
     console.error('❌ Erro ao processar arquivo:', error);
     process.exit(1);

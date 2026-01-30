@@ -3,14 +3,17 @@
  * Executa: node src/scripts/product-import/analyze-columns.js
  */
 
-const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
 
 // Lê template oficial do MedusaJS
 const templateFile = path.resolve(process.cwd(), 'src/utils/product-import-template (1).csv');
 const templateContent = fs.readFileSync(templateFile, 'utf-8');
-const templateHeaders = templateContent.split('\n')[0].split(',').map(h => h.trim());
+const templateHeaders = templateContent
+  .split('\n')[0]
+  .split(',')
+  .map((h) => h.trim());
 
 // Lê Excel do cliente
 const excelFile = path.resolve(process.cwd(), 'src/utils/product-import-template_disfruta_ES_V1.xlsx');
@@ -18,7 +21,7 @@ const workbook = XLSX.readFile(excelFile);
 const sheetName = workbook.SheetNames[0];
 const worksheet = workbook.Sheets[sheetName];
 const clientData = XLSX.utils.sheet_to_json(worksheet, { defval: '', header: 1 });
-const clientHeaders = clientData[0].map(h => String(h).trim());
+const clientHeaders = clientData[0].map((h) => String(h).trim());
 
 console.log('='.repeat(80));
 console.log('📊 MAPA DE DIFERENÇAS: Cliente vs Template MedusaJS');
@@ -38,9 +41,9 @@ clientHeaders.forEach((h, i) => {
 const templateSet = new Set(templateHeaders);
 const clientSet = new Set(clientHeaders);
 
-const onlyInTemplate = templateHeaders.filter(h => !clientSet.has(h));
-const onlyInClient = clientHeaders.filter(h => !templateSet.has(h));
-const inBoth = templateHeaders.filter(h => clientSet.has(h));
+const onlyInTemplate = templateHeaders.filter((h) => !clientSet.has(h));
+const onlyInClient = clientHeaders.filter((h) => !templateSet.has(h));
+const inBoth = templateHeaders.filter((h) => clientSet.has(h));
 
 console.log('\n' + '='.repeat(80));
 console.log('🔍 ANÁLISE DE DIFERENÇAS');

@@ -1,12 +1,12 @@
 /**
  * Script para traduzir produtos para Catalão usando Translation Module do Medusa v2
- * 
+ *
  * Este script lê um arquivo CSV/JSON com traduções e aplica via API de tradução
- * 
+ *
  * Formato do arquivo de tradução (CSV):
  * Product Handle,Title CA,Description CA
  * kefir-de-oveja-eco,Títol en català,Descripció en català
- * 
+ *
  * Ou JSON:
  * [
  *   {
@@ -15,14 +15,14 @@
  *     "description_ca": "Descripció en català"
  *   }
  * ]
- * 
+ *
  * Uso:
  * npx medusa exec ./src/scripts/product-import/translate-catalan.ts <translations-file> [--dry-run]
  */
 
+import { ExecArgs } from '@medusajs/framework/types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecArgs } from '@medusajs/framework/types';
 
 interface Translation {
   handle: string;
@@ -43,16 +43,15 @@ function readTranslations(filePath: string): Translation[] {
   }
 
   // CSV
-  const lines = content.split('\n').filter(line => line.trim());
+  const lines = content.split('\n').filter((line) => line.trim());
   if (lines.length === 0) {
     return [];
   }
 
-  const headers = lines[0].split(',').map(h => h.trim());
   const translations: Translation[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim());
+    const values = lines[i].split(',').map((v) => v.trim());
     const translation: Translation = {
       handle: values[0] || '',
       title_ca: values[1] || '',
@@ -68,16 +67,15 @@ function readTranslations(filePath: string): Translation[] {
   return translations;
 }
 
-export default async function translateCatalan({
-  container,
-  args,
-}: ExecArgs) {
+export default async function translateCatalan({ container, args }: ExecArgs) {
   const translationsPath = args[0];
   const dryRun = args.includes('--dry-run');
 
   if (!translationsPath) {
     console.error('❌ Erro: Arquivo de traduções não fornecido');
-    console.log('Uso: npx medusa exec ./src/scripts/product-import/translate-catalan.ts <translations-file> [--dry-run]');
+    console.log(
+      'Uso: npx medusa exec ./src/scripts/product-import/translate-catalan.ts <translations-file> [--dry-run]',
+    );
     process.exit(1);
   }
 
@@ -95,7 +93,7 @@ export default async function translateCatalan({
 
   try {
     const translations = readTranslations(translationsFile);
-    
+
     if (translations.length === 0) {
       console.warn('⚠️  Nenhuma tradução encontrada no arquivo');
       return;
@@ -105,7 +103,6 @@ export default async function translateCatalan({
 
     const productModule = container.resolve('product');
     const translationModule = container.resolve('translation');
-    const logger = container.resolve('logger');
 
     let successCount = 0;
     let errorCount = 0;
@@ -163,10 +160,12 @@ export default async function translateCatalan({
 
           console.log(`✅ Traduzido: ${translation.handle}`);
           successCount++;
-        } catch (translationError: any) {
+        } catch (translationError: unknown) {
           // Fallback: usa metadata se Translation Module não funcionar
-          console.warn(`⚠️  Erro no Translation Module, tentando metadata: ${translationError.message}`);
-          
+          const translationErrorMessage =
+            translationError instanceof Error ? translationError.message : String(translationError);
+          console.warn(`⚠️  Erro no Translation Module, tentando metadata: ${translationErrorMessage}`);
+
           try {
             await productModule.updateProducts(product.id, {
               metadata: {
@@ -179,15 +178,16 @@ export default async function translateCatalan({
 
             console.log(`✅ Traduzido (via metadata): ${translation.handle}`);
             successCount++;
-          } catch (metadataError: any) {
-            throw new Error(`Erro ao salvar tradução: ${metadataError.message}`);
+          } catch (metadataError: unknown) {
+            const metadataErrorMessage = metadataError instanceof Error ? metadataError.message : String(metadataError);
+            throw new Error(`Erro ao salvar tradução: ${metadataErrorMessage}`);
           }
         }
-
-      } catch (error: any) {
-        console.error(`❌ Erro ao traduzir ${translation.handle}:`, error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Erro ao traduzir ${translation.handle}:`, errorMessage);
         errorCount++;
-        errors.push({ handle: translation.handle, error: error.message });
+        errors.push({ handle: translation.handle, error: errorMessage });
       }
     }
 
@@ -207,7 +207,6 @@ export default async function translateCatalan({
       console.log(`\n✅ Tradução concluída!`);
       console.log(`\n💡 Verifique os produtos no Admin para confirmar as traduções`);
     }
-
   } catch (error) {
     console.error('❌ Erro ao processar:', error);
     process.exit(1);

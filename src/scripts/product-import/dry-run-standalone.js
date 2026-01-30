@@ -3,9 +3,9 @@
  * Executa: node src/scripts/product-import/dry-run-standalone.js
  */
 
-const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
 
 function generateHandle(title) {
   if (!title || typeof title !== 'string') {
@@ -66,7 +66,7 @@ function extractCategoryHandle(categoryPath) {
   if (!categoryPath || typeof categoryPath !== 'string') {
     return '';
   }
-  const parts = categoryPath.split('»').map(p => p.trim());
+  const parts = categoryPath.split('»').map((p) => p.trim());
   const lastCategory = parts[parts.length - 1];
   return generateHandle(lastCategory);
 }
@@ -85,10 +85,10 @@ try {
   const workbook = XLSX.readFile(inputFile);
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+
+  const rawData = XLSX.utils.sheet_to_json(worksheet, {
     defval: '',
-    raw: false
+    raw: false,
   });
 
   if (rawData.length === 0) {
@@ -97,9 +97,6 @@ try {
   }
 
   console.log(`✅ Encontradas ${rawData.length} linhas de dados\n`);
-
-  const rawHeaders = Object.keys(rawData[0]);
-  const normalizedHeaders = rawHeaders.map(h => h.trim());
 
   // Processa apenas as primeiras 3 linhas
   const previewRows = rawData.slice(0, 3);
@@ -128,7 +125,7 @@ try {
   // Mostra preview
   console.log('📊 PREVIEW DAS PRIMEIRAS 3 LINHAS SANITIZADAS:\n');
   console.log('='.repeat(80));
-  
+
   sanitizedRows.forEach((row, index) => {
     console.log(`\n🔹 LINHA ${index + 1}:`);
     console.log(JSON.stringify(row, null, 2));
@@ -136,15 +133,22 @@ try {
   });
 
   console.log(`\n✅ Campos críticos verificados:`);
-  console.log(`   - Product Handle: ${sanitizedRows[0]['Product Handle'] ? '✅ Gerado: ' + sanitizedRows[0]['Product Handle'] : '❌ Vazio'}`);
-  console.log(`   - Product Category 1: ${sanitizedRows[0]['Product Category 1'] ? '✅ ' + sanitizedRows[0]['Product Category 1'] : '❌ Vazio'}`);
-  console.log(`   - Variant Price EUR: ${sanitizedRows[0]['Variant Price EUR'] ? '✅ ' + sanitizedRows[0]['Variant Price EUR'] : '⚠️  Vazio'}`);
-  console.log(`   - Variant Manage Inventory: ${sanitizedRows[0]['Variant Manage Inventory'] ? '✅ ' + sanitizedRows[0]['Variant Manage Inventory'] : '⚠️  Vazio'}`);
-  
+  console.log(
+    `   - Product Handle: ${sanitizedRows[0]['Product Handle'] ? '✅ Gerado: ' + sanitizedRows[0]['Product Handle'] : '❌ Vazio'}`,
+  );
+  console.log(
+    `   - Product Category 1: ${sanitizedRows[0]['Product Category 1'] ? '✅ ' + sanitizedRows[0]['Product Category 1'] : '❌ Vazio'}`,
+  );
+  console.log(
+    `   - Variant Price EUR: ${sanitizedRows[0]['Variant Price EUR'] ? '✅ ' + sanitizedRows[0]['Variant Price EUR'] : '⚠️  Vazio'}`,
+  );
+  console.log(
+    `   - Variant Manage Inventory: ${sanitizedRows[0]['Variant Manage Inventory'] ? '✅ ' + sanitizedRows[0]['Variant Manage Inventory'] : '⚠️  Vazio'}`,
+  );
+
   console.log(`\n💡 Comparação:`);
   console.log(`   Categoria Original: "${sanitizedRows[0]['Product Category (Original)']}"`);
   console.log(`   Categoria Sanitizada: "${sanitizedRows[0]['Product Category 1']}"`);
-
 } catch (error) {
   console.error('❌ Erro ao processar arquivo:', error);
   process.exit(1);

@@ -1,14 +1,14 @@
 /**
  * Script de ETL Standalone - Não requer conexão com banco
  * Gera CSV sanitizado a partir do Excel do cliente
- * 
+ *
  * Uso: npx medusa exec ./src/scripts/product-import/etl-sanitize-standalone.ts <input-excel> <output-csv>
  */
 
-import XLSX from 'xlsx';
+import { ExecArgs } from '@medusajs/framework/types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecArgs } from '@medusajs/framework/types';
+import XLSX from 'xlsx';
 
 interface ProductRow {
   [key: string]: string | number | boolean | undefined;
@@ -30,7 +30,7 @@ function generateHandle(title: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function normalizeBoolean(value: any): string {
+function normalizeBoolean(value: unknown): string {
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false';
   }
@@ -49,7 +49,7 @@ function normalizeBoolean(value: any): string {
   return 'false';
 }
 
-function normalizePrice(value: any): string {
+function normalizePrice(value: unknown): string {
   if (value === null || value === undefined || value === '') {
     return '';
   }
@@ -73,7 +73,7 @@ function extractCategoryHandle(categoryPath: string): string {
   if (!categoryPath || typeof categoryPath !== 'string') {
     return '';
   }
-  const parts = categoryPath.split('»').map(p => p.trim());
+  const parts = categoryPath.split('»').map((p) => p.trim());
   const lastCategory = parts[parts.length - 1];
   return generateHandle(lastCategory);
 }
@@ -126,19 +126,19 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Product Category': 'Product Category 1',
 };
 
-export default async function sanitizeExcel({
-  args,
-}: ExecArgs) {
+export default async function sanitizeExcel({ args }: ExecArgs) {
   const [inputPath, outputPath] = args;
 
   if (!inputPath) {
     console.error('❌ Erro: Caminho do arquivo Excel não fornecido');
-    console.log('Uso: npx medusa exec ./src/scripts/product-import/etl-sanitize-standalone.ts <input-excel> <output-csv>');
+    console.log(
+      'Uso: npx medusa exec ./src/scripts/product-import/etl-sanitize-standalone.ts <input-excel> <output-csv>',
+    );
     process.exit(1);
   }
 
   const inputFile = path.resolve(process.cwd(), inputPath);
-  const outputFile = outputPath 
+  const outputFile = outputPath
     ? path.resolve(process.cwd(), outputPath)
     : path.resolve(process.cwd(), 'src/utils/product-import-CHECK-FINAL.csv');
 
@@ -153,10 +153,10 @@ export default async function sanitizeExcel({
     const workbook = XLSX.readFile(inputFile);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
-    const rawData: ProductRow[] = XLSX.utils.sheet_to_json(worksheet, { 
+
+    const rawData: ProductRow[] = XLSX.utils.sheet_to_json(worksheet, {
       defval: '',
-      raw: false
+      raw: false,
     });
 
     if (rawData.length === 0) {
@@ -167,7 +167,7 @@ export default async function sanitizeExcel({
     console.log(`✅ Encontradas ${rawData.length} linhas de dados`);
 
     const rawHeaders = Object.keys(rawData[0]);
-    const normalizedHeaders = rawHeaders.map(h => h.trim());
+    const normalizedHeaders = rawHeaders.map((h) => h.trim());
 
     const sanitizedRows: ProductRow[] = [];
 
@@ -176,11 +176,9 @@ export default async function sanitizeExcel({
       const sanitizedRow: ProductRow = {};
 
       for (const header of OFFICIAL_HEADERS) {
-        let value: any = '';
+        let value: string | number | boolean | undefined = '';
 
-        const originalHeaderIndex = normalizedHeaders.findIndex(h => 
-          h === header || COLUMN_MAPPING[h] === header
-        );
+        const originalHeaderIndex = normalizedHeaders.findIndex((h) => h === header || COLUMN_MAPPING[h] === header);
 
         if (originalHeaderIndex !== -1) {
           const originalHeader = rawHeaders[originalHeaderIndex];
@@ -194,9 +192,11 @@ export default async function sanitizeExcel({
         } else if (header === 'Product Category 1') {
           const categoryPath = row['Product Category'] || value || '';
           value = extractCategoryHandle(String(categoryPath));
-        } else if (header === 'Product Discountable' || 
-                   header === 'Variant Allow Backorder' || 
-                   header === 'Variant Manage Inventory') {
+        } else if (
+          header === 'Product Discountable' ||
+          header === 'Variant Allow Backorder' ||
+          header === 'Variant Manage Inventory'
+        ) {
           value = normalizeBoolean(value);
         } else if (header === 'Variant Price EUR' || header === 'Variant Price USD') {
           value = normalizePrice(value);
@@ -215,14 +215,10 @@ export default async function sanitizeExcel({
     }
 
     // Cria CSV
-    const csvHeaders = [
-      ...OFFICIAL_HEADERS,
-      'Shipping Profile Id',
-      'Product Sales Channel 1',
-    ];
+    const csvHeaders = [...OFFICIAL_HEADERS, 'Shipping Profile Id', 'Product Sales Channel 1'];
 
-    const csvRows = sanitizedRows.map(row => {
-      return csvHeaders.map(header => {
+    const csvRows = sanitizedRows.map((row) => {
+      return csvHeaders.map((header) => {
         const value = row[header] || '';
         if (String(value).includes(',') || String(value).includes('"') || String(value).includes('\n')) {
           return `"${String(value).replace(/"/g, '""')}"`;
@@ -231,23 +227,19 @@ export default async function sanitizeExcel({
       });
     });
 
-    const csvContent = [
-      csvHeaders.join(','),
-      ...csvRows.map(row => row.join(','))
-    ].join('\n');
+    const csvContent = [csvHeaders.join(','), ...csvRows.map((row) => row.join(','))].join('\n');
 
     fs.writeFileSync(outputFile, csvContent, 'utf-8');
 
     console.log(`✅ Arquivo sanitizado salvo em: ${outputFile}`);
     console.log(`📊 Estatísticas:`);
     console.log(`   - Linhas processadas: ${sanitizedRows.length}`);
-    console.log(`   - Handles gerados: ${sanitizedRows.filter(r => r['Product Handle']).length}`);
-    console.log(`   - Categorias extraídas: ${sanitizedRows.filter(r => r['Product Category 1']).length}`);
+    console.log(`   - Handles gerados: ${sanitizedRows.filter((r) => r['Product Handle']).length}`);
+    console.log(`   - Categorias extraídas: ${sanitizedRows.filter((r) => r['Product Category 1']).length}`);
     console.log(`\n⚠️  PRÓXIMOS PASSOS:`);
     console.log(`   1. Hidrate os IDs de Sales Channel e Shipping Profile usando o script de hidratação`);
     console.log(`   2. Crie as categorias no Admin antes do import`);
     console.log(`   3. Valide o CSV manualmente antes de subir para produção`);
-
   } catch (error) {
     console.error('❌ Erro ao processar arquivo:', error);
     process.exit(1);

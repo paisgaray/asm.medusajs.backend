@@ -22,7 +22,7 @@ function generateHandle(title: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function normalizeBoolean(value: any): boolean {
+function normalizeBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
     const lower = value.toLowerCase().trim();
@@ -66,18 +66,18 @@ function extractCategoryHandle(categoryPath: string): string {
   if (!categoryPath || typeof categoryPath !== 'string') {
     return '';
   }
-  
+
   // Primeiro, remove partes após pipe (|) se houver
   let cleanPath = categoryPath;
   if (categoryPath.includes('|')) {
     const partsByPipe = categoryPath.split('|');
     cleanPath = partsByPipe[0].trim(); // Pega apenas a primeira parte antes do pipe
   }
-  
+
   // Depois, separa por » e pega o último elemento (categoria filho)
-  const parts = cleanPath.split('»').map(p => p.trim());
+  const parts = cleanPath.split('»').map((p) => p.trim());
   const lastCategory = parts[parts.length - 1];
-  
+
   return generateHandle(lastCategory);
 }
 
@@ -87,12 +87,12 @@ type TransformExcelStepInput = {
   shippingProfileId?: string;
 };
 
-type TransformedProduct = {
+export type TransformedProduct = {
   title: string;
   handle: string;
   subtitle?: string;
   description?: string;
-  status: string;
+  status: ProductStatus;
   thumbnail?: string;
   weight?: number;
   length?: number;
@@ -140,7 +140,7 @@ export const transformDisfrutaExcelStep = createStep(
   'transform-disfruta-excel-step',
   async (input: TransformExcelStepInput, { container }) => {
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
-    
+
     if (!fs.existsSync(input.filePath)) {
       throw new Error(`Arquivo não encontrado: ${input.filePath}`);
     }
@@ -151,9 +151,9 @@ export const transformDisfrutaExcelStep = createStep(
     const workbook = XLSX.readFile(input.filePath);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const rawData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet, { 
+    const rawData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet, {
       defval: '',
-      raw: false
+      raw: false,
     });
 
     if (rawData.length === 0) {
@@ -169,30 +169,46 @@ export const transformDisfrutaExcelStep = createStep(
     if (!salesChannelId || !shippingProfileId) {
       try {
         if (!salesChannelId) {
-          const salesChannelModule = container.resolve('salesChannel') as any;
-          const salesChannels = await salesChannelModule.listSalesChannels({});
-          if (salesChannels && salesChannels.length > 0) {
-            const defaultChannel = salesChannels.find((sc: any) => 
-              sc.name?.toLowerCase().includes('default') || sc.is_default === true
-            ) || salesChannels[0];
-            salesChannelId = defaultChannel.id;
-            logger.info(`Sales Channel encontrado: ${defaultChannel.name} (${salesChannelId})`);
+          type SalesChannelModule = {
+            listSalesChannels?: (
+              filters: Record<string, unknown>,
+            ) => Promise<Array<{ id: string; name?: string; is_default?: boolean }>>;
+          };
+          const salesChannelModule = container.resolve('salesChannel') as SalesChannelModule;
+          if (salesChannelModule.listSalesChannels) {
+            const salesChannels = await salesChannelModule.listSalesChannels({});
+            if (salesChannels && salesChannels.length > 0) {
+              const defaultChannel =
+                salesChannels.find((sc) => sc.name?.toLowerCase().includes('default') || sc.is_default === true) ||
+                salesChannels[0];
+              if (defaultChannel?.id) {
+                salesChannelId = defaultChannel.id;
+                logger.info(`Sales Channel encontrado: ${defaultChannel.name || 'N/A'} (${salesChannelId})`);
+              }
+            }
           }
         }
 
         if (!shippingProfileId) {
-          const shippingProfileModule = container.resolve('shippingProfile') as any;
-          const shippingProfiles = await shippingProfileModule.listShippingProfiles({});
-          if (shippingProfiles && shippingProfiles.length > 0) {
-            const defaultProfile = shippingProfiles.find((sp: any) => 
-              sp.name?.toLowerCase().includes('default')
-            ) || shippingProfiles[0];
-            shippingProfileId = defaultProfile.id;
-            logger.info(`Shipping Profile encontrado: ${defaultProfile.name} (${shippingProfileId})`);
+          type ShippingProfileModule = {
+            listShippingProfiles?: (filters: Record<string, unknown>) => Promise<Array<{ id: string; name?: string }>>;
+          };
+          const shippingProfileModule = container.resolve('shippingProfile') as ShippingProfileModule;
+          if (shippingProfileModule.listShippingProfiles) {
+            const shippingProfiles = await shippingProfileModule.listShippingProfiles({});
+            if (shippingProfiles && shippingProfiles.length > 0) {
+              const defaultProfile =
+                shippingProfiles.find((sp) => sp.name?.toLowerCase().includes('default')) || shippingProfiles[0];
+              if (defaultProfile?.id) {
+                shippingProfileId = defaultProfile.id;
+                logger.info(`Shipping Profile encontrado: ${defaultProfile.name || 'N/A'} (${shippingProfileId})`);
+              }
+            }
           }
         }
-      } catch (error: any) {
-        logger.warn(`Erro ao buscar IDs do banco: ${error.message}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn(`Erro ao buscar IDs do banco: ${errorMessage}`);
       }
     }
 
@@ -223,7 +239,7 @@ export const transformDisfrutaExcelStep = createStep(
           const childName = parts[parts.length - 1];
           const parentHandle = generateHandle(parentName);
           const childHandle = generateHandle(childName);
-          
+
           if (!categoryMap.has(childHandle)) {
             categoryMap.set(childHandle, { parent: parentHandle, child: childHandle });
           }
@@ -237,7 +253,7 @@ export const transformDisfrutaExcelStep = createStep(
     for (const [title, rows] of productsMap.entries()) {
       const firstRow = rows[0] as Record<string, unknown>;
       const handle = generateHandle(title);
-      
+
       // Coleta imagens
       const images: Array<{ url: string }> = [];
       if (firstRow['Product Thumbnail']) {

@@ -22,6 +22,27 @@ type NormalizeCsvToBatchRequestStepOutput = {
   update: UpdateProductData[];
 };
 
+/**
+ * Normaliza tipos numéricos nas variantes (weight, length, width, height)
+ */
+function normalizeVariantNumericFields(variant: Record<string, unknown>): Record<string, unknown> {
+  const normalized = { ...variant };
+
+  // Converter campos numéricos de string para number
+  const numericFields = ['weight', 'length', 'width', 'height'];
+  for (const field of numericFields) {
+    if (normalized[field] !== undefined && normalized[field] !== null) {
+      const value = normalized[field];
+      if (typeof value === 'string') {
+        const numValue = parseFloat(value);
+        normalized[field] = isNaN(numValue) ? undefined : numValue;
+      }
+    }
+  }
+
+  return normalized;
+}
+
 export const normalizeCsvToBatchRequestStep = createStep(
   'normalize-csv-to-batch-request',
   async (input: NormalizeCsvToBatchRequestStepInput, { container }) => {
@@ -196,17 +217,18 @@ export const normalizeCsvToBatchRequestStep = createStep(
               }
             }
 
-            // Atualizar variantes existentes com seus IDs
+            // Atualizar variantes existentes com seus IDs e normalizar tipos numéricos
             if (productData.variants && Array.isArray(productData.variants)) {
               productData.variants = productData.variants.map(
                 (variant: { sku?: string; id?: string; [key: string]: unknown }) => {
+                  let normalizedVariant = normalizeVariantNumericFields(variant);
                   if (variant.sku && existingVariantsBySku.has(variant.sku)) {
-                    return {
-                      ...variant,
+                    normalizedVariant = {
+                      ...normalizedVariant,
                       id: existingVariantsBySku.get(variant.sku),
                     };
                   }
-                  return variant;
+                  return normalizedVariant;
                 },
               );
             }
@@ -225,6 +247,12 @@ export const normalizeCsvToBatchRequestStep = createStep(
         } else {
           // Produto não existe, criar
           try {
+            // Normalizar tipos numéricos nas variantes antes de validar
+            if (productData.variants && Array.isArray(productData.variants)) {
+              productData.variants = productData.variants.map((variant) =>
+                normalizeVariantNumericFields(variant as Record<string, unknown>),
+              );
+            }
             const validated = productValidators.CreateProduct.parse(productData);
             productsToCreate.push(validated);
           } catch (error) {
@@ -238,7 +266,14 @@ export const normalizeCsvToBatchRequestStep = createStep(
       // Processar produtos que o normalizer já marcou para atualizar
       for (const updateId of Object.keys(products.toUpdate)) {
         try {
-          const validated = productValidators.UpdateProduct.parse(products.toUpdate[updateId]);
+          const updateProduct = products.toUpdate[updateId];
+          // Normalizar tipos numéricos nas variantes antes de validar
+          if (updateProduct.variants && Array.isArray(updateProduct.variants)) {
+            updateProduct.variants = updateProduct.variants.map((variant) =>
+              normalizeVariantNumericFields(variant as Record<string, unknown>),
+            );
+          }
+          const validated = productValidators.UpdateProduct.parse(updateProduct);
           productsToUpdate.push(validated);
         } catch (error) {
           logger.warn(

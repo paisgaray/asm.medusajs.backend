@@ -1,6 +1,6 @@
 /**
  * Script de ETL para sanitizar arquivo Excel do cliente para CSV formatado do MedusaJS
- * 
+ *
  * Transformações aplicadas:
  * - Geração de Handles (kebab-case, sem acentos)
  * - Normalização de moeda (ponto decimal US)
@@ -8,14 +8,15 @@
  * - Renomeação de colunas (Product Category -> Product Category 1)
  * - Remoção de colunas não oficiais
  * - Parsing de categorias hierárquicas
- * 
+ *
  * Uso:
  * npx medusa exec ./src/scripts/product-import/etl-sanitize.ts <input-excel> <output-csv>
  */
 
-import XLSX from 'xlsx';
+import { ExecArgs } from '@medusajs/framework/types';
 import * as fs from 'fs';
 import * as path from 'path';
+import XLSX from 'xlsx';
 
 interface ProductRow {
   [key: string]: string | number | boolean | undefined;
@@ -45,11 +46,11 @@ function generateHandle(title: string): string {
 /**
  * Normaliza valor booleano para string "true" ou "false"
  */
-function normalizeBoolean(value: any): string {
+function normalizeBoolean(value: unknown): string {
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false';
   }
-  
+
   if (typeof value === 'string') {
     const lower = value.toLowerCase().trim();
     if (lower === 'true' || lower === 'verdadeiro' || lower === 'sim' || lower === 'yes' || lower === '1') {
@@ -59,43 +60,43 @@ function normalizeBoolean(value: any): string {
       return 'false';
     }
   }
-  
+
   if (typeof value === 'number') {
     return value === 1 ? 'true' : 'false';
   }
-  
+
   return 'false';
 }
 
 /**
  * Normaliza preço para formato US (ponto decimal)
  */
-function normalizePrice(value: any): string {
+function normalizePrice(value: unknown): string {
   if (value === null || value === undefined || value === '') {
     return '';
   }
-  
+
   // Se já é número, formata com ponto
   if (typeof value === 'number') {
     return value.toFixed(2);
   }
-  
+
   // Se é string, tenta converter
   if (typeof value === 'string') {
     // Remove espaços e caracteres não numéricos exceto ponto e vírgula
     let cleaned = value.trim().replace(/[^\d.,-]/g, '');
-    
+
     // Se tem vírgula, assume formato europeu (12,50)
     if (cleaned.includes(',')) {
       cleaned = cleaned.replace(/\./g, '').replace(',', '.');
     }
-    
+
     const num = parseFloat(cleaned);
     if (!isNaN(num)) {
       return num.toFixed(2);
     }
   }
-  
+
   return '';
 }
 
@@ -108,18 +109,18 @@ function extractCategoryHandle(categoryPath: string): string {
   if (!categoryPath || typeof categoryPath !== 'string') {
     return '';
   }
-  
+
   // Primeiro, remove partes após pipe (|) se houver
   let cleanPath = categoryPath;
   if (categoryPath.includes('|')) {
     const partsByPipe = categoryPath.split('|');
     cleanPath = partsByPipe[0].trim(); // Pega apenas a primeira parte antes do pipe
   }
-  
+
   // Depois, separa por » e pega o último elemento (categoria filho)
-  const parts = cleanPath.split('»').map(p => p.trim());
+  const parts = cleanPath.split('»').map((p) => p.trim());
   const lastCategory = parts[parts.length - 1];
-  
+
   return generateHandle(lastCategory);
 }
 
@@ -179,11 +180,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Product Sales Channel 1': 'Product Sales Channel 1', // Mantém para hidratação posterior
 };
 
-import { ExecArgs } from '@medusajs/framework/types';
-
-export default async function sanitizeExcel({
-  args,
-}: ExecArgs) {
+export default async function sanitizeExcel({ args }: ExecArgs) {
   const [inputPath, outputPath] = args;
 
   if (!inputPath) {
@@ -193,7 +190,7 @@ export default async function sanitizeExcel({
   }
 
   const inputFile = path.resolve(process.cwd(), inputPath);
-  const outputFile = outputPath 
+  const outputFile = outputPath
     ? path.resolve(process.cwd(), outputPath)
     : path.resolve(process.cwd(), 'src/utils/product-import-sanitized.csv');
 
@@ -209,11 +206,11 @@ export default async function sanitizeExcel({
     const workbook = XLSX.readFile(inputFile);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
+
     // Converte para JSON
-    const rawData: ProductRow[] = XLSX.utils.sheet_to_json(worksheet, { 
+    const rawData: ProductRow[] = XLSX.utils.sheet_to_json(worksheet, {
       defval: '',
-      raw: false // Força tudo como string para evitar problemas de tipo
+      raw: false, // Força tudo como string para evitar problemas de tipo
     });
 
     if (rawData.length === 0) {
@@ -225,7 +222,7 @@ export default async function sanitizeExcel({
 
     // Normaliza headers (remove espaços extras)
     const rawHeaders = Object.keys(rawData[0]);
-    const normalizedHeaders = rawHeaders.map(h => h.trim());
+    const normalizedHeaders = rawHeaders.map((h) => h.trim());
 
     // Processa cada linha
     const sanitizedRows: ProductRow[] = [];
@@ -236,12 +233,10 @@ export default async function sanitizeExcel({
 
       // Processa cada coluna oficial
       for (const header of OFFICIAL_HEADERS) {
-        let value: any = '';
+        let value: string | number | boolean | undefined = '';
 
         // Tenta encontrar o valor na coluna original
-        const originalHeaderIndex = normalizedHeaders.findIndex(h => 
-          h === header || COLUMN_MAPPING[h] === header
-        );
+        const originalHeaderIndex = normalizedHeaders.findIndex((h) => h === header || COLUMN_MAPPING[h] === header);
 
         if (originalHeaderIndex !== -1) {
           const originalHeader = rawHeaders[originalHeaderIndex];
@@ -257,9 +252,11 @@ export default async function sanitizeExcel({
           // Extrai handle da categoria hierárquica
           const categoryPath = row['Product Category'] || value || '';
           value = extractCategoryHandle(String(categoryPath));
-        } else if (header === 'Product Discountable' || 
-                   header === 'Variant Allow Backorder' || 
-                   header === 'Variant Manage Inventory') {
+        } else if (
+          header === 'Product Discountable' ||
+          header === 'Variant Allow Backorder' ||
+          header === 'Variant Manage Inventory'
+        ) {
           // Normaliza booleanos
           value = normalizeBoolean(value);
         } else if (header === 'Variant Price EUR' || header === 'Variant Price USD') {
@@ -309,8 +306,8 @@ export default async function sanitizeExcel({
       'Product Sales Channel 1', // Adiciona para hidratação
     ];
 
-    const csvRows = sanitizedRows.map(row => {
-      return csvHeaders.map(header => {
+    const csvRows = sanitizedRows.map((row) => {
+      return csvHeaders.map((header) => {
         const value = row[header] || '';
         // Escapa valores que contêm vírgulas ou aspas
         if (String(value).includes(',') || String(value).includes('"') || String(value).includes('\n')) {
@@ -320,10 +317,7 @@ export default async function sanitizeExcel({
       });
     });
 
-    const csvContent = [
-      csvHeaders.join(','),
-      ...csvRows.map(row => row.join(','))
-    ].join('\n');
+    const csvContent = [csvHeaders.join(','), ...csvRows.map((row) => row.join(','))].join('\n');
 
     // Salva arquivo
     fs.writeFileSync(outputFile, csvContent, 'utf-8');
@@ -331,14 +325,13 @@ export default async function sanitizeExcel({
     console.log(`✅ Arquivo sanitizado salvo em: ${outputFile}`);
     console.log(`📊 Estatísticas:`);
     console.log(`   - Linhas processadas: ${sanitizedRows.length}`);
-    console.log(`   - Handles gerados: ${sanitizedRows.filter(r => r['Product Handle']).length}`);
-    console.log(`   - Categorias extraídas: ${sanitizedRows.filter(r => r['Product Category 1']).length}`);
-    
+    console.log(`   - Handles gerados: ${sanitizedRows.filter((r) => r['Product Handle']).length}`);
+    console.log(`   - Categorias extraídas: ${sanitizedRows.filter((r) => r['Product Category 1']).length}`);
+
     console.log(`\n⚠️  PRÓXIMOS PASSOS:`);
     console.log(`   1. Hidrate os IDs de Sales Channel e Shipping Profile usando o script de hidratação`);
     console.log(`   2. Crie as categorias no Admin antes do import`);
     console.log(`   3. Valide o CSV localmente antes de subir para produção`);
-
   } catch (error) {
     console.error('❌ Erro ao processar arquivo:', error);
     process.exit(1);

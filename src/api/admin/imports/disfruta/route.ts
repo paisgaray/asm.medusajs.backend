@@ -1,7 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { IncomingForm } from 'formidable';
 import * as fs from 'fs';
 import * as path from 'path';
-import { IncomingForm } from 'formidable';
 import { promisify } from 'util';
 
 import { importDisfrutaCatalogWorkflow } from '../../../../workflows/import-disfruta/import-disfruta-workflow';
@@ -25,7 +25,7 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
     const [fields, files] = await parseForm(req);
 
     const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file;
-    
+
     if (!uploadedFile) {
       return res.status(400).json({
         error: 'Arquivo não fornecido. Use o campo "file" no form-data.',
@@ -45,9 +45,7 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
     }
 
     // Extrai IDs opcionais do body
-    const salesChannelId = Array.isArray(fields.salesChannelId) 
-      ? fields.salesChannelId[0] 
-      : fields.salesChannelId;
+    const salesChannelId = Array.isArray(fields.salesChannelId) ? fields.salesChannelId[0] : fields.salesChannelId;
     const shippingProfileId = Array.isArray(fields.shippingProfileId)
       ? fields.shippingProfileId[0]
       : fields.shippingProfileId;
@@ -72,11 +70,13 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
       products: result.products,
       message: `Importados ${result.total} produtos com sucesso`,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     res.status(500).json({
       error: 'Erro ao processar importação',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      message: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
     });
   }
 }

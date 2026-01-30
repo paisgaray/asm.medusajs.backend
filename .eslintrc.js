@@ -12,6 +12,13 @@ module.exports = {
         project: "./src/admin/tsconfig.json",
         sourceType: "module"
       }
+    },
+    {
+      files: ["src/scripts/product-import/**/*"],
+      parserOptions: {
+        project: null,
+        sourceType: "module"
+      }
     }
   ],
   rules: {

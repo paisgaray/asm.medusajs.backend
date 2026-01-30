@@ -31,6 +31,7 @@
     "node_modules",
     ".medusa/*",
     ".cache",
-    "src/admin"
+    "src/admin",
+    "src/scripts/product-import"
   ]
 }

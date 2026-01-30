@@ -374,9 +374,10 @@ export const normalizeCsvWithCategoriesStep = createStep(
       );
 
       // 9. Remover coluna "Product Category" do CSV e adicionar "Product Category 1", "Product Category 2", etc. com IDs
-      // Também converter preços de EUR para centavos (MedusaJS armazena preços em centavos)
+      // NOTA: NÃO converter preços aqui! O CSVNormalizer do MedusaJS espera preços em formato decimal (18.75)
+      // e faz a conversão para centavos internamente. Se convertermos aqui, os preços ficarão 100x maiores.
       logger.info(
-        '[STEP] normalizeCsvWithCategories: Modificando CSV (removendo Product Category, adicionando Product Category 1, 2, etc., convertendo preços)...',
+        '[STEP] normalizeCsvWithCategories: Modificando CSV (removendo Product Category, adicionando Product Category 1, 2, etc.)...',
       );
       const modifiedLines: string[] = [];
 
@@ -402,9 +403,8 @@ export const normalizeCsvWithCategoriesStep = createStep(
         modifiedHeaders.splice(insertIndex + i - 1, 0, `Product Category ${i}`);
       }
 
-      // Encontrar índices das colunas de preço
-      const priceEurIndex = headers.indexOf('Variant Price EUR');
-      const priceUsdIndex = headers.indexOf('Variant Price USD');
+      // NOTA: Não processamos preços aqui - o CSVNormalizer do MedusaJS espera preços em formato decimal
+      // (ex: 18.75) e faz a conversão para centavos internamente
 
       modifiedLines.push(modifiedHeaders.map((h) => `"${h}"`).join(','));
 
@@ -439,43 +439,11 @@ export const normalizeCsvWithCategoriesStep = createStep(
         const handleIndex = headers.indexOf('Product Handle');
         const productHandle = handleIndex >= 0 ? values[handleIndex] : null;
 
-        // Converter preços de EUR para centavos ANTES de modificar o array (MedusaJS armazena em centavos)
-        // Exemplo: 18.75 EUR -> 1875 centavos
-        if (priceEurIndex >= 0 && priceEurIndex < values.length) {
-          const priceEurValue = values[priceEurIndex];
-          if (priceEurValue && priceEurValue.trim()) {
-            try {
-              // Remover vírgulas e converter para número
-              const priceInEur = parseFloat(priceEurValue.replace(',', '.'));
-              if (!isNaN(priceInEur) && priceInEur > 0) {
-                // Converter para centavos (multiplicar por 100)
-                const priceInCents = Math.round(priceInEur * 100);
-                values[priceEurIndex] = String(priceInCents);
-                logger.info(
-                  `[STEP] normalizeCsvWithCategories: Preço convertido: ${priceInEur} EUR -> ${priceInCents} centavos (handle: ${productHandle})`,
-                );
-              }
-            } catch (error) {
-              logger.warn(`[STEP] normalizeCsvWithCategories: Erro ao converter preço EUR para centavos: ${error}`);
-            }
-          }
-        }
-
-        // Converter preços de USD para centavos (se existir)
-        if (priceUsdIndex >= 0 && priceUsdIndex < values.length) {
-          const priceUsdValue = values[priceUsdIndex];
-          if (priceUsdValue && priceUsdValue.trim()) {
-            try {
-              const priceInUsd = parseFloat(priceUsdValue.replace(',', '.'));
-              if (!isNaN(priceInUsd) && priceInUsd > 0) {
-                const priceInCents = Math.round(priceInUsd * 100);
-                values[priceUsdIndex] = String(priceInCents);
-              }
-            } catch (error) {
-              logger.warn(`[STEP] normalizeCsvWithCategories: Erro ao converter preço USD para centavos: ${error}`);
-            }
-          }
-        }
+        // NOTA: NÃO converter preços para centavos aqui!
+        // O CSVNormalizer do MedusaJS espera preços em formato decimal (ex: 18.75) e faz a conversão
+        // para centavos internamente. Se convertermos aqui, o CSVNormalizer interpretará 1875 como
+        // 1875 EUR, resultando em preços 100x maiores.
+        // Deixar os preços como estão no CSV original (formato decimal: 18.75)
 
         // Remover valor da coluna Product Category
         const modifiedValues = [...values];

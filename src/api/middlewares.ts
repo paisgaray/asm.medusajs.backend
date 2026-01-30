@@ -5,6 +5,7 @@ import { bundledProductsMiddlewares } from './admin/bundled-products/middleware'
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
+import { paymentMethodsMiddlewares } from './store/payment-methods/middleware';
 import { productSearchMiddlewares } from './store/products/search/middleware';
 import { wishlistMiddlewares } from './store/wishlist/middleware';
 
@@ -26,5 +27,6 @@ export default defineMiddlewares({
     // NOTA: Removido middleware multer para /admin/products/imports
     // O Admin UI envia arquivo via URL no body, não via multipart/form-data
     // Se necessário, podemos adicionar de volta para suportar ambos os formatos
+    ...paymentMethodsMiddlewares,
   ],
 });

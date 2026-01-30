@@ -125,6 +125,7 @@ modules.push(
   },
 );
 
+// File Module: SEMPRE registrar (S3 se configurado, senão local)
 if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
   modules.push({
     resolve: '@medusajs/medusa/file',
@@ -148,6 +149,37 @@ if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
       ],
     },
   });
+} else {
+  // File provider local para desenvolvimento (SEMPRE registrar se não houver S3)
+  // Conforme documentação: https://docs.medusajs.com/resources/modules/file
+  modules.push({
+    resolve: '@medusajs/medusa/file',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/file-local',
+          id: 'local',
+          options: {
+            // Opções opcionais em dev - o provider local usa uploads/ por padrão
+          },
+        },
+      ],
+    },
+  });
+}
+
+// Log para verificar se File Module está sendo registrado
+const hasFileModule = modules.some((m) => {
+  if (typeof m === 'object' && m !== null && 'resolve' in m) {
+    return (m as { resolve?: string }).resolve === '@medusajs/medusa/file';
+  }
+  return false;
+});
+if (hasFileModule) {
+  console.log('[medusa-config] ✅ File Module registrado no array de modules');
+} else {
+  console.warn('[medusa-config] ⚠️ File Module NÃO encontrado no array de modules!');
+  console.log('[medusa-config] Total de módulos:', modules.length);
 }
 
 export default defineConfig({

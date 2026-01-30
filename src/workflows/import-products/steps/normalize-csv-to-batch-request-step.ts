@@ -114,6 +114,9 @@ export const normalizeCsvToBatchRequestStep = createStep(
         `[STEP] normalizeCsvToBatchRequest: Verificando ${handlesToCheck.length} handles e ${skusToCheck.length} SKUs no banco...`,
       );
 
+      // NOTA: Sales Channels serão associados via Link Module no hook on-products-imported-with-categories.ts
+      // Não podemos adicionar sales_channel_ids diretamente no payload do produto
+
       // Buscar produtos existentes por handle
       const existingProductsByHandle: Record<string, string> = {}; // handle -> product_id
       if (handlesToCheck.length > 0) {
@@ -233,10 +236,15 @@ export const normalizeCsvToBatchRequestStep = createStep(
               );
             }
 
-            const updateData = {
+            const updateData: Record<string, unknown> = {
               ...productData,
               id: existingProductId,
             };
+
+            // NOTA: Sales Channels são associados via Link Module após criação/atualização do produto
+            // Não podemos adicionar sales_channel_ids diretamente no payload do produto
+            // A associação será feita no hook on-products-imported-with-categories.ts
+
             const validated = productValidators.UpdateProduct.parse(updateData);
             productsToUpdate.push(validated);
           } catch (error) {
@@ -253,6 +261,11 @@ export const normalizeCsvToBatchRequestStep = createStep(
                 normalizeVariantNumericFields(variant as Record<string, unknown>),
               );
             }
+
+            // NOTA: Sales Channels são associados via Link Module após criação/atualização do produto
+            // Não podemos adicionar sales_channel_ids diretamente no payload do produto
+            // A associação será feita no hook on-products-imported-with-categories.ts
+
             const validated = productValidators.CreateProduct.parse(productData);
             productsToCreate.push(validated);
           } catch (error) {
@@ -273,6 +286,11 @@ export const normalizeCsvToBatchRequestStep = createStep(
               normalizeVariantNumericFields(variant as Record<string, unknown>),
             );
           }
+
+          // NOTA: Sales Channels são associados via Link Module após criação/atualização do produto
+          // Não podemos adicionar sales_channel_ids diretamente no payload do produto
+          // A associação será feita no hook on-products-imported-with-categories.ts
+
           const validated = productValidators.UpdateProduct.parse(updateProduct);
           productsToUpdate.push(validated);
         } catch (error) {

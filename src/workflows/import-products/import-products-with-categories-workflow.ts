@@ -41,23 +41,8 @@ export const importProductsWithCategoriesWorkflow = createWorkflow(
       fileContent: normalizedCsv.fileContent,
     });
 
-    // Step 2.5: Preparar additional_data com categoryMapping para o hook productsCreated
-    const batchRequestWithAdditionalData = transform({ batchRequest, normalizedCsv, input }, (data) => {
-      // Tentar passar additional_data no input do batchRequest
-      const additionalData: Record<string, unknown> = {
-        ...(data.input.additional_data || {}),
-      };
-
-      // Adicionar categoryMapping se disponível
-      if (data.normalizedCsv.categoryMapping && Object.keys(data.normalizedCsv.categoryMapping).length > 0) {
-        additionalData.categoryMapping = data.normalizedCsv.categoryMapping;
-      }
-
-      return {
-        ...data.batchRequest,
-        additional_data: additionalData,
-      };
-    });
+    // Step 2.5: O categoryMapping será passado via cache (file-cache.ts)
+    // O batchRequest não aceita additional_data diretamente
 
     // Step 3: Calcular summary (toCreate, toUpdate)
     const summary = transform({ batchRequest }, (data) => {
@@ -68,11 +53,11 @@ export const importProductsWithCategoriesWorkflow = createWorkflow(
     });
 
     // Step 4: Executar batchProductsWorkflow para criar/atualizar produtos
-    // Passar batchRequest com additional_data contendo categoryMapping
+    // O categoryMapping será recuperado via cache no hook productsCreated
     // NOTA: Removemos os steps de notificação porque requerem um provider de notificações
     // configurado para o canal "feed", que pode não estar disponível
     batchProductsWorkflow
-      .runAsStep({ input: batchRequestWithAdditionalData })
+      .runAsStep({ input: batchRequest })
       .config({ async: true, backgroundExecution: true });
 
     // Retornar summary (igual ao importProductsWorkflow oficial)

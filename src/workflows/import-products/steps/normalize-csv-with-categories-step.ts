@@ -278,11 +278,11 @@ export const normalizeCsvWithCategoriesStep = createStep(
           },
         });
 
-        if (createdParents?.product_categories) {
+        if (createdParents && Array.isArray(createdParents) && createdParents.length > 0) {
           logger.info(
-            `[STEP] normalizeCsvWithCategories: ✅ ${createdParents.product_categories.length} categorias pais criadas com sucesso`,
+            `[STEP] normalizeCsvWithCategories: ✅ ${createdParents.length} categorias pais criadas com sucesso`,
           );
-          for (const cat of createdParents.product_categories) {
+          for (const cat of createdParents) {
             if (cat.handle) {
               parentCategoriesCreated[cat.handle] = cat.id;
               logger.info(
@@ -335,11 +335,11 @@ export const normalizeCsvWithCategoriesStep = createStep(
           },
         });
 
-        if (createdChildren?.product_categories) {
+        if (createdChildren && Array.isArray(createdChildren) && createdChildren.length > 0) {
           logger.info(
-            `[STEP] normalizeCsvWithCategories: ✅ ${createdChildren.product_categories.length} categorias filhas criadas com sucesso`,
+            `[STEP] normalizeCsvWithCategories: ✅ ${createdChildren.length} categorias filhas criadas com sucesso`,
           );
-          for (const cat of createdChildren.product_categories) {
+          for (const cat of createdChildren) {
             if (cat.handle) {
               childCategoriesCreated[cat.handle] = cat.id;
               logger.info(

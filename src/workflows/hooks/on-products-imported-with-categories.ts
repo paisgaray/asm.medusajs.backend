@@ -267,9 +267,9 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
         },
       });
 
-      if (createdParents?.product_categories) {
-        logger.info(`[HOOK] productsCreated: ✅ ${createdParents.product_categories.length} categorias pais criadas`);
-        for (const cat of createdParents.product_categories) {
+      if (createdParents && Array.isArray(createdParents) && createdParents.length > 0) {
+        logger.info(`[HOOK] productsCreated: ✅ ${createdParents.length} categorias pais criadas`);
+        for (const cat of createdParents) {
           if (cat.handle) {
             parentCategoriesCreated[cat.handle] = cat.id;
           }
@@ -314,11 +314,9 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
         },
       });
 
-      if (createdChildren?.product_categories) {
-        logger.info(
-          `[HOOK] productsCreated: ✅ ${createdChildren.product_categories.length} categorias filhas criadas`,
-        );
-        for (const cat of createdChildren.product_categories) {
+      if (createdChildren && Array.isArray(createdChildren) && createdChildren.length > 0) {
+        logger.info(`[HOOK] productsCreated: ✅ ${createdChildren.length} categorias filhas criadas`);
+        for (const cat of createdChildren) {
           if (cat.handle) {
             childCategoriesCreated[cat.handle] = cat.id;
           }
@@ -398,7 +396,7 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
               try {
                 await linkModule.create({
                   [Modules.PRODUCT]: { product_id: product.id },
-                  [Modules.PRODUCT_CATEGORY]: { product_category_id: categoryId },
+                  product_category: { product_category_id: categoryId },
                 });
                 linksCreated++;
               } catch {
@@ -425,7 +423,7 @@ createProductsWorkflow.hooks.productsCreated(async ({ products, additional_data 
                     try {
                       await linkModule.create({
                         [Modules.PRODUCT]: { product_id: product.id },
-                        category_id: categoryId,
+                        product_category: { id: categoryId },
                       });
                       linksCreated++;
                     } catch {

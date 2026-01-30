@@ -14,7 +14,7 @@ export { importProductsWithCategoriesWorkflow } from './import-products-with-cat
 // Se não funcionar, o workflow wrapper será usado via rota customizada
 try {
   // Tentar todas as abordagens possíveis de hooks
-  import('./hooks/register-normalize-csv-hook');
+  import('./hooks/register-normalize-csv-hook.js');
 } catch (error) {
   // Ignorar se não conseguir carregar
   console.warn('[WORKFLOW] import-products: Erro ao carregar hooks:', error);

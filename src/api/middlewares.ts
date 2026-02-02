@@ -2,8 +2,10 @@ import { defineMiddlewares } from '@medusajs/framework/http';
 import multer from 'multer';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
+import { contactAdminMiddlewares } from './admin/contact/middleware';
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
+import { contactStoreMiddlewares } from './store/contact/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
 import { paymentMethodsMiddlewares } from './store/payment-methods/middleware';
 import { productSearchMiddlewares } from './store/products/search/middleware';
@@ -19,6 +21,8 @@ export default defineMiddlewares({
     ...newsletterMiddlewares,
     ...wishlistMiddlewares,
     ...regionZipcodeMiddlewares,
+    ...contactAdminMiddlewares,
+    ...contactStoreMiddlewares,
     {
       matcher: '/admin/imports/disfruta',
       method: ['POST'],

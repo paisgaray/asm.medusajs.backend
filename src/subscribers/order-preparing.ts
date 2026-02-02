@@ -34,7 +34,6 @@ export default async function handleOrderPreparing({
 
     // 2. Enviar via Notification Module (Sistema Nativo)
     const notificationModuleService = container.resolve(Modules.NOTIFICATION);
-
     const notificationData = {
       to: order.email,
       channel: 'email',

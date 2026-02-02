@@ -19,7 +19,6 @@ export default async function handleOrderDelivered({
   try {
     // 1. Buscar dados do pedido
     const orderModuleService = container.resolve(Modules.ORDER);
-
     let order;
     if (orderId) {
       console.log(`[Order Delivered Subscriber] Buscando order ${orderId}...`);
@@ -28,7 +27,6 @@ export default async function handleOrderDelivered({
       console.log(`[Order Delivered Subscriber] ❌ Order ID não fornecido no evento`);
       return;
     }
-
     if (!order || !order.email) {
       console.error(`[Order Delivered Subscriber] ❌ Order ou email não encontrado`);
       return;
@@ -40,7 +38,6 @@ export default async function handleOrderDelivered({
 
     // 2. Enviar via Notification Module (Sistema Nativo)
     const notificationModuleService = container.resolve(Modules.NOTIFICATION);
-
     const notificationData = {
       to: order.email,
       channel: 'email',

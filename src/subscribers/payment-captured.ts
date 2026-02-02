@@ -42,7 +42,6 @@ export default async function handlePaymentCaptured({ event: { data }, container
 
     // 2. Enviar APENAS e-mail de ORDER_INVOICED (o ORDER_CONFIRMATION já é enviado pelo outro subscriber)
     const notificationModuleService = container.resolve(Modules.NOTIFICATION);
-
     const orderInvoicedData = {
       to: order.email,
       channel: 'email',

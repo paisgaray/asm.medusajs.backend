@@ -2,8 +2,8 @@ import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework
 import { createProductsWorkflow } from '@medusajs/medusa/core-flows';
 
 import { ensureCategoriesStep } from './steps/ensure-categories-step';
-import { transformDisfrutaExcelStep } from './steps/transform-excel-step';
 import type { TransformedProduct } from './steps/transform-excel-step';
+import { transformDisfrutaExcelStep } from './steps/transform-excel-step';
 
 type ImportDisfrutaCatalogInput = {
   filePath: string;
@@ -60,7 +60,7 @@ export const importDisfrutaCatalogWorkflow = createWorkflow(
     });
 
     // Passo 4: Criar produtos usando workflow oficial
-    const createdProducts = createProductsWorkflow().run({
+    const createdProducts = createProductsWorkflow.runAsStep({
       input: {
         products: productsWithCategoryIds,
       },

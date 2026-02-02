@@ -25,6 +25,8 @@ COPY --from=build /app/.medusa/server .
 COPY --from=build /app/start.sh .
 COPY --from=prod-deps /app/node_modules ./node_modules
 
+RUN chmod +x /app/start.sh
+
 EXPOSE 9000
 
 ENTRYPOINT ["./start.sh"]

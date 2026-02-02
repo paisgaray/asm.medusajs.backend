@@ -20,16 +20,13 @@
     "strictNullChecks": false
   },
   "ts-node": {
-    "swc": true,
-    "require": ["tsconfig-paths/register"]
+    "swc": true
   },
-  "include": [
-    "**/*",
-    ".medusa/types/*"
-  ],
+  "include": ["**/*", ".medusa/types/*"],
   "exclude": [
     "node_modules",
-    ".medusa/*",
+    ".medusa/server",
+    ".medusa/admin",
     ".cache",
     "src/admin",
     "src/scripts/product-import"

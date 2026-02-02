@@ -1,45 +1,28 @@
-# ==========================
-# 1) BUILDER
-# ==========================
-FROM node:24 AS builder
+FROM node:22-slim AS base
 
-WORKDIR /app/medusa
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
+ENV YARN_HOME="/yarn"
+ENV PATH="$YARN_HOME:$PATH"
+
+WORKDIR /app
+
+FROM base AS prod-deps
+COPY package.json yarn.lock .
+RUN --mount=type=cache,id=yarn,target=/yarn/store,sharing=locked yarn install --prod --frozen-lockfile
+
+FROM base AS build
 COPY . .
-
-# dependências necessárias para sharp / prisma / etc
-RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
-
-RUN yarn install --frozen-lockfile
-
+RUN --mount=type=cache,id=yarn,target=/yarn/store,sharing=locked yarn install --frozen-lockfile
 RUN yarn build
 
+FROM base AS production
 
-# ==========================
-# 2) PRODUCTION IMAGE
-# ==========================
-FROM node:24 AS production
-
-WORKDIR /app/medusa
-
+WORKDIR /app
 ENV NODE_ENV=production
 
-# dependências necessárias somente para runtime
-RUN apt-get update && apt-get install -y python3 python3-pip python-is-python3
-
-# Copia resultado do build (JS, migrations, tudo dentro de .medusa)
-COPY --from=builder /app/medusa/.medusa ./.medusa
-COPY --from=builder /app/medusa/tsconfig.json /app/medusa/.medusa/server/tsconfig.json
-
-
-WORKDIR /app/medusa/.medusa/server
-
-# instala somente dependências do servidor compilado
-RUN yarn install --production --frozen-lockfile
-
-# Copia entrypoint
-COPY start.sh ./start.sh
-RUN chmod +x ./start.sh
+COPY --from=build /app/.medusa/server .
+COPY --from=prod-deps /app/node_modules ./node_modules
 
 EXPOSE 9000
 

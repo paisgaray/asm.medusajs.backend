@@ -61,7 +61,7 @@ export const ensureAccountHolderStep = createStep(
               id: string;
               provider_id: string;
               data: {
-                id: string;
+                id?: string;
               };
             };
 
@@ -137,7 +137,7 @@ export const ensureAccountHolderStep = createStep(
           id: string;
           provider_id: string;
           data: {
-            id: string;
+            id?: string;
           };
         };
 

@@ -27,32 +27,27 @@ export interface SendOrderConfirmationEmailInput {
 export const sendOrderConfirmationEmailWorkflow = createWorkflow(
   'send-order-confirmation-email',
   (input: SendOrderConfirmationEmailInput) => {
-    console.log(`[Order Confirmation Workflow] Iniciando workflow para order_id: ${input.order_id}`);
-
     // Step 1: Buscar dados completos do pedido
-    console.log(`[Order Confirmation Workflow] Step 1: Buscando dados do pedido...`);
+
     const { order, payment } = getOrderByIdStep({
       order_id: input.order_id,
     });
-    console.log(`[Order Confirmation Workflow] Step 1: Pedido encontrado - ID: ${order?.id}, Email: ${order?.email}`);
 
     // Step 2: Formatar dados para o template do SendGrid
-    console.log(`[Order Confirmation Workflow] Step 2: Formatando dados para template...`);
+
     const { emailData, recipientEmail } = formatOrderConfirmationDataStep({
       order,
       payment,
     });
-    console.log(`[Order Confirmation Workflow] Step 2: Dados formatados - Email destinatário: ${recipientEmail}`);
 
     // Step 3: Enviar e-mail
-    console.log(`[Order Confirmation Workflow] Step 3: Enviando email via SendGrid...`);
+
     const result = sendEmailStep({
       recipientEmail,
       templateId: SENDGRID_TEMPLATES.ORDER_CONFIRMATION,
       templateData: emailData,
       subject: 'Pedido confirmado',
     });
-    console.log(`[Order Confirmation Workflow] ✅ Workflow concluído com sucesso!`);
 
     return new WorkflowResponse(result);
   },

@@ -9,11 +9,11 @@ WORKDIR /app
 
 FROM base AS prod-deps
 COPY package.json yarn.lock .
-RUN --mount=type=cache,id=yarn,target=/yarn/store,sharing=locked yarn install --prod --frozen-lockfile
+RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install --prod --frozen-lockfile
 
 FROM base AS build
 COPY . .
-RUN --mount=type=cache,id=yarn,target=/yarn/store,sharing=locked yarn install --frozen-lockfile
+RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install --frozen-lockfile
 RUN yarn build
 
 FROM base AS production
@@ -22,6 +22,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=build /app/.medusa/server .
+COPY --from=build /app/start.sh .
 COPY --from=prod-deps /app/node_modules ./node_modules
 
 EXPOSE 9000

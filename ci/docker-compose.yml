@@ -40,7 +40,7 @@ services:
       # Auth Google Callback
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
-      GOOGLE_CALLBACK_URL: "http://localhost:8080"
+      GOOGLE_CALLBACK_URL: "${GOOGLE_CALLBACK_URL}"
 
     ports:
       - "9010:9000"

@@ -267,21 +267,63 @@ This creates:
 **POST /admin/subscriptions/:id/cancel**
 - Cancel subscription
 
-## Testing Checklist
+## Testing Guide
 
+### Prerequisites
+```bash
+# 1. Add Stripe API key to .env
+STRIPE_API_KEY=sk_test_your_key_here
+
+# 2. Run migrations
+npm run migrations
+
+# 3. Start server
+npm run dev
+```
+
+### Testing Checklist
+
+**Setup:**
 - [ ] Run `npm run migrations` successfully
 - [ ] Start dev server: `npm run dev`
-- [ ] Configure Stripe in Admin Dashboard
-- [ ] Create bundle product with subscription_price
+- [ ] Configure Stripe in Admin Dashboard (Settings → Regions → Add Stripe)
+- [ ] Create bundle product with `metadata.subscription_price = 2999` (for $29.99)
 - [ ] Tag product with "subscription"
-- [ ] Test creating subscription via API
-- [ ] Test confirming payment with Stripe test card (4242...)
-- [ ] Verify subscription in database
+
+**API Testing:**
+- [ ] Test creating subscription via `POST /store/subscriptions`
+- [ ] Verify you receive `client_secret` in response
+- [ ] Test confirming payment with Stripe test card (4242 4242 4242 4242)
+- [ ] Verify subscription record in database
 - [ ] Verify subscription in Stripe Dashboard
-- [ ] Test pause subscription
-- [ ] Test resume subscription
-- [ ] Test cancel subscription
+- [ ] Test pause subscription: `POST /store/subscriptions/:id/pause`
+- [ ] Test resume subscription: `POST /store/subscriptions/:id/resume`
+- [ ] Test cancel subscription: `POST /store/subscriptions/:id/cancel`
 - [ ] Test with one-time items in first invoice
+
+### Quick Test with cURL
+
+```bash
+# Replace with your actual IDs
+CUSTOMER_ID="cus_abc123"
+BUNDLE_ID="bundle_xyz789"
+
+# Create subscription
+curl -X POST http://localhost:9000/store/subscriptions \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"customer_id\": \"$CUSTOMER_ID\",
+    \"bundle_product_id\": \"$BUNDLE_ID\"
+  }"
+```
+
+### Important Note on Cart Integration
+
+⚠️ **The subscription creation is NOT automatically triggered on cart completion yet.**
+
+For now, test using the direct API endpoint (`POST /store/subscriptions`).
+
+To integrate with cart/checkout, see `INTEGRATION_GUIDE.md` for implementation options.
 
 ## Future Enhancements
 

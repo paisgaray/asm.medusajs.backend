@@ -27,7 +27,7 @@ export const validateSubscriptionProductStep = createStep(
     return new StepResponse({
       bundle,
       subscription_price: bundle.subscription_price,
-      currency: bundle.currency || 'usd',
+      currency: bundle.currency || 'eur',
     });
   },
 );

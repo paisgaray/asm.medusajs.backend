@@ -11,9 +11,9 @@ type CreateSubscriptionRecordStepInput = {
   currency: string;
   stripe_subscription_id: string;
   stripe_customer_id: string;
-  current_period_start: Date;
-  current_period_end: Date;
-  next_billing_date: Date;
+  // current_period_start: Date;
+  // current_period_end: Date;
+  // next_billing_date: Date;
   status: string;
 };
 
@@ -30,9 +30,6 @@ export const createSubscriptionRecordStep = createStep(
       provider_customer_id: input.stripe_customer_id,
       subscription_price: input.subscription_price,
       currency: input.currency,
-      current_period_start: input.current_period_start,
-      current_period_end: input.current_period_end,
-      next_billing_date: input.next_billing_date,
       status: input.status as SubscriptionStatus,
     });
 

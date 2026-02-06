@@ -1,6 +1,6 @@
 import { Migration } from '@mikro-orm/migrations';
 
-export class Migration20260127000002 extends Migration {
+export class Migration20260127000001 extends Migration {
   async up(): Promise<void> {
     // Create subscription table
     this.addSql(`
@@ -14,9 +14,6 @@ export class Migration20260127000002 extends Migration {
         "status" text not null default 'active',
         "subscription_price" numeric not null,
         "currency" text not null default 'usd',
-        "current_period_start" timestamptz not null,
-        "current_period_end" timestamptz not null,
-        "next_billing_date" timestamptz not null,
         "metadata" jsonb null,
         "created_at" timestamptz not null default now(),
         "updated_at" timestamptz not null default now(),

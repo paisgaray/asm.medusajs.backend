@@ -1,7 +1,5 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
-import BundledProductModuleService from '../../../modules/bundled-product/service';
 import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
@@ -13,49 +11,30 @@ type SnapshotBundleItemsStepInput = {
 export const snapshotBundleItemsStep = createStep(
   'snapshot-bundle-items',
   async (input: SnapshotBundleItemsStepInput, { container }) => {
-    const bundleService = container.resolve(BUNDLED_PRODUCT_MODULE) as BundledProductModuleService;
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    // Query to get bundle with items
+    const query = container.resolve('query');
 
-    // Get bundle with items
-    const bundle = await bundleService.retrieveBundle(input.bundle_product_id, {
-      relations: ['items'],
+    const {
+      data: [bundle],
+    } = await query.graph({
+      entity: 'bundle',
+      filters: { id: input.bundle_product_id },
+      fields: ['id', 'title', 'items.*', 'items.product.*', 'items.product.variants.*'],
     });
 
     if (!bundle?.items || bundle.items.length === 0) {
       throw new Error(`Bundle ${input.bundle_product_id} has no items`);
     }
 
-    // Query to get product details for each bundle item
-    const query = container.resolve('query');
-
     const subscriptionItems = [];
 
+    // Get product links for all bundle items
     for (const item of bundle.items) {
-      // Parse the item details which might contain product_id and variant_id
-      let itemDetails;
-      try {
-        itemDetails = typeof item.details === 'string' ? JSON.parse(item.details) : item.details;
-      } catch {
-        throw new Error(`Invalid item details format for bundle item ${item.id}`);
-      }
+      const product = item.product;
+      const variant = item.product?.variants?.[0];
 
-      if (!itemDetails?.product_id || !itemDetails?.variant_id) {
-        throw new Error(`Bundle item ${item.id} missing product_id or variant_id`);
-      }
-
-      // Fetch product and variant details
-      const {
-        data: [product],
-      } = await query.graph({
-        entity: 'product',
-        filters: { id: itemDetails.product_id },
-        fields: ['id', 'title', 'variants.*'],
-      });
-
-      const variant = product?.variants?.find((v: any) => v.id === itemDetails.variant_id);
-
-      if (!product || !variant) {
-        throw new Error(`Product or variant not found for bundle item ${item.id}`);
+      if (!variant) {
+        throw new Error(`Product ${product.id} has no variants`);
       }
 
       const snapshot = {
@@ -77,6 +56,7 @@ export const snapshotBundleItemsStep = createStep(
     }
 
     // Create subscription items
+    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
     const createdItems = await subscriptionService.createSubscriptionItems(subscriptionItems);
 
     return new StepResponse(

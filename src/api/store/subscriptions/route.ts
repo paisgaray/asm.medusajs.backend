@@ -23,19 +23,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 };
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { bundle_product_id, one_time_items } = req.body as {
+  const { bundle_product_id, one_time_product_ids, customer_id } = req.body as {
     bundle_product_id: string;
-    one_time_items?: Array<{
-      price_data: {
-        currency: string;
-        product: string;
-        unit_amount: number;
-      };
+    one_time_product_ids?: Array<{
+      product_id: string;
+      variant_id: string;
       quantity: number;
     }>;
+    customer_id?: string;
   };
 
-  const customerId = req.auth_context?.actor_id;
+  const customerId = req.auth_context?.actor_id || customer_id;
 
   if (!customerId) {
     return res.status(401).json({ message: 'Unauthorized' });
@@ -50,7 +48,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       input: {
         customer_id: customerId,
         bundle_product_id,
-        one_time_items,
+        one_time_product_ids,
       },
     });
 

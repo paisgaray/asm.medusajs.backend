@@ -18,9 +18,9 @@ type CreateStripeSubscriptionStepInput = {
 
 export const createStripeSubscriptionStep = createStep(
   'create-stripe-subscription',
-  async (input: CreateStripeSubscriptionStepInput, { container }) => {
+  async (input: CreateStripeSubscriptionStepInput) => {
     const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
+      apiVersion: '2025-12-15.clover' as '2022-11-15',
     });
 
     // Create Stripe subscription
@@ -84,13 +84,13 @@ export const createStripeSubscriptionStep = createStep(
 
     // Rollback: cancel the Stripe subscription if something fails later
     const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
+      apiVersion: '2025-12-15.clover' as '2022-11-15',
     });
 
     try {
       await stripe.subscriptions.cancel(data.stripe_subscription_id);
       container.resolve('logger').info(`Rolled back Stripe subscription: ${data.stripe_subscription_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback Stripe subscription: ${error.message}`);
     }
   },

@@ -77,16 +77,14 @@ export const prepareOneTimeItemsStep = createStep(
       { one_time_items: oneTimeItems, created_stripe_products: createdStripeProducts },
     );
   },
-  async (data: CompensationData, { container }) => {
+  async (data, { container }) => {
     if (!data?.created_stripe_products || data.created_stripe_products.length === 0) {
       return;
     }
 
     // Rollback: delete any Stripe products that were created
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
 
     const logger = container.resolve('logger');
 
@@ -94,7 +92,7 @@ export const prepareOneTimeItemsStep = createStep(
       try {
         await stripe.products.del(productId);
         logger.info(`Rolled back Stripe product: ${productId}`);
-      } catch (error) {
+      } catch (error: any) {
         logger.error(`Failed to rollback Stripe product ${productId}: ${error.message}`);
       }
     }

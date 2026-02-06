@@ -9,9 +9,7 @@ type GetOrCreateStripeCustomerStepInput = {
 export const getOrCreateStripeCustomerStep = createStep(
   'get-or-create-stripe-customer',
   async (input: GetOrCreateStripeCustomerStepInput, { container }) => {
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
 
     // Get Medusa customer
     const customerQuery = container.resolve('query');
@@ -84,7 +82,7 @@ export const getOrCreateStripeCustomerStep = createStep(
         {},
       );
       container.resolve('logger').info(`Rolled back Stripe customer metadata for ${data.customer_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback customer metadata: ${error.message}`);
     }
   },

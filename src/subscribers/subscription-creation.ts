@@ -79,7 +79,7 @@ export default async function handleSubscriptionCreation({
           input: {
             customer_id: order.customer_id,
             bundle_product_id: bundleProductId,
-            one_time_items: oneTimeItemsData.length > 0 ? oneTimeItemsData : undefined,
+            // one_time_items: oneTimeItemsData.length > 0 ? oneTimeItemsData : undefined,
           },
         });
 

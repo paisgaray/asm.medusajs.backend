@@ -18,9 +18,7 @@ export const resumeStripeSubscriptionStep = createStep(
       throw new Error('This step only supports Stripe subscriptions');
     }
 
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
 
     // Resume the subscription
     await stripe.subscriptions.update(subscription.provider_subscription_id, {
@@ -44,9 +42,7 @@ export const resumeStripeSubscriptionStep = createStep(
     }
 
     // Rollback: pause the subscription again
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
 
     try {
       await stripe.subscriptions.update(data.provider_subscription_id, {
@@ -55,7 +51,7 @@ export const resumeStripeSubscriptionStep = createStep(
         },
       });
       container.resolve('logger').info(`Rolled back resume for subscription: ${data.provider_subscription_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback resume: ${error.message}`);
     }
   },

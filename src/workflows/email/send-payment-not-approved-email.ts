@@ -1,14 +1,10 @@
-/**
- * Workflow: Send Payment Not Approved Email
- * Orquestra o envio de e-mail de pagamento não aprovado/rejeitado
- */
-
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
-import { formatPaymentNotApprovedDataStep } from './steps/format-payment-not-approved-data-step';
-import { getOrderDataStep } from './steps/get-order-data-step';
+import { SENDGRID_TEMPLATES } from '../../constants/sendgrid-templates';
+import { formatOrderStep } from './steps/format-order-step';
+import { GetOrderByIdOutput, getOrderByIdStep } from './steps/get-order-by-id-step';
 import { sendEmailStep } from './steps/send-email-step';
+// import { getOrderByPaymentIdStep } from './steps/get-order-by-paymentId-step';
 
 export interface SendPaymentNotApprovedEmailInput {
   payment_id: string;
@@ -17,22 +13,14 @@ export interface SendPaymentNotApprovedEmailInput {
 export const sendPaymentNotApprovedEmailWorkflow = createWorkflow(
   'send-payment-not-approved-email',
   (input: SendPaymentNotApprovedEmailInput) => {
-    // Step 1: Buscar dados do pedido e pagamento
-    const { order, payment } = getOrderDataStep({
-      payment_id: input.payment_id,
-    });
+    const { order, payment } = getOrderByIdStep({ order_id: input.payment_id }) as GetOrderByIdOutput;
 
-    // Step 2: Formatar dados para o template do SendGrid
-    const { emailData, recipientEmail } = formatPaymentNotApprovedDataStep({
-      order,
-      payment,
-    });
+    const { templateData, recipientEmail } = formatOrderStep({ order, payment });
 
-    // Step 3: Enviar e-mail via SendGrid
     const result = sendEmailStep({
-      recipientEmail,
       templateId: SENDGRID_TEMPLATES.PAYMENT_NOT_APPROVED,
-      templateData: emailData,
+      recipientEmail,
+      templateData,
     });
 
     return new WorkflowResponse(result);

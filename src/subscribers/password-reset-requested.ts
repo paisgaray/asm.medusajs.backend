@@ -15,7 +15,7 @@
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
 import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 
-import { SENDGRID_TEMPLATES } from '../utils/sendgrid-templates';
+import { SENDGRID_TEMPLATES } from '../constants/sendgrid-templates';
 
 export default async function resetPasswordTokenHandler({
   event: { data },

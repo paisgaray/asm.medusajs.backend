@@ -1,26 +1,21 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { Modules } from '@medusajs/framework/utils';
 
+import NewsletterModuleService from '../../../modules/newsletter/service';
 import type { NewsletterSubscribeBody } from './validators';
 
 export async function POST(req: MedusaRequest<NewsletterSubscribeBody>, res: MedusaResponse): Promise<void> {
-  const body = req.validatedBody as NewsletterSubscribeBody;
-  const { email } = body;
+  const { email } = req.validatedBody;
 
-  // Resolver o event bus service
-  const eventModuleService = req.scope.resolve(Modules.EVENT_BUS);
+  const newsletterService: NewsletterModuleService = req.scope.resolve('newsletter');
 
-  // Emitir evento newsletter.signup seguindo padrão da documentação
-  await eventModuleService.emit({
-    name: 'newsletter.signup',
-    data: {
-      email,
-    },
-  });
+  const [existingSubscriber] = await newsletterService.listNewsletterSubscribers({ email });
+
+  if (existingSubscriber) return;
+
+  await newsletterService.createNewsletterSubscribers({ email, subscribed_at: new Date() });
 
   res.status(200).json({
     success: true,
     message: 'Inscrição realizada com sucesso',
-    email,
   });
 }

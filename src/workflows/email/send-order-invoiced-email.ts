@@ -1,8 +1,8 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
-import { formatOrderInvoicedDataStep } from './steps/format-order-invoiced-data-step';
-import { getOrderDataStep } from './steps/get-order-data-step';
+import { SENDGRID_TEMPLATES } from '../../constants/sendgrid-templates';
+import { formatOrderStep } from './steps/format-order-step';
+import { GetOrderByPaymentIdOutput, getOrderByPaymentIdStep } from './steps/get-order-by-paymentId-step';
 import { sendEmailStep } from './steps/send-email-step';
 
 export interface SendOrderInvoicedEmailInput {
@@ -12,23 +12,14 @@ export interface SendOrderInvoicedEmailInput {
 export const sendOrderInvoicedEmailWorkflow = createWorkflow(
   'send-order-invoiced-email',
   (input: SendOrderInvoicedEmailInput) => {
-    // Step 1: Buscar dados do pedido e pagamento a partir do payment_id
-    const { order, payment } = getOrderDataStep({
-      payment_id: input.payment_id,
-    });
+    const { order, payment } = getOrderByPaymentIdStep({ payment_id: input.payment_id }) as GetOrderByPaymentIdOutput;
 
-    // Step 2: Formatar dados para o template do SendGrid
-    const { emailData, recipientEmail } = formatOrderInvoicedDataStep({
-      order,
-      payment,
-    });
+    const { templateData, recipientEmail } = formatOrderStep({ order, payment });
 
-    // Step 3: Enviar e-mail via SendGrid
     const result = sendEmailStep({
-      recipientEmail,
       templateId: SENDGRID_TEMPLATES.ORDER_INVOICED,
-      templateData: emailData,
-      subject: 'Factura de tu pedido',
+      recipientEmail,
+      templateData,
     });
 
     return new WorkflowResponse(result);

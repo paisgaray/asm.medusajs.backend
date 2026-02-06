@@ -1,8 +1,8 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
-import { formatOrderPreparingDataStep } from './steps/format-order-preparing-data-step';
-import { getOrderByIdStep } from './steps/get-order-by-id-step';
+import { SENDGRID_TEMPLATES } from '../../constants/sendgrid-templates';
+import { formatOrderStep } from './steps/format-order-step';
+import { GetOrderByIdOutput, getOrderByIdStep } from './steps/get-order-by-id-step';
 import { sendEmailStep } from './steps/send-email-step';
 
 export interface SendOrderPreparingEmailInput {
@@ -12,18 +12,14 @@ export interface SendOrderPreparingEmailInput {
 export const sendOrderPreparingEmailWorkflow = createWorkflow(
   'send-order-preparing-email',
   (input: SendOrderPreparingEmailInput) => {
-    // Step 1: Buscar dados do pedido
-    const { order, payment } = getOrderByIdStep({ order_id: input.order_id });
+    const { order, payment } = getOrderByIdStep({ order_id: input.order_id }) as GetOrderByIdOutput;
 
-    // Step 2: Formatar dados para o template
-    const { emailData, recipientEmail } = formatOrderPreparingDataStep({ order, payment });
+    const { templateData, recipientEmail } = formatOrderStep({ order, payment });
 
-    // Step 3: Enviar e-mail
     const result = sendEmailStep({
-      recipientEmail,
       templateId: SENDGRID_TEMPLATES.ORDER_PREPARING,
-      templateData: emailData,
-      subject: 'Pedido en preparación',
+      recipientEmail,
+      templateData,
     });
 
     return new WorkflowResponse(result);

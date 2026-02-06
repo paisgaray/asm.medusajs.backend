@@ -17,14 +17,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     const subscribers = await newsletterService.listNewsletterSubscribers(filters);
 
     // Gerar CSV
-    const csvHeaders = 'ID,Email,First Name,Last Name,Status,Subscribed At,Unsubscribed At\n';
+    const csvHeaders = 'ID,Email,Status,Subscribed At,Unsubscribed At\n';
     const csvRows = subscribers
       .map((sub) => {
         return [
           sub.id,
           sub.email,
-          sub.first_name || '',
-          sub.last_name || '',
           sub.status,
           sub.subscribed_at ? new Date(sub.subscribed_at).toISOString() : '',
           sub.unsubscribed_at ? new Date(sub.unsubscribed_at).toISOString() : '',

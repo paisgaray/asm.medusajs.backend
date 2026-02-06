@@ -48,31 +48,29 @@ export const createStripeSubscriptionStep = createStep(
       subscriptionParams.add_invoice_items = input.one_time_items;
     }
 
-    console.log('subscriptionParams', subscriptionParams);
-
     const stripeSubscription = await stripe.subscriptions.create(subscriptionParams);
 
     // Extract client secret
-    let clientSecret: string | null = null;
-    if (stripeSubscription.latest_invoice) {
-      const invoice: any =
-        typeof stripeSubscription.latest_invoice === 'string'
-          ? await stripe.invoices.retrieve(stripeSubscription.latest_invoice, { expand: ['payment_intent'] })
-          : stripeSubscription.latest_invoice;
+    // let clientSecret: string | null = null;
+    // if (stripeSubscription.latest_invoice) {
+    //   const invoice: any =
+    //     typeof stripeSubscription.latest_invoice === 'string'
+    //       ? await stripe.invoices.retrieve(stripeSubscription.latest_invoice, { expand: ['payment_intent'] })
+    //       : stripeSubscription.latest_invoice;
 
-      if (invoice.payment_intent && typeof invoice.payment_intent !== 'string') {
-        clientSecret = invoice.payment_intent.client_secret || null;
-      }
-    }
+    //   if (invoice.payment_intent && typeof invoice.payment_intent !== 'string') {
+    //     clientSecret = invoice.payment_intent.client_secret || null;
+    //   }
+    // }
 
-    console.log('clientSecret', clientSecret);
+    // console.log('clientSecret', clientSecret);
 
     return new StepResponse(
       {
         stripe_subscription_id: stripeSubscription.id,
         stripe_customer_id: input.stripe_customer_id,
         status: stripeSubscription.status,
-        client_secret: clientSecret,
+        // client_secret: clientSecret,
       },
       {
         stripe_subscription_id: stripeSubscription.id,

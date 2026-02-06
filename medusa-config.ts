@@ -44,24 +44,7 @@ if (fs.existsSync(algoliaModulePath)) {
 // Módulos Redis (caching, event-bus, workflow, locking)
 const redisUrl = process.env.REDIS_URL || process.env.EVENTS_REDIS_URL || process.env.CACHE_REDIS_URL;
 
-console.log('STRIPE_API_KEY:', process.env.STRIPE_API_KEY);
-
 modules.push(
-  {
-    resolve: '@medusajs/medusa/payment',
-    options: {
-      providers: [
-        {
-          resolve: '@medusajs/medusa/payment-stripe',
-          id: 'stripe',
-          options: {
-            apiKey: process.env.STRIPE_API_KEY || 'sk_test_51ROcup4Wqqeb8CSBLLDKevwSnk6hUqGuibpmMLhLenXIwqYbDEMHHEXxrSHYmf0ny7D4UnbVmSjDJ4YhUBLPUYcd00CJMLVqSP',
-            capture: true,
-          },
-        },
-      ],
-    },
-  },
   {
     resolve: '@medusajs/medusa/caching',
     options: {
@@ -136,6 +119,20 @@ modules.push(
             channels: ['email'],
             api_key: process.env.SENDGRID_API_KEY,
             from: process.env.SENDGRID_FROM_EMAIL || process.env.SENDGRID_FROM,
+          },
+        },
+      ],
+    },
+  },
+  {
+    resolve: '@medusajs/medusa/payment',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/payment-stripe',
+          id: 'stripe',
+          options: {
+            apiKey: process.env.STRIPE_API_KEY,
           },
         },
       ],

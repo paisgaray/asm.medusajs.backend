@@ -74,7 +74,7 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     return new WorkflowResponse({
       subscription,
-      client_secret: stripeResult.client_secret,
+      // client_secret: stripeResult.client_secret,
     });
   },
 );

@@ -11,7 +11,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     });
 
     res.json(result);
-  } catch (error: any) {
+  } catch (error) {
     req.scope.resolve('logger').error('Failed to cancel subscription:', error);
     return res.status(500).json({
       message: 'Failed to cancel subscription',

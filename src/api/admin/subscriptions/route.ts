@@ -8,9 +8,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const { customer_id, status, limit = 50, offset = 0 } = req.query;
 
-  const filters: any = {};
-  if (customer_id) filters.customer_id = customer_id;
-  if (status) filters.status = status;
+  const filters: { customer_id?: string; status?: string } = {};
+  if (customer_id && typeof customer_id === 'string') filters.customer_id = customer_id;
+  if (status && typeof status === 'string') filters.status = status;
 
   const subscriptions = await subscriptionService.listSubscriptions(filters, {
     relations: ['items'],
@@ -52,15 +52,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       input: {
         customer_id,
         bundle_product_id,
-        one_time_items,
+        // one_time_items,
       },
     });
 
     res.json({
       subscription: result.subscription,
-      client_secret: result.client_secret,
+      // client_secret: result.client_secret,
     });
-  } catch (error: any) {
+  } catch (error) {
     req.scope.resolve('logger').error('Failed to create subscription:', error);
     return res.status(500).json({
       message: 'Failed to create subscription',

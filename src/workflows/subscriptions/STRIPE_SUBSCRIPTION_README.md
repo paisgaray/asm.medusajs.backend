@@ -22,9 +22,7 @@ Custom module that manages subscription lifecycle and data.
   - `provider_customer_id`: Stripe customer ID
   - `status`: active, paused, cancelled, past_due, incomplete
   - `subscription_price`: Monthly price
-  - `currency`: Currency code (default: usd)
-  - `current_period_start`: Billing period start
-  - `current_period_end`: Billing period end
+  - `currency`: Currency code (default: eur)
   - `next_billing_date`: Next payment date
 
 - `SubscriptionItem`: Snapshot of bundle items at subscription time
@@ -38,7 +36,7 @@ Extended to support subscriptions.
 
 **New Fields:**
 - `subscription_price`: Monthly subscription price (nullable)
-- `currency`: Currency for subscription (default: 'usd')
+- `currency`: Currency for subscription (default: 'eur')
 
 Products with the "subscription" tag and a subscription_price are eligible for subscriptions.
 
@@ -80,10 +78,10 @@ Immediately cancels a subscription.
 
 #### Store API (`/store/subscriptions`)
 
-**GET /store/subscriptions**
+**GET /me/subscriptions**
 List customer's subscriptions (requires authentication)
 
-**POST /store/subscriptions**
+**POST /me/subscriptions**
 Create new subscription
 ```json
 {
@@ -92,16 +90,16 @@ Create new subscription
 }
 ```
 
-**GET /store/subscriptions/:id**
+**GET /me/subscriptions/:id**
 Get subscription details
 
-**POST /store/subscriptions/:id/pause**
+**POST /me/subscriptions/:id/pause**
 Pause subscription
 
-**POST /store/subscriptions/:id/resume**
+**POST /me/subscriptions/:id/resume**
 Resume subscription
 
-**POST /store/subscriptions/:id/cancel**
+**POST /me/subscriptions/:id/cancel**
 Cancel subscription
 
 #### Admin API (`/admin/subscriptions`)
@@ -201,13 +199,13 @@ const { error } = await stripe.confirmPayment({
 4. **Manage Subscription**
 ```typescript
 // Pause
-await fetch(`/store/subscriptions/${id}/pause`, { method: 'POST' });
+await fetch(`/admin/subscriptions/${id}/pause`, { method: 'POST' });
 
 // Resume
-await fetch(`/store/subscriptions/${id}/resume`, { method: 'POST' });
+await fetch(`/admin/subscriptions/${id}/resume`, { method: 'POST' });
 
 // Cancel
-await fetch(`/store/subscriptions/${id}/cancel`, { method: 'POST' });
+await fetch(`/admin/subscriptions/${id}/cancel`, { method: 'POST' });
 ```
 
 ## Payment Flow
@@ -288,9 +286,6 @@ container.resolve('logger').error('Error message', error);
 - status (indexed)
 - subscription_price
 - currency
-- current_period_start
-- current_period_end
-- next_billing_date
 - metadata (jsonb)
 - created_at, updated_at, deleted_at
 ```

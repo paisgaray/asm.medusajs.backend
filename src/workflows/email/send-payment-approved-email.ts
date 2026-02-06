@@ -1,13 +1,8 @@
-/**
- * Workflow: Send Payment Approved Email
- * Orquestra o envio de e-mail de pagamento aprovado
- */
-
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SENDGRID_TEMPLATES } from '../../utils/sendgrid-templates';
-import { formatPaymentApprovedDataStep } from './steps/format-payment-approved-data-step';
-import { getOrderDataStep } from './steps/get-order-data-step';
+import { SENDGRID_TEMPLATES } from '../../constants/sendgrid-templates';
+import { formatOrderStep } from './steps/format-order-step';
+import { GetOrderByPaymentIdOutput, getOrderByPaymentIdStep } from './steps/get-order-by-paymentId-step';
 import { sendEmailStep } from './steps/send-email-step';
 
 export interface SendPaymentApprovedEmailInput {
@@ -17,23 +12,14 @@ export interface SendPaymentApprovedEmailInput {
 export const sendPaymentApprovedEmailWorkflow = createWorkflow(
   'send-payment-approved-email',
   (input: SendPaymentApprovedEmailInput) => {
-    // Step 1: Buscar dados do pedido e pagamento
-    const { order, payment } = getOrderDataStep({
-      payment_id: input.payment_id,
-    });
+    const { order, payment } = getOrderByPaymentIdStep({ payment_id: input.payment_id }) as GetOrderByPaymentIdOutput;
 
-    // Step 2: Formatar dados para o template do SendGrid
-    const { emailData, recipientEmail } = formatPaymentApprovedDataStep({
-      order,
-      payment,
-    });
+    const { templateData, recipientEmail } = formatOrderStep({ order, payment });
 
-    // Step 3: Enviar e-mail via SendGrid
     const result = sendEmailStep({
-      recipientEmail,
       templateId: SENDGRID_TEMPLATES.PAYMENT_APPROVED,
-      templateData: emailData,
-      subject: 'Pago aprobado',
+      recipientEmail,
+      templateData,
     });
 
     return new WorkflowResponse(result);

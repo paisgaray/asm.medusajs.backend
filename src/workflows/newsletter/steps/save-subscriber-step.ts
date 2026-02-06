@@ -5,8 +5,6 @@ import NewsletterModuleService from '../../../modules/newsletter/service';
 
 export interface SaveSubscriberInput {
   email: string;
-  first_name?: string;
-  last_name?: string;
 }
 
 export interface SaveSubscriberOutput {
@@ -18,7 +16,7 @@ export interface SaveSubscriberOutput {
 export const saveSubscriberStep = createStep(
   'save-subscriber-step',
   async (input: SaveSubscriberInput, { container }) => {
-    const { email, first_name, last_name } = input;
+    const { email } = input;
 
     const newsletterService: NewsletterModuleService = container.resolve(NEWSLETTER_MODULE);
 
@@ -35,8 +33,6 @@ export const saveSubscriberStep = createStep(
         subscriber = await newsletterService.updateNewsletterSubscribers({
           id: existing[0].id,
           status: 'subscribed',
-          first_name: first_name || existing[0].first_name,
-          last_name: last_name || existing[0].last_name,
           subscribed_at: new Date(),
           unsubscribed_at: null,
         });
@@ -44,8 +40,6 @@ export const saveSubscriberStep = createStep(
         // Criar novo
         subscriber = await newsletterService.createNewsletterSubscribers({
           email,
-          first_name,
-          last_name,
           status: 'subscribed',
           subscribed_at: new Date(),
         });

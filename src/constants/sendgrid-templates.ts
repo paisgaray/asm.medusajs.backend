@@ -1,8 +1,3 @@
-/**
- * SendGrid Template IDs
- * IDs criados pelo front-end para cada tipo de e-mail
- */
-
 export const SENDGRID_TEMPLATES = {
   RESET_PASSWORD: 'd-97f70554211843c08e630e384ae6951f',
   ORDER_DELIVERED: 'd-c0157e4c7a4a4ebe839fae834b9d6168',
@@ -13,5 +8,3 @@ export const SENDGRID_TEMPLATES = {
   PAYMENT_NOT_APPROVED: 'd-b23249abe881427f8badc774880eba76',
   PAYMENT_APPROVED: 'd-dadda7e1dafb4d52b9cd80fc5e546590',
 } as const;
-
-export type SendGridTemplateId = (typeof SENDGRID_TEMPLATES)[keyof typeof SENDGRID_TEMPLATES];

@@ -72,7 +72,7 @@ export const getCustomerAccountHoldersStep = createStep(
 
       const accountHolders: AccountHolderData[] = accountHoldersData
         .filter((ah: { provider_id?: string; data?: { id?: string } }) => ah.provider_id && ah.data?.id)
-        .map((ah: { id: string; provider_id: string; data: { id: string } }) => ({
+        .map((ah: { id: string; provider_id: string; data: { id?: string } }) => ({
           id: ah.id,
           provider_id: ah.provider_id,
           data: {

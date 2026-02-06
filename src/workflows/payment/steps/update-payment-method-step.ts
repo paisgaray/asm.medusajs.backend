@@ -42,7 +42,7 @@ export const updatePaymentMethodStep = createStep(
       id: string;
       provider_id: string;
       data: {
-        id: string;
+        id?: string;
       };
     };
 

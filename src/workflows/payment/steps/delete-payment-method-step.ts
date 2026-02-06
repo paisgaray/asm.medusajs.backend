@@ -1,4 +1,4 @@
-import { MedusaError, ContainerRegistrationKeys } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, MedusaError } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 export type DeletePaymentMethodStepInput = {
@@ -44,7 +44,7 @@ export const deletePaymentMethodStep = createStep(
       id: string;
       provider_id: string;
       data: {
-        id: string;
+        id?: string;
       };
     };
 

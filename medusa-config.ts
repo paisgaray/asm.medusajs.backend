@@ -20,6 +20,7 @@ addLocalModuleIfExists('./src/modules/bundled-product');
 addLocalModuleIfExists('./src/modules/wishlist');
 addLocalModuleIfExists('./src/modules/subscriptions');
 addLocalModuleIfExists('./src/modules/newsletter');
+addLocalModuleIfExists('./src/modules/contact');
 
 // Módulo Algolia
 const algoliaModulePath = path.resolve(process.cwd(), './src/modules/algolia');
@@ -140,6 +141,7 @@ modules.push(
   },
 );
 
+// File Module: SEMPRE registrar (S3 se configurado, senão local)
 if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
   modules.push({
     resolve: '@medusajs/medusa/file',
@@ -158,6 +160,61 @@ if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
             additional_client_config: {
               forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
             },
+          },
+        },
+      ],
+    },
+  });
+} else {
+  // File provider local para desenvolvimento (SEMPRE registrar se não houver S3)
+  // Conforme documentação: https://docs.medusajs.com/resources/modules/file
+  modules.push({
+    resolve: '@medusajs/medusa/file',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/file-local',
+          id: 'local',
+          options: {
+            // Opções opcionais em dev - o provider local usa uploads/ por padrão
+          },
+        },
+      ],
+    },
+  });
+}
+
+// Log para verificar se File Module está sendo registrado
+const hasFileModule = modules.some((m) => {
+  if (typeof m === 'object' && m !== null && 'resolve' in m) {
+    return (m as { resolve?: string }).resolve === '@medusajs/medusa/file';
+  }
+  return false;
+});
+if (hasFileModule) {
+  console.log('[medusa-config] ✅ File Module registrado no array de modules');
+} else {
+  console.warn('[medusa-config] ⚠️ File Module NÃO encontrado no array de modules!');
+  console.log('[medusa-config] Total de módulos:', modules.length);
+}
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  modules.push({
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+        },
+        {
+          resolve: '@medusajs/medusa/auth-google',
+          id: 'google',
+          options: {
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            callbackUrl: process.env.GOOGLE_CALLBACK_URL,
           },
         },
       ],

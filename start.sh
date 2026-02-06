@@ -3,7 +3,7 @@ set -e
 
 if [ "$WORKER_MODE" != "worker" ]; then
   echo "Running migrations for $WORKER_MODE"
-  until yarn predeploy; do
+  until yarn prestart; do
     echo "Migration failed — retrying in 5s..."
     sleep 5
   done

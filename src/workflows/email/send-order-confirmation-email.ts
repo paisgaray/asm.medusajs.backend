@@ -28,17 +28,20 @@ export const sendOrderConfirmationEmailWorkflow = createWorkflow(
   'send-order-confirmation-email',
   (input: SendOrderConfirmationEmailInput) => {
     // Step 1: Buscar dados completos do pedido
+
     const { order, payment } = getOrderByIdStep({
       order_id: input.order_id,
     });
 
     // Step 2: Formatar dados para o template do SendGrid
+
     const { emailData, recipientEmail } = formatOrderConfirmationDataStep({
       order,
       payment,
     });
 
     // Step 3: Enviar e-mail
+
     const result = sendEmailStep({
       recipientEmail,
       templateId: SENDGRID_TEMPLATES.ORDER_CONFIRMATION,

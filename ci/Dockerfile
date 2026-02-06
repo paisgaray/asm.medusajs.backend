@@ -9,11 +9,11 @@ WORKDIR /app
 
 FROM base AS prod-deps
 COPY package.json yarn.lock .
-RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install --prod --frozen-lockfile
+RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install --prod
 
 FROM base AS build
 COPY . .
-RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install --frozen-lockfile
+RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install
 RUN yarn build
 
 FROM base AS production

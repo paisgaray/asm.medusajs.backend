@@ -1,7 +1,7 @@
 import { HttpTypes } from '@medusajs/framework/types';
 import { Button, FocusModal, Heading, Input, Label, Select, toast } from '@medusajs/ui';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { sdk } from '../lib/sdk';
 

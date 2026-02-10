@@ -84,9 +84,7 @@ export const prepareOneTimeItemsStep = createStep(
 
     // Rollback: delete any Stripe products that were created
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     const logger = container.resolve('logger');
 

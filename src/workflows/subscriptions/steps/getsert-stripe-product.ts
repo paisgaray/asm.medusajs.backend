@@ -14,9 +14,7 @@ type GetsertStripeProductInput = {
 export const getsertStripeProductStep = createStep(
   'getsert-stripe-product',
   async (input: GetsertStripeProductInput, { container }) => {
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     const logger = container.resolve('logger');
 
@@ -63,9 +61,7 @@ export const getsertStripeProductStep = createStep(
     }
 
     // Rollback: delete the Stripe product if it was created and something fails later
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     try {
       await stripe.products.del(data.stripe_product_id);

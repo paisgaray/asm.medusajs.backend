@@ -9,9 +9,7 @@ type GetOrCreateStripeCustomerStepInput = {
 export const getOrCreateStripeCustomerStep = createStep(
   'get-or-create-stripe-customer',
   async (input: GetOrCreateStripeCustomerStepInput, { container }) => {
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     // Get Medusa customer
     const customerQuery = container.resolve('query');

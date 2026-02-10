@@ -2,11 +2,11 @@ import { defineRouteConfig } from '@medusajs/admin-sdk';
 import { CubeSolid } from '@medusajs/icons';
 import {
   Container,
-  Heading,
-  DataTable,
-  useDataTable,
   createDataTableColumnHelper,
+  DataTable,
   DataTablePaginationState,
+  Heading,
+  useDataTable,
 } from '@medusajs/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';

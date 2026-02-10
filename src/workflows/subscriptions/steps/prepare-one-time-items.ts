@@ -77,7 +77,7 @@ export const prepareOneTimeItemsStep = createStep(
       { one_time_items: oneTimeItems, created_stripe_products: createdStripeProducts },
     );
   },
-  async (data: CompensationData, { container }) => {
+  async (data, { container }) => {
     if (!data?.created_stripe_products || data.created_stripe_products.length === 0) {
       return;
     }
@@ -92,7 +92,7 @@ export const prepareOneTimeItemsStep = createStep(
       try {
         await stripe.products.del(productId);
         logger.info(`Rolled back Stripe product: ${productId}`);
-      } catch (error) {
+      } catch (error: any) {
         logger.error(`Failed to rollback Stripe product ${productId}: ${error.message}`);
       }
     }

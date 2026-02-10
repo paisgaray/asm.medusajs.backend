@@ -82,7 +82,7 @@ export const getOrCreateStripeCustomerStep = createStep(
         {},
       );
       container.resolve('logger').info(`Rolled back Stripe customer metadata for ${data.customer_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback customer metadata: ${error.message}`);
     }
   },

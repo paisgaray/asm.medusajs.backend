@@ -66,7 +66,7 @@ export const getsertStripeProductStep = createStep(
     try {
       await stripe.products.del(data.stripe_product_id);
       container.resolve('logger').info(`Rolled back Stripe product: ${data.stripe_product_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback Stripe product: ${error.message}`);
     }
   },

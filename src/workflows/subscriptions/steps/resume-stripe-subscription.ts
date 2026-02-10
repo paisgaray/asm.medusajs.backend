@@ -51,7 +51,7 @@ export const resumeStripeSubscriptionStep = createStep(
         },
       });
       container.resolve('logger').info(`Rolled back resume for subscription: ${data.provider_subscription_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback resume: ${error.message}`);
     }
   },

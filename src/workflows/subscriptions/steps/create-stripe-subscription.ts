@@ -83,7 +83,7 @@ export const createStripeSubscriptionStep = createStep(
     try {
       await stripe.subscriptions.cancel(data.stripe_subscription_id);
       container.resolve('logger').info(`Rolled back Stripe subscription: ${data.stripe_subscription_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback Stripe subscription: ${error.message}`);
     }
   },

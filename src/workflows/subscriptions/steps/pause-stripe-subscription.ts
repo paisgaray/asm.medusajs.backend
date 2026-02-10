@@ -51,7 +51,7 @@ export const pauseStripeSubscriptionStep = createStep(
         pause_collection: null,
       });
       container.resolve('logger').info(`Rolled back pause for subscription: ${data.provider_subscription_id}`);
-    } catch (error) {
+    } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback pause: ${error.message}`);
     }
   },

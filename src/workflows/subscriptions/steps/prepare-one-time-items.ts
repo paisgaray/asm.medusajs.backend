@@ -21,11 +21,6 @@ type OneTimeItem = {
   quantity: number;
 };
 
-type CompensationData = {
-  one_time_items: OneTimeItem[];
-  created_stripe_products: string[];
-};
-
 export const prepareOneTimeItemsStep = createStep(
   'prepare-one-time-items',
   async (input: PrepareOneTimeItemsStepInput, { container }) => {

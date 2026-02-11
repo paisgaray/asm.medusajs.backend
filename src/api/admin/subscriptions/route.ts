@@ -30,17 +30,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 };
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { customer_id, bundle_product_id, one_time_items } = req.body as {
+  const { customer_id, bundle_product_id } = req.body as {
     customer_id: string;
     bundle_product_id: string;
-    one_time_items?: Array<{
-      price_data: {
-        currency: string;
-        product: string;
-        unit_amount: number;
-      };
-      quantity: number;
-    }>;
   };
 
   if (!customer_id || !bundle_product_id) {
@@ -52,13 +44,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       input: {
         customer_id,
         bundle_product_id,
-        // one_time_items,
       },
     });
 
     res.json({
       subscription: result.subscription,
-      // client_secret: result.client_secret,
     });
   } catch (error) {
     req.scope.resolve('logger').error('Failed to create subscription:', error);

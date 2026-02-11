@@ -18,7 +18,7 @@ export const cancelStripeSubscriptionStep = createStep(
       throw new Error('This step only supports Stripe subscriptions');
     }
 
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     // Cancel the subscription immediately
     const canceledSubscription = await stripe.subscriptions.cancel(subscription.provider_subscription_id);

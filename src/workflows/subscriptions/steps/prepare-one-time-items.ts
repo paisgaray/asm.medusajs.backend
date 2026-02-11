@@ -21,11 +21,6 @@ type OneTimeItem = {
   quantity: number;
 };
 
-type CompensationData = {
-  one_time_items: OneTimeItem[];
-  created_stripe_products: string[];
-};
-
 export const prepareOneTimeItemsStep = createStep(
   'prepare-one-time-items',
   async (input: PrepareOneTimeItemsStepInput, { container }) => {
@@ -84,7 +79,7 @@ export const prepareOneTimeItemsStep = createStep(
 
     // Rollback: delete any Stripe products that were created
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     const logger = container.resolve('logger');
 

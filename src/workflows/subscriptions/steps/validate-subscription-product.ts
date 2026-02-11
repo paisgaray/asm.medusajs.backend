@@ -1,8 +1,5 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
-import BundledProductModuleService from '../../../modules/bundled-product/service';
-
 type ValidateSubscriptionProductStepInput = {
   bundle_product_id: string;
 };
@@ -10,24 +7,38 @@ type ValidateSubscriptionProductStepInput = {
 export const validateSubscriptionProductStep = createStep(
   'validate-subscription-product',
   async (input: ValidateSubscriptionProductStepInput, { container }) => {
-    const bundleService = container.resolve(BUNDLED_PRODUCT_MODULE) as BundledProductModuleService;
+    const query = container.resolve('query');
 
-    const bundle = await bundleService.retrieveBundle(input.bundle_product_id, {
-      relations: ['items'],
+    // Query product with its linked bundle and price
+    const {
+      data: [product],
+    } = await query.graph({
+      entity: 'product',
+      filters: { id: input.bundle_product_id },
+      fields: ['id', 'title', 'variants.*', 'variants.calculated_price.*', 'bundle.*', 'bundle.items.*'],
     });
 
-    if (!bundle) {
-      throw new Error(`Bundle product with ID ${input.bundle_product_id} not found`);
+    if (!product) {
+      throw new Error(`Product with ID ${input.bundle_product_id} not found`);
     }
 
-    if (!bundle.subscription_price) {
-      throw new Error(`Bundle product ${input.bundle_product_id} does not have a subscription price`);
+    if (!product.bundle) {
+      throw new Error(`Product ${input.bundle_product_id} is not linked to a bundle`);
     }
+
+    // Get price from the product's default variant
+    const defaultVariant = product.variants?.[0];
+    if (!defaultVariant?.calculated_price?.calculated_amount) {
+      throw new Error(`Product ${input.bundle_product_id} has no price configured`);
+    }
+
+    const subscriptionPrice = defaultVariant.calculated_price.calculated_amount;
+    const currency = defaultVariant.calculated_price.currency_code || 'eur';
 
     return new StepResponse({
-      bundle,
-      subscription_price: bundle.subscription_price,
-      currency: bundle.currency || 'eur',
+      bundle: product.bundle,
+      subscription_price: subscriptionPrice,
+      currency,
     });
   },
 );

@@ -6,22 +6,14 @@ type CreateStripeSubscriptionStepInput = {
   stripe_product_id: string;
   subscription_price: number;
   currency: string;
-  one_time_items?: Array<{
-    price_data: {
-      currency: string;
-      product: string;
-      unit_amount: number;
-    };
-    quantity: number;
-  }>;
+  /** When true, first payment was already handled by checkout. Subscription starts billing next month. */
+  skip_first_charge?: boolean;
 };
 
 export const createStripeSubscriptionStep = createStep(
   'create-stripe-subscription',
-  async (input: CreateStripeSubscriptionStepInput) => {
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover' as '2022-11-15',
-    });
+  async (input: CreateStripeSubscriptionStepInput, { container: _container }) => {
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     // Create Stripe subscription
     const subscriptionParams: Stripe.SubscriptionCreateParams = {
@@ -43,9 +35,12 @@ export const createStripeSubscriptionStep = createStep(
       expand: ['latest_invoice.payment_intent'],
     };
 
-    // Add one-time items to the first invoice
-    if (input.one_time_items && input.one_time_items.length > 0) {
-      subscriptionParams.add_invoice_items = input.one_time_items;
+    if (input.skip_first_charge) {
+      // Checkout already charged for the first period.
+      // Anchor billing to 1 month from now so the first invoice is $0 (prorated).
+      const oneMonthFromNow = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+      subscriptionParams.billing_cycle_anchor = oneMonthFromNow;
+      subscriptionParams.proration_behavior = 'none';
     }
 
     const stripeSubscription = await stripe.subscriptions.create(subscriptionParams);
@@ -83,9 +78,7 @@ export const createStripeSubscriptionStep = createStep(
     }
 
     // Rollback: cancel the Stripe subscription if something fails later
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-      apiVersion: '2025-12-15.clover' as '2022-11-15',
-    });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     try {
       await stripe.subscriptions.cancel(data.stripe_subscription_id);

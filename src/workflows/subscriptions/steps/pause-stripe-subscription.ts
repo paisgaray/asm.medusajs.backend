@@ -18,7 +18,7 @@ export const pauseStripeSubscriptionStep = createStep(
       throw new Error('This step only supports Stripe subscriptions');
     }
 
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     // Pause the subscription
     await stripe.subscriptions.update(subscription.provider_subscription_id, {
@@ -44,7 +44,7 @@ export const pauseStripeSubscriptionStep = createStep(
     }
 
     // Rollback: resume the subscription
-    const stripe = new Stripe(process.env.STRIPE_API_KEY!, { apiVersion: '2022-11-15' });
+    const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     try {
       await stripe.subscriptions.update(data.provider_subscription_id, {

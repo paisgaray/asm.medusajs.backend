@@ -1,0 +1,92 @@
+name: Deploy to AWS (ECR + ECS)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-central-1' }}
+  ECR_API: ${{ vars.ECR_REPOSITORY_API || 'suggero-commerce-api' }}
+  ECR_WORKER: ${{ vars.ECR_REPOSITORY_WORKER || 'suggero-commerce-worker' }}
+  ECS_CLUSTER: ${{ vars.ECS_CLUSTER_NAME || 'suggero-commerce-cluster' }}
+  ECS_SERVICE_API: ${{ vars.ECS_SERVICE_API || 'suggero-commerce-api' }}
+  ECS_SERVICE_WORKER: ${{ vars.ECS_SERVICE_WORKER || 'suggero-commerce-worker' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build image (API e Worker usam a mesma imagem)
+        run: |
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }} \
+            -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:latest \
+            -f ci/Dockerfile .
+
+      - name: Tag e push para ECR API
+        run: |
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:latest
+
+      - name: Tag e push para ECR Worker (mesma imagem)
+        run: |
+          docker tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:latest \
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:latest
+          docker tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }} \
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:${{ steps.tag.outputs.tag }}
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:${{ steps.tag.outputs.tag }}
+
+      - name: Force new deployment (API)
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE_API }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Force new deployment (Worker)
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE_WORKER }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for API service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE_API }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for Worker service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE_WORKER }} \
+            --region ${{ env.AWS_REGION }}

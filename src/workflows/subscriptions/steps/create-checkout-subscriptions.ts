@@ -9,6 +9,8 @@ type CreateCheckoutSubscriptionsInput = {
   order_id: string;
   /** Pre-resolved Stripe customer ID from checkout payment session */
   stripe_customer_id?: string;
+  /** Payment method ID from checkout to attach to the customer */
+  payment_method_id: string;
 };
 
 type CheckoutSubscriptionsOutput = {
@@ -28,7 +30,13 @@ type CompensationData = {
 export const createCheckoutSubscriptionsStep = createStep(
   'create-checkout-subscriptions',
   async (
-    { customer_id, subscription_items, order_id, stripe_customer_id }: CreateCheckoutSubscriptionsInput,
+    {
+      customer_id,
+      subscription_items,
+      order_id,
+      stripe_customer_id,
+      payment_method_id,
+    }: CreateCheckoutSubscriptionsInput,
     { container },
   ): Promise<StepResponse<CheckoutSubscriptionsOutput, CompensationData>> => {
     const logger = container.resolve('logger');
@@ -45,6 +53,7 @@ export const createCheckoutSubscriptionsStep = createStep(
           customer_id,
           bundle_product_id: subItem.product_id,
           stripe_customer_id,
+          payment_method_id,
           skip_first_charge: true,
         },
       });

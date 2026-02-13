@@ -22,18 +22,15 @@ export const getPaymentMethodFromOrderStep = createStep(
   'get-payment-method-from-order',
   async ({ order }: { order: OrderWithItems }, { container }): Promise<StepResponse<PaymentMethodOutput>> => {
     const logger = container.resolve('logger');
-    const query = container.resolve('query');
 
     logger.info(`Getting payment method from order ${order.id}`);
 
-    // Get payment collection with sessions
-    const { data: paymentCollections } = await query.graph({
-      entity: 'payment_collection',
-      fields: ['id', 'payment_sessions.*'],
-      filters: { id: order.payment_collection_id },
-    });
+    // Get payment collection from order (already fetched with order)
+    if (!order.payment_collections?.length) {
+      throw new Error('No payment collections found for order');
+    }
 
-    const paymentCollection = paymentCollections[0] as PaymentCollectionDTO & {
+    const paymentCollection = order.payment_collections[0] as PaymentCollectionDTO & {
       payment_sessions: PaymentSessionDTO[];
     };
 

@@ -1,4 +1,4 @@
-import { QueryContext, Modules } from '@medusajs/framework/utils';
+import { Modules, QueryContext } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { ALGOLIA_MODULE, type ProductInput } from '../../../modules/algolia';

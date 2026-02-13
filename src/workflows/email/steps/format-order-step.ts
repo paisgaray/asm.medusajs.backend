@@ -1,8 +1,6 @@
 import { BigNumberValue, OrderWorkflowDTO } from '@medusajs/framework/types';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import type { OrderPreparingEmailData } from '../../../types/email-templates';
-
 export interface FormatOrderPreparingDataInput {
   order: OrderWorkflowDTO;
   payment: {
@@ -11,11 +9,6 @@ export interface FormatOrderPreparingDataInput {
       last4?: string;
     };
   };
-}
-
-export interface FormatOrderPreparingDataOutput {
-  templateData: OrderPreparingEmailData;
-  recipientEmail: string;
 }
 
 export const formatOrderStep = createStep(

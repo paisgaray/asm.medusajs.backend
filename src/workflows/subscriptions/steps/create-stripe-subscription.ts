@@ -37,8 +37,8 @@ export const createStripeSubscriptionStep = createStep(
 
     if (input.skip_first_charge) {
       // Checkout already charged for the first period.
-      // Anchor billing to 1 month from now so the first invoice is $0 (prorated).
-      const oneMonthFromNow = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+      // Set billing_cycle_anchor to 29 days from now (slightly less than 30 to avoid exceeding Stripe's natural billing date)
+      const oneMonthFromNow = Math.floor(Date.now() / 1000) + 29 * 24 * 60 * 60;
       subscriptionParams.billing_cycle_anchor = oneMonthFromNow;
       subscriptionParams.proration_behavior = 'none';
     }

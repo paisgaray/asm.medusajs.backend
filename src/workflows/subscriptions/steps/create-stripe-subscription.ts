@@ -38,7 +38,7 @@ export const createStripeSubscriptionStep = createStep(
     if (input.skip_first_charge) {
       // Checkout already charged for the first period.
       // Backdate the subscription start to now (in seconds), so the next billing naturally occurs ~1 month from now
-      const now = Math.floor(Date.now() / 1000);
+      const now = Math.floor(Date.now() / 1000) - 10; // Subtract 10 seconds to ensure it's in the past and doesn't cause errors
       subscriptionParams.backdate_start_date = now;
       // The first invoice will be created but won't charge since billing already happened
       subscriptionParams.proration_behavior = 'none';

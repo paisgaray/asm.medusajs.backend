@@ -1,5 +1,6 @@
 import { createWorkflow, transform, when, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
+import { attachPaymentMethodStep } from './steps/attach-payment-method';
 import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
 import { getOrCreateStripeCustomerStep } from './steps/get-or-create-stripe-customer';
@@ -14,6 +15,8 @@ type CreateSubscriptionWorkflowInput = {
   stripe_customer_id?: string;
   /** When true, first payment was handled by checkout. Subscription starts billing next month. */
   skip_first_charge?: boolean;
+  /** Payment method to attach to customer (only used if customer needs to be created) */
+  payment_method_id?: string;
 };
 
 export const createSubscriptionWorkflow = createWorkflow(
@@ -42,7 +45,15 @@ export const createSubscriptionWorkflow = createWorkflow(
       }),
     );
 
-    // Step 3: Get or create Stripe product for the bundle
+    // Step 3: Attach payment method if provided (must happen before creating subscription)
+    when({ payment_method_id: input.payment_method_id }, ({ payment_method_id }) => !!payment_method_id).then(() => {
+      return attachPaymentMethodStep({
+        payment_method_id: input.payment_method_id!,
+        stripe_customer_id: resolvedCustomer.stripe_customer_id,
+      });
+    });
+
+    // Step 4: Get or create Stripe product for the bundle
     const { stripe_product_id } = getsertStripeProductStep({
       product_name: bundle.title,
       medusa_product_id: bundle.id,

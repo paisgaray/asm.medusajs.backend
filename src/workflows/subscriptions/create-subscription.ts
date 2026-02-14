@@ -84,7 +84,7 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 7: Snapshot bundle items
     snapshotBundleItemsStep({
-      bundle_product_id: input.bundle_product_id,
+      bundle_id: bundle.id,
       subscription_id: subscription.id,
     });
 

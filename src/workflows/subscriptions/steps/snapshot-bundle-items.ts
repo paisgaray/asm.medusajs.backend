@@ -4,7 +4,7 @@ import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
 type SnapshotBundleItemsStepInput = {
-  bundle_product_id: string;
+  bundle_id: string;
   subscription_id: string;
 };
 
@@ -18,12 +18,16 @@ export const snapshotBundleItemsStep = createStep(
       data: [bundle],
     } = await query.graph({
       entity: 'bundle',
-      filters: { id: input.bundle_product_id },
+      filters: { id: input.bundle_id },
       fields: ['id', 'title', 'items.*', 'items.product.*', 'items.product.variants.*'],
     });
 
-    if (!bundle?.items || bundle.items.length === 0) {
-      throw new Error(`Bundle ${input.bundle_product_id} has no items`);
+    if (!bundle) {
+      throw new Error(`Bundle ${input.bundle_id} not found`);
+    }
+
+    if (!bundle.items || bundle.items.length === 0) {
+      throw new Error(`Bundle ${input.bundle_id} has no items`);
     }
 
     const subscriptionItems = [];

@@ -1,6 +1,6 @@
 import { DeleteEntityInput } from '@medusajs/framework/modules-sdk';
 import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
-import { deleteProductsWorkflow, removeRemoteLinkStep, useQueryGraphStep } from '@medusajs/medusa/core-flows';
+import { deleteProductsStep, removeRemoteLinkStep, useQueryGraphStep } from '@medusajs/medusa/core-flows';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import { removeBundleStep } from '../steps/remove-bundle';
@@ -32,7 +32,7 @@ export const removeBundledProductWorkflow = createWorkflow(
 
     removeRemoteLinkStep(deleteInputs).config({ name: 'delete-bundle-product-items-links' });
 
-    deleteProductsWorkflow.runAsStep({ input: { ids: [data[0].product.id] } });
+    deleteProductsStep([data[0].product.id]);
 
     const bundleDeleted = removeBundleStep({ id });
 

@@ -1,4 +1,4 @@
-import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
+import { type SubscriberArgs, type SubscriberConfig } from '@medusajs/framework';
 
 import { ALGOLIA_MODULE } from '../modules/algolia';
 import { areSubscribersEnabled } from '../modules/algolia/feature-flags';

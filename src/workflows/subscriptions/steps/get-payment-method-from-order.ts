@@ -50,14 +50,21 @@ export const getPaymentMethodFromOrderStep = createStep(
     // Extract payment method ID from session data
     const sessionData = (stripeSession.data || {}) as PaymentSessionData;
     let paymentMethodId = sessionData.payment_method;
+    let stripeCustomerId = sessionData.customer;
+
+    logger.info(`Session data: ${JSON.stringify(sessionData)}`);
 
     // If not directly available, try to get from payment intent
-    if (!paymentMethodId && sessionData.id) {
+    if ((!paymentMethodId || !stripeCustomerId) && sessionData.id) {
       const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
       try {
         const paymentIntent = await stripe.paymentIntents.retrieve(sessionData.id);
-        paymentMethodId = paymentIntent.payment_method as string;
+        paymentMethodId = paymentMethodId || (paymentIntent.payment_method as string);
+        stripeCustomerId = stripeCustomerId || (paymentIntent.customer as string);
+        logger.info(
+          `Retrieved from payment intent - payment_method: ${paymentMethodId}, customer: ${stripeCustomerId}`,
+        );
       } catch (error) {
         logger.error('Failed to retrieve payment intent:', error);
       }
@@ -67,11 +74,19 @@ export const getPaymentMethodFromOrderStep = createStep(
       throw new Error('Could not extract payment method from order');
     }
 
-    logger.info(`Found payment method: ${paymentMethodId}`);
+    // Customer may be null if payment intent was created without a Stripe customer
+    // The create-subscription workflow will handle customer creation in that case
+    if (!stripeCustomerId) {
+      logger.warn(
+        `No Stripe customer found in payment data for order ${order.id} - will be created in subscription workflow`,
+      );
+    }
+
+    logger.info(`Found payment method: ${paymentMethodId}, customer: ${stripeCustomerId || 'none - will create'}`);
 
     return new StepResponse({
       payment_method_id: paymentMethodId,
-      stripe_customer_id: sessionData.customer,
+      stripe_customer_id: stripeCustomerId,
     });
   },
 );

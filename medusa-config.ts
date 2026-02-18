@@ -141,6 +141,12 @@ modules.push(
           id: 'stripe',
           options: {
             apiKey: process.env.STRIPE_API_KEY,
+            // Automatically create Stripe customers and attach payment methods during checkout
+            // This is required for subscriptions to reuse payment methods
+            // automatic_payment_methods: true,
+            // payment_intent_data: {
+            //   setup_future_usage: 'off_session',
+            // },
           },
         },
       ],

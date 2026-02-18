@@ -12,11 +12,19 @@ module.exports = {
         project: "./src/admin/tsconfig.json",
         sourceType: "module"
       }
+    },
+    {
+      files: ["src/scripts/product-import/**/*"],
+      parserOptions: {
+        project: null,
+        sourceType: "module"
+      }
     }
   ],
   rules: {
     "camelcase": "off",
     "dot-notation": "off",
+    "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-require-imports": "off",
     "@typescript-eslint/no-var-requires": "off",
     "prettier/prettier": [

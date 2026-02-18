@@ -6,19 +6,15 @@ export default async function handleOrderShipped({
   event: { data },
   container,
 }: SubscriberArgs<{ id: string; order_id: string }>) {
-  const orderId = data.order_id || data.id;
+  const fulfillment_id = data.id;
 
   try {
-    await sendOrderShippedEmailWorkflow(container).run({
-      input: {
-        order_id: orderId,
-      },
-    });
+    await sendOrderShippedEmailWorkflow(container).run({ input: { fulfillment_id } });
   } catch (error) {
-    console.error(`[Order Shipped] Erro ao enviar e-mail para order_id: ${orderId}`, error);
+    console.error(`[Order Shipped] Erro ao enviar e-mail para order_id: ${fulfillment_id}`, error);
   }
 }
 
 export const config: SubscriberConfig = {
-  event: 'order.shipment_created', // ✅ EVENTO NATIVO DO MEDUSAJS
+  event: 'shipment.created',
 };

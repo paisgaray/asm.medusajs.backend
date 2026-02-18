@@ -1,5 +1,5 @@
 import { ExternalModuleDeclaration, InputConfigModules, InternalModuleDeclaration } from '@medusajs/framework/types';
-import { defineConfig, loadEnv } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, defineConfig, loadEnv, Modules } from '@medusajs/framework/utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -18,7 +18,9 @@ const addLocalModuleIfExists = (relativePath: string) => {
 
 addLocalModuleIfExists('./src/modules/bundled-product');
 addLocalModuleIfExists('./src/modules/wishlist');
+addLocalModuleIfExists('./src/modules/subscriptions');
 addLocalModuleIfExists('./src/modules/newsletter');
+addLocalModuleIfExists('./src/modules/contact');
 
 // Módulo Algolia
 const algoliaModulePath = path.resolve(process.cwd(), './src/modules/algolia');
@@ -95,6 +97,19 @@ modules.push(
     resolve: '@medusajs/medusa/translation',
   },
   {
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+          options: {},
+        },
+      ],
+    },
+  },
+  {
     resolve: '@medusajs/medusa/notification',
     options: {
       providers: [
@@ -102,8 +117,36 @@ modules.push(
           resolve: '@medusajs/notification-sendgrid',
           id: 'sendgrid',
           options: {
+            channels: ['email'],
             api_key: process.env.SENDGRID_API_KEY,
-            from: process.env.SENDGRID_FROM_EMAIL,
+            from: process.env.SENDGRID_FROM_EMAIL || process.env.SENDGRID_FROM,
+          },
+        },
+        {
+          resolve: '@medusajs/medusa/notification-local',
+          id: 'local',
+          options: {
+            channels: ['feed', 'notification'],
+          },
+        },
+      ],
+    },
+  },
+  {
+    resolve: '@medusajs/medusa/payment',
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/payment-stripe',
+          id: 'stripe',
+          options: {
+            apiKey: process.env.STRIPE_API_KEY,
+            // Automatically create Stripe customers and attach payment methods during checkout
+            // This is required for subscriptions to reuse payment methods
+            // automatic_payment_methods: true,
+            // payment_intent_data: {
+            //   setup_future_usage: 'off_session',
+            // },
           },
         },
       ],
@@ -134,23 +177,37 @@ if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
       ],
     },
   });
-}
-
-// Módulo de Notificação com SendGrid (opcional - apenas se SENDGRID_FROM estiver configurado)
-// Nota: Para salvar contatos no CRM, apenas SENDGRID_API_KEY é necessária
-// O módulo de notificação só é necessário se você quiser enviar emails via SendGrid
-if (process.env.SENDGRID_API_KEY && process.env.SENDGRID_FROM) {
+} else {
   modules.push({
-    resolve: '@medusajs/medusa/notification',
+    resolve: '@medusajs/medusa/file',
     options: {
       providers: [
         {
-          resolve: '@medusajs/medusa/notification-sendgrid',
-          id: 'sendgrid',
+          resolve: '@medusajs/medusa/file-local',
+          id: 'local',
+        },
+      ],
+    },
+  });
+}
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  modules.push({
+    resolve: '@medusajs/medusa/auth',
+    dependencies: [Modules.CACHE, ContainerRegistrationKeys.LOGGER],
+    options: {
+      providers: [
+        {
+          resolve: '@medusajs/medusa/auth-emailpass',
+          id: 'emailpass',
+        },
+        {
+          resolve: '@medusajs/medusa/auth-google',
+          id: 'google',
           options: {
-            channels: ['email'],
-            api_key: process.env.SENDGRID_API_KEY,
-            from: process.env.SENDGRID_FROM,
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            callbackUrl: process.env.GOOGLE_CALLBACK_URL,
           },
         },
       ],
@@ -169,7 +226,6 @@ export default defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
-    // Outras configs se necessário
   },
   admin: {
     backendUrl: process.env.MEDUSA_BACKEND_URL,

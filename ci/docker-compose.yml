@@ -15,7 +15,6 @@ services:
 
       DATABASE_URL: "${DATABASE_URL}"
   
-
       REDIS_URL: "${REDIS_URL}"
 
       JWT_SECRET: "${JWT_SECRET}"
@@ -37,6 +36,11 @@ services:
       S3_BUCKET: "medusa"
       S3_FILE_URL: "https://minio-api.coolify-dev.qualityhosting.global/medusa"
       S3_FORCE_PATH_STYLE: "true"
+
+      # Auth Google Callback
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      GOOGLE_CALLBACK_URL: "${GOOGLE_CALLBACK_URL}"
 
     ports:
       - "9010:9000"

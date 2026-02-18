@@ -1,7 +1,6 @@
-import { CreateProductWorkflowInputDTO } from '@medusajs/framework/types';
 import { Modules } from '@medusajs/framework/utils';
 import { createWorkflow, transform, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
-import { createProductsWorkflow, createRemoteLinkStep, useQueryGraphStep } from '@medusajs/medusa/core-flows';
+import { createRemoteLinkStep, updateProductsWorkflow, useQueryGraphStep } from '@medusajs/medusa/core-flows';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import { createBundleStep } from '../steps/create-bundle';
@@ -10,9 +9,7 @@ import { minimumValidBundle } from '../steps/minimum-valid-bundle';
 
 export type CreateBundledProductWorkflowInput = {
   bundle: {
-    title: string;
-    details: string;
-    product: CreateProductWorkflowInputDTO;
+    product_id: string;
     items: {
       product_id: string;
       details: string;
@@ -24,13 +21,22 @@ export type CreateBundledProductWorkflowInput = {
 export const createBundledProductWorkflow = createWorkflow(
   'create-bundled-product',
   ({ bundle: bundleData }: CreateBundledProductWorkflowInput) => {
-    minimumValidBundle({ bundledProductItems: bundleData.items });
+    minimumValidBundle({ items: bundleData.items });
 
-    const bundle = createBundleStep({ title: bundleData.title, details: bundleData.details });
+    const bundle = createBundleStep();
 
     const bundleItems = createBundleItemsStep({ bundle_id: bundle.id, items: bundleData.items });
 
-    const bundleProduct = createProductsWorkflow.runAsStep({ input: { products: [bundleData.product] } });
+    const bundleProduct = updateProductsWorkflow.runAsStep({
+      input: {
+        products: [
+          {
+            id: bundleData.product_id,
+            metadata: { bundle_id: bundle.id },
+          },
+        ],
+      },
+    });
 
     createRemoteLinkStep([
       {

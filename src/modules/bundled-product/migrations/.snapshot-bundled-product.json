@@ -15,14 +15,33 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "title": {
-          "name": "title",
+        "subscription_price": {
+          "name": "subscription_price",
+          "type": "numeric",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "decimal"
+        },
+        "currency": {
+          "name": "currency",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "default": "'eur'",
           "mappedType": "text"
+        },
+        "raw_subscription_price": {
+          "name": "raw_subscription_price",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
         },
         "created_at": {
           "name": "created_at",
@@ -67,7 +86,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_bundle_deleted_at\" ON \"bundle\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_bundle_deleted_at\" ON \"bundle\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "bundle_pkey",
@@ -93,6 +112,15 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
+          "mappedType": "text"
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
           "mappedType": "text"
         },
         "quantity": {
@@ -157,7 +185,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_bundle_item_bundle_id\" ON \"bundle_item\" (bundle_id) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_bundle_item_bundle_id\" ON \"bundle_item\" (\"bundle_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_bundle_item_deleted_at",
@@ -166,7 +194,7 @@
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_bundle_item_deleted_at\" ON \"bundle_item\" (deleted_at) WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_bundle_item_deleted_at\" ON \"bundle_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "bundle_item_pkey",

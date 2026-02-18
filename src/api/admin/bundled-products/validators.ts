@@ -1,4 +1,3 @@
-import { AdminCreateProduct } from '@medusajs/medusa/api/admin/products/validators';
 import { createFindParams, createSelectParams } from '@medusajs/medusa/api/utils/validators';
 import { z } from 'zod';
 
@@ -6,9 +5,7 @@ export const selectParams = createSelectParams();
 export const findParams = createFindParams();
 
 export const CreateBundledProductsSchema = z.object({
-  title: z.string().nonempty(),
-  details: z.string().optional(),
-  product: AdminCreateProduct(),
+  product_id: z.string(),
   items: z
     .array(
       z.object({
@@ -25,8 +22,7 @@ export const UpdateBundledProductQuerySchema = z.object({
 });
 
 export const UpdateBundledProductSchema = z.object({
-  title: z.string().nonempty(),
-  details: z.string().optional(),
+  product_id: z.string().optional(),
 });
 
 export const AddBundledProductItemQuerySchema = z.object({

@@ -7,7 +7,7 @@ import BundledProductModuleService from '../../../modules/bundled-product/servic
 
 type Input = {
   bundle_id?: string;
-  bundledProductItems?: {
+  items?: {
     product_id: string;
     details: string;
     quantity: number;
@@ -17,15 +17,15 @@ type Input = {
 export const minimumValidBundle = createStep('minimum-valid-bundle-step', async (input: Input, { container }) => {
   const productModuleService: IProductModuleService = container.resolve(Modules.PRODUCT);
 
-  if (input.bundledProductItems?.length) {
-    if (input.bundledProductItems.length < 2) {
+  if (input.items?.length) {
+    if (input.items.length < 2) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         'The minimum number of bundled products together must be 2.',
       );
     }
 
-    for (const bundledProductItem of input.bundledProductItems) {
+    for (const bundledProductItem of input.items) {
       const productExists = await productModuleService.listProducts({ id: bundledProductItem.product_id });
 
       if (!productExists.length) {
@@ -41,15 +41,20 @@ export const minimumValidBundle = createStep('minimum-valid-bundle-step', async 
 
   const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-  const bundledProducts = await bundledProductModuleService.listBundles(
-    { id: input.bundle_id },
-    { relations: ['items'] },
-  );
+  if (input.bundle_id) {
+    const bundledProducts = await bundledProductModuleService.listBundles(
+      { id: input.bundle_id },
+      { relations: ['items'] },
+    );
 
-  const bundledProduct = bundledProducts[0];
+    const bundledProduct = bundledProducts[0];
 
-  if (bundledProduct?.items.length <= 2) {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, 'The minimum number of bundled products together must be 2.');
+    if (bundledProduct?.items.length <= 2) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        'The minimum number of bundled products together must be 2.',
+      );
+    }
   }
 
   return new StepResponse();

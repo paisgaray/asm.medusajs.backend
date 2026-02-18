@@ -16,6 +16,8 @@ env:
   ECS_CLUSTER: ${{ vars.ECS_CLUSTER_NAME || 'suggero-commerce-cluster' }}
   ECS_SERVICE_API: ${{ vars.ECS_SERVICE_API || 'suggero-commerce-api' }}
   ECS_SERVICE_WORKER: ${{ vars.ECS_SERVICE_WORKER || 'suggero-commerce-worker' }}
+  TASK_FAMILY_API: ${{ vars.ECS_TASK_FAMILY_API || 'suggero-commerce-api' }}
+  TASK_FAMILY_WORKER: ${{ vars.ECS_TASK_FAMILY_WORKER || 'suggero-commerce-worker' }}
 
 jobs:
   deploy:
@@ -40,41 +42,83 @@ jobs:
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "registry=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_OUTPUT
 
-      - name: Build image (API e Worker usam a mesma imagem)
+      - name: Build and push image
         run: |
-          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }} \
-            -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:latest \
+          IMAGE=${{ steps.tag.outputs.registry }}/${{ env.ECR_API }}
+          docker build -t ${IMAGE}:${{ steps.tag.outputs.tag }} \
+            -t ${IMAGE}:latest \
             -f ci/Dockerfile .
+          docker push ${IMAGE}:${{ steps.tag.outputs.tag }}
+          docker push ${IMAGE}:latest
 
-      - name: Tag e push para ECR API
+      - name: Tag and push Worker image
         run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }}
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:latest
+          SRC=${{ steps.tag.outputs.registry }}/${{ env.ECR_API }}
+          DST=${{ steps.tag.outputs.registry }}/${{ env.ECR_WORKER }}
+          docker tag ${SRC}:${{ steps.tag.outputs.tag }} ${DST}:${{ steps.tag.outputs.tag }}
+          docker tag ${SRC}:latest ${DST}:latest
+          docker push ${DST}:${{ steps.tag.outputs.tag }}
+          docker push ${DST}:latest
 
-      - name: Tag e push para ECR Worker (mesma imagem)
+      - name: Update API task definition with new image
+        id: task-def-api
         run: |
-          docker tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:latest \
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:latest
-          docker tag ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }} \
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:${{ steps.tag.outputs.tag }}
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:latest
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_WORKER }}:${{ steps.tag.outputs.tag }}
+          NEW_IMAGE=${{ steps.tag.outputs.registry }}/${{ env.ECR_API }}:${{ steps.tag.outputs.tag }}
 
-      - name: Force new deployment (API)
+          # Get current task definition
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.TASK_FAMILY_API }} \
+            --query 'taskDefinition' \
+            --output json > task-def-api.json
+
+          # Update image in container definition
+          jq --arg IMG "$NEW_IMAGE" \
+            '.containerDefinitions[0].image = $IMG' task-def-api.json > task-def-api-updated.json
+
+          # Register new revision (strip fields ECS doesn't accept)
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$(jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' task-def-api-updated.json)" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "arn=${NEW_ARN}" >> $GITHUB_OUTPUT
+
+      - name: Update Worker task definition with new image
+        id: task-def-worker
+        run: |
+          NEW_IMAGE=${{ steps.tag.outputs.registry }}/${{ env.ECR_WORKER }}:${{ steps.tag.outputs.tag }}
+
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.TASK_FAMILY_WORKER }} \
+            --query 'taskDefinition' \
+            --output json > task-def-worker.json
+
+          jq --arg IMG "$NEW_IMAGE" \
+            '.containerDefinitions[0].image = $IMG' task-def-worker.json > task-def-worker-updated.json
+
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$(jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' task-def-worker-updated.json)" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "arn=${NEW_ARN}" >> $GITHUB_OUTPUT
+
+      - name: Deploy API service
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE_API }} \
-            --force-new-deployment \
+            --task-definition ${{ steps.task-def-api.outputs.arn }} \
             --region ${{ env.AWS_REGION }}
 
-      - name: Force new deployment (Worker)
+      - name: Deploy Worker service
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE_WORKER }} \
-            --force-new-deployment \
+            --task-definition ${{ steps.task-def-worker.outputs.arn }} \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for API service stability

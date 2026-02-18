@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { CubeSolid } from "@medusajs/icons";
+import { Mailbox } from "@medusajs/icons";
 import {
   Container,
   createDataTableColumnHelper,
@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import CreateBundledProduct from "../../components/create-bundled-product";
 import { sdk } from "../../lib/sdk";
 
 type Contact = {
@@ -72,8 +71,6 @@ const EmailsPage = () => {
       }),
   });
 
-  console.log(data);
-
   const table = useDataTable({
     columns,
     data: data?.contacts ?? [],
@@ -90,7 +87,6 @@ const EmailsPage = () => {
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex items-start justify-between gap-2 md:flex-row md:items-center">
           <Heading>E-mails</Heading>
-          <CreateBundledProduct />
         </DataTable.Toolbar>
         <DataTable.Table />
         <DataTable.Pagination />
@@ -101,7 +97,7 @@ const EmailsPage = () => {
 
 export const config = defineRouteConfig({
   label: "E-mails",
-  icon: CubeSolid,
+  icon: Mailbox,
 });
 
 export default EmailsPage;

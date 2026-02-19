@@ -1,4 +1,4 @@
-import { defineMiddlewares } from '@medusajs/framework/http';
+import { defineMiddlewares, MedusaNextFunction, MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import multer from 'multer';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
@@ -13,8 +13,25 @@ import { wishlistMiddlewares } from './store/wishlist/middleware';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Trust proxy: só em produção, atrás de CloudFront/ALB (X-Forwarded-Proto, etc.)
+let trustProxySet = false;
+function trustProxyMiddleware(req: MedusaRequest, _res: MedusaResponse, next: MedusaNextFunction): void {
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+  if (!trustProxySet) {
+    const app = (req as unknown as { app?: { set: (k: string, v: number) => void } }).app;
+    if (app?.set) {
+      app.set('trust proxy', 1);
+      trustProxySet = true;
+    }
+  }
+  next();
+}
+
 export default defineMiddlewares({
   routes: [
+    { matcher: '/*', method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], middlewares: [trustProxyMiddleware] },
     ...bundledProductsMiddlewares,
     ...lineItemBundlesMiddlewares,
     ...productSearchMiddlewares,

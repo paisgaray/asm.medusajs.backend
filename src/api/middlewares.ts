@@ -39,7 +39,7 @@ function trustProxyMiddleware(req: MedusaRequest, _res: MedusaResponse, next: Me
 
 export default defineMiddlewares({
   routes: [
-    { matcher: '/*', method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], middlewares: [trustProxyMiddleware] },
+    { matcher: '/*', method: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], middlewares: [trustProxyMiddleware] },
     ...bundledProductsMiddlewares,
     ...lineItemBundlesMiddlewares,
     ...productSearchMiddlewares,

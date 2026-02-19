@@ -1,6 +1,7 @@
 import { defineRouteConfig } from '@medusajs/admin-sdk';
 import { CubeSolid } from '@medusajs/icons';
 import {
+  Button,
   Container,
   createDataTableColumnHelper,
   DataTable,
@@ -12,7 +13,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import CreateBundledProduct from '../../components/create-bundled-product';
+import CreateBundledProduct from '../../components/bundleComponents/create-bundled-product';
+import DeleteBundledProduct from '../../components/bundleComponents/delete-dundled-product';
 import { sdk } from '../../lib/sdk';
 
 type BundledProduct = {
@@ -20,6 +22,7 @@ type BundledProduct = {
   title: string;
   product: {
     id: string;
+    title: string;
   };
   items: {
     id: string;
@@ -40,8 +43,19 @@ const columns = [
     header: 'ID',
   }),
   columnHelper.accessor('title', {
-    header: 'Title',
+    header: 'Bundle Product ',
+    cell: ({ row }) => {
+      return <span>{row.original.product.title}</span>;
+    },
   }),
+
+  columnHelper.accessor('product', {
+    header: 'Details Product',
+    cell: ({ row }) => {
+      return <Link to={`/products/${row.original.product?.id}`}>View Product</Link>;
+    },
+  }),
+
   columnHelper.accessor('items', {
     header: 'Items',
     cell: ({ row }) => {
@@ -52,10 +66,19 @@ const columns = [
       ));
     },
   }),
-  columnHelper.accessor('product', {
-    header: 'Product',
+
+  columnHelper.display({
+    id: 'actions',
+    header: 'Actions',
     cell: ({ row }) => {
-      return <Link to={`/products/${row.original.product?.id}`}>View Product</Link>;
+      return (
+        <div className="flex gap-2">
+          <Button variant="primary" size="small">
+            Edit
+          </Button>
+          <DeleteBundledProduct idBundledProduct={row.original.id} />
+        </div>
+      );
     },
   }),
 ];

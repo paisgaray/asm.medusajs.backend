@@ -215,17 +215,17 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.
   });
 }
 
-// Opções de cookie em produção atrás de proxy (CloudFront/ALB): secure + sameSite=none para sessão Admin
+// cookieOptions: desenvolvimento (secure: false, lax) vs produção atrás de proxy (secure: true, sameSite: none)
 const cookieOptions =
   process.env.NODE_ENV === 'production'
-    ? { sameSite: 'none' as const, secure: true, httpOnly: true }
-    : undefined;
+    ? { sameSite: 'none' as const, secure: true, httpOnly: true, maxAge: 24 * 60 * 60 * 1000, domain: undefined }
+    : { sameSite: 'lax' as const, secure: false, maxAge: 24 * 60 * 60 * 1000, domain: undefined };
 
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL || redisUrl,
-    ...(cookieOptions && { cookieOptions }),
+    cookieOptions,
     http: {
       storeCors: process.env.STORE_CORS,
       adminCors: process.env.ADMIN_CORS,

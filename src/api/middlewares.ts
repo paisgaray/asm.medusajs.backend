@@ -22,17 +22,13 @@ const trustProxyValue = (() => {
   if (raw === 'false') return false;
   return 2;
 })();
-let trustProxySet = false;
 function trustProxyMiddleware(req: MedusaRequest, _res: MedusaResponse, next: MedusaNextFunction): void {
   if (process.env.NODE_ENV !== 'production') {
     return next();
   }
-  if (!trustProxySet) {
-    const app = (req as unknown as { app?: { set: (k: string, v: number | boolean) => void } }).app;
-    if (app?.set) {
-      app.set('trust proxy', trustProxyValue);
-      trustProxySet = true;
-    }
+  const app = (req as unknown as { app?: { set: (k: string, v: number | boolean) => void } }).app;
+  if (app?.set) {
+    app.set('trust proxy', trustProxyValue);
   }
   next();
 }

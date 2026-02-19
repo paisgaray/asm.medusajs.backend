@@ -13,16 +13,24 @@ import { wishlistMiddlewares } from './store/wishlist/middleware';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Trust proxy: só em produção, atrás de CloudFront/ALB (X-Forwarded-Proto, etc.)
+// Trust proxy: só em produção. CloudFront -> ALB -> app = 2 proxies; valor configurável via TRUST_PROXY_SETTING
+const trustProxyValue = (() => {
+  const raw = process.env.TRUST_PROXY_SETTING ?? '2';
+  const n = parseInt(raw, 10);
+  if (!Number.isNaN(n) && n >= 0) return n;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return 2;
+})();
 let trustProxySet = false;
 function trustProxyMiddleware(req: MedusaRequest, _res: MedusaResponse, next: MedusaNextFunction): void {
   if (process.env.NODE_ENV !== 'production') {
     return next();
   }
   if (!trustProxySet) {
-    const app = (req as unknown as { app?: { set: (k: string, v: number) => void } }).app;
+    const app = (req as unknown as { app?: { set: (k: string, v: number | boolean) => void } }).app;
     if (app?.set) {
-      app.set('trust proxy', 1);
+      app.set('trust proxy', trustProxyValue);
       trustProxySet = true;
     }
   }

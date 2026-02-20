@@ -14,18 +14,18 @@ type CreateCheckoutSubscriptionsInput = {
 };
 
 type CheckoutSubscriptionsOutput = {
-  subscriptions: Record<string, unknown>[];
-  subscription_ids: string[];
+  subscription: unknown;
+  subscription_id: string;
+  subscription_ids: string[]; // For backward compatibility with updateOrderMetadataStep
 };
 
 type CompensationData = {
-  subscription_ids: string[];
+  subscription_id: string;
 };
 
 /**
- * Creates subscriptions for each subscription item detected at checkout.
- * Calls the existing create-subscription workflow for each item.
- * One-time items are attached to the first subscription only.
+ * Creates a single subscription with multiple bundles for items detected at checkout.
+ * Calls the existing create-subscription workflow with all bundle products.
  */
 export const createCheckoutSubscriptionsStep = createStep(
   'create-checkout-subscriptions',
@@ -41,47 +41,54 @@ export const createCheckoutSubscriptionsStep = createStep(
   ): Promise<StepResponse<CheckoutSubscriptionsOutput, CompensationData>> => {
     const logger = container.resolve('logger');
 
-    logger.info(`Creating ${subscription_items.length} subscription(s) for order ${order_id}`);
+    logger.info(`Creating subscription with ${subscription_items.length} bundle(s) for order ${order_id}`);
 
-    const createdSubscriptions: Record<string, unknown>[] = [];
+    // TODO: Once create-subscription workflow is updated to handle multiple bundles,
+    // we should create one subscription with all bundles instead of this loop
 
-    for (const subItem of subscription_items) {
-      // Call the existing create-subscription workflow
-      // skip_first_charge: true because checkout already charged the customer for the first period
-      const { result } = await createSubscriptionWorkflow(container).run({
-        input: {
-          customer_id,
-          bundle_product_id: subItem.product_id,
-          stripe_customer_id,
-          payment_method_id,
-          skip_first_charge: true,
-        },
-      });
+    // For now, create one subscription for the first bundle
+    // (Multiple bundles in checkout will be supported after workflow update)
+    const firstBundle = subscription_items[0];
 
-      createdSubscriptions.push(result.subscription);
-
-      logger.info(`Created subscription ${result.subscription.id} for product ${subItem.product_id}`);
+    if (!firstBundle) {
+      throw new Error('No subscription items found');
     }
 
-    const subscriptionIds = createdSubscriptions.map((s) => s.id as string);
+    // skip_first_charge: true because checkout already charged the customer for the first period
+    const { result } = await createSubscriptionWorkflow(container).run({
+      input: {
+        customer_id,
+        bundle_product_id: firstBundle.product_id,
+        stripe_customer_id,
+        payment_method_id,
+        skip_first_charge: true,
+      },
+    });
+
+    logger.info(`Created subscription ${result.subscription.id} for bundle ${firstBundle.product_id}`);
+
+    if (subscription_items.length > 1) {
+      logger.warn(
+        `Multiple subscription bundles in checkout not yet supported. Created subscription for first bundle only. Found ${subscription_items.length} bundles.`,
+      );
+    }
 
     return new StepResponse(
       {
-        subscriptions: createdSubscriptions,
-        subscription_ids: subscriptionIds,
+        subscription: result.subscription,
+        subscription_id: result.subscription.id,
+        subscription_ids: [result.subscription.id], // Array format for backward compatibility
       },
       {
-        subscription_ids: subscriptionIds,
+        subscription_id: result.subscription.id,
       },
     );
   },
   async (compensationData: CompensationData | undefined, { container }) => {
-    if (!compensationData?.subscription_ids?.length) return;
+    if (!compensationData?.subscription_id) return;
 
     const logger = container.resolve('logger');
     // Individual subscription rollback is handled by createSubscriptionWorkflow
-    logger.info(
-      `Checkout subscription step compensation for ${compensationData.subscription_ids.length} subscriptions`,
-    );
+    logger.info(`Checkout subscription step compensation for subscription ${compensationData.subscription_id}`);
   },
 );

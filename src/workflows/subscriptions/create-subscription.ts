@@ -1,7 +1,11 @@
 import { createWorkflow, transform, when, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
 import { attachPaymentMethodStep } from './steps/attach-payment-method';
+import { createBundleProductLinkStep } from './steps/create-bundle-product-link';
+import { createItemLinksStep } from './steps/create-item-links';
 import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
+import { createSubscriptionBundleStep } from './steps/create-subscription-bundle';
+import { createSubscriptionCustomerLinkStep } from './steps/create-subscription-customer-link';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
 import { getOrCreateStripeCustomerStep } from './steps/get-or-create-stripe-customer';
 import { getsertStripeProductStep } from './steps/getsert-stripe-product';
@@ -39,7 +43,10 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Resolve the final stripe_customer_id: use provided or fetched
     const resolvedCustomer = transform(
-      { provided: input.stripe_customer_id, fetched: customerResult?.stripe_customer_id },
+      {
+        provided: input.stripe_customer_id,
+        fetched: customerResult?.stripe_customer_id,
+      },
       (data) => ({
         stripe_customer_id: data.provided || data.fetched,
       }),
@@ -72,7 +79,7 @@ export const createSubscriptionWorkflow = createWorkflow(
     });
 
     // Step 6: Create subscription record in database
-    const { subscription } = createSubscriptionRecordStep({
+    const subscriptionData = createSubscriptionRecordStep({
       customer_id: input.customer_id,
       bundle_product_id: input.bundle_product_id,
       subscription_price,
@@ -82,14 +89,45 @@ export const createSubscriptionWorkflow = createWorkflow(
       status: stripeResult.status,
     });
 
-    // Step 7: Snapshot bundle items
-    snapshotBundleItemsStep({
+    // Step 7: Link subscription to customer
+    createSubscriptionCustomerLinkStep({
+      subscription_id: subscriptionData.subscription.id,
+      customer_id: subscriptionData.customer_id,
+    });
+
+    // Step 8: Create SubscriptionBundle record
+    const subscriptionBundle = createSubscriptionBundleStep({
+      subscription_id: subscriptionData.subscription.id,
+      bundle_price: subscription_price,
+      metadata: {
+        bundle_id: bundle.id,
+        bundle_title: bundle.title,
+        created_at: new Date().toISOString(),
+      },
+    });
+
+    // Step 9: Link bundle to product
+    createBundleProductLinkStep({
+      subscription_bundle_id: subscriptionBundle.id,
+      product_id: subscriptionData.bundle_product_id,
+    });
+
+    // Step 10: Snapshot bundle items
+    const itemsData = snapshotBundleItemsStep({
       bundle_id: bundle.id,
-      subscription_id: subscription.id,
+      subscription_id: subscriptionData.subscription.id,
+      subscription_bundle_id: subscriptionBundle.id,
+    });
+
+    // Step 11: Link items to products and variants
+    createItemLinksStep({
+      subscription_items: itemsData.subscription_items,
+      product_ids: itemsData.product_ids,
+      variant_ids: itemsData.variant_ids,
     });
 
     return new WorkflowResponse({
-      subscription,
+      subscription: subscriptionData.subscription,
       // client_secret: stripeResult.client_secret,
     });
   },

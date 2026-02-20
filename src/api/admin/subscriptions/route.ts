@@ -1,29 +1,60 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import SubscriptionModuleService from '../../../modules/subscriptions/service';
 import { createSubscriptionWorkflow } from '../../../workflows/subscriptions';
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const subscriptionService = req.scope.resolve('subscriptions') as SubscriptionModuleService;
+  const query = req.scope.resolve('query');
 
   const { customer_id, status, limit = 50, offset = 0 } = req.query;
 
-  const filters: { customer_id?: string; status?: string } = {};
-  if (customer_id && typeof customer_id === 'string') filters.customer_id = customer_id;
-  if (status && typeof status === 'string') filters.status = status;
+  // Build filters for query
+  const filters: any = {};
+  if (customer_id && typeof customer_id === 'string') {
+    filters.customer = { id: customer_id };
+  }
+  if (status && typeof status === 'string') {
+    filters.status = status;
+  }
 
-  const subscriptions = await subscriptionService.listSubscriptions(filters, {
-    relations: ['items'],
-    skip: Number(offset),
-    take: Number(limit),
-    order: { created_at: 'DESC' },
+  const { data: subscriptions } = await query.graph({
+    entity: 'subscription',
+    fields: [
+      'id',
+      'status',
+      'provider',
+      'provider_subscription_id',
+      'subscription_price',
+      'currency',
+      'current_period_start',
+      'current_period_end',
+      'next_billing_date',
+      'metadata',
+      'created_at',
+      'updated_at',
+      'customer.*',
+      'bundles.*',
+      'bundles.items.*',
+      'bundles.product.*',
+      'items.*',
+    ],
+    filters,
+    pagination: {
+      skip: Number(offset),
+      take: Number(limit),
+      order: { created_at: 'DESC' },
+    },
   });
 
-  const count = await subscriptionService.listSubscriptions(filters);
+  // Get count for pagination
+  const { data: allSubscriptions } = await query.graph({
+    entity: 'subscription',
+    fields: ['id'],
+    filters,
+  });
 
   res.json({
     subscriptions,
-    count: count.length,
+    count: allSubscriptions.length,
     limit: Number(limit),
     offset: Number(offset),
   });

@@ -26,5 +26,5 @@ export const pauseSubscriptionWorkflow = createWorkflow(
       status,
       paused_at,
     });
-  }
+  },
 );

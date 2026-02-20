@@ -25,6 +25,10 @@ export const UpdateBundledProductSchema = z.object({
   product_id: z.string().optional(),
 });
 
+export const ListABundledProductQuerySchema = z.object({
+  id: z.string().nonempty(),
+});
+
 export const AddBundledProductItemQuerySchema = z.object({
   id: z.string().nonempty(),
 });
@@ -46,6 +50,7 @@ export const UpdateBundledProductItemSchema = z.object({
 });
 
 export type CreateBundledProductsSchema = z.infer<typeof CreateBundledProductsSchema>;
+export type ListABundledProductQuerySchema = z.infer<typeof ListABundledProductQuerySchema>;
 export type UpdateBundledProductQuerySchema = z.infer<typeof UpdateBundledProductQuerySchema>;
 export type UpdateBundledProductSchema = z.infer<typeof UpdateBundledProductSchema>;
 export type AddBundledProductItemQuerySchema = z.infer<typeof AddBundledProductItemQuerySchema>;

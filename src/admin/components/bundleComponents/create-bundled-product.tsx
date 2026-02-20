@@ -2,56 +2,46 @@ import { HttpTypes } from '@medusajs/framework/types';
 import { PlusMini } from '@medusajs/icons';
 import { Button, Divider, FocusModal, Heading, Input, Label, Select, toast } from '@medusajs/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { sdk } from '../../lib/sdk';
 
 type BundledProductItemProps = {
-  item: { product_id: string | undefined; quantity: number; description?: string };
+  item: { product_id: string | undefined; quantity: number; details?: string };
   index: number;
   setItems: React.Dispatch<
-    React.SetStateAction<{ product_id: string | undefined; quantity: number; description?: string }[]>
+    React.SetStateAction<{ product_id: string | undefined; quantity: number; details?: string }[]>
   >;
   products: HttpTypes.AdminProduct[] | undefined;
-  fetchMoreProducts: () => void;
-  hasNextPage: boolean;
 };
 
 const CreateBundledProduct = () => {
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [items, setItems] = useState<{ product_id: string | undefined; quantity: number; description?: string }[]>([
+  const [items, setItems] = useState<{ product_id: string | undefined; quantity: number; details?: string }[]>([
     { product_id: undefined, quantity: 1 },
   ]);
-  const [products, setProducts] = useState<HttpTypes.AdminProduct[]>([]);
-  const productsLimit = 15;
-  const [currentProductPage, setCurrentProductPage] = useState(0);
-  const [productsCount, setProductsCount] = useState(0);
-  const hasNextPage = useMemo(() => {
-    return productsCount ? productsCount > productsLimit : true;
-  }, [productsCount, productsLimit]);
   const queryClient = useQueryClient();
-
-  useQuery({
+  const [selectedBundleId, setSelectedBundleId] = useState<string | undefined>();
+  const { data: products = [] } = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const { products, count } = await sdk.admin.product.list({
-        limit: productsLimit,
-        offset: currentProductPage * productsLimit,
-      });
-      setProductsCount(count);
-      setProducts((prev) => [...prev, ...products]);
+      const { products } = await sdk.admin.product.list({ limit: 2000 });
       return products;
     },
-    enabled: hasNextPage,
   });
+  const productsBundle = useMemo(() => {
+    return products.filter(
+      (product) =>
+        product.tags?.some((tag) => tag.value === 'bundled')
+    );
+  }, [products]);
 
-  const fetchMoreProducts = () => {
-    if (!hasNextPage) {
-      return;
-    }
-    setCurrentProductPage(currentProductPage + 1);
-  };
+  const productsNotBundle = useMemo(() => {
+    return products.filter(
+      (product) =>
+        !product.tags?.some((tag) => tag.value === 'bundled')
+    );
+  }, [products]);
 
   const { mutateAsync: createBundledProduct, isPending: isCreating } = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -65,44 +55,33 @@ const CreateBundledProduct = () => {
   const handleCreate = async () => {
     try {
       await createBundledProduct({
-        title,
-        product: {
-          title,
-          options: [
-            {
-              title: 'Default',
-              values: ['default'],
-            },
-          ],
-          status: 'published',
-          variants: [
-            {
-              title,
-              // You can set prices in the product's page
-              prices: [],
-              options: {
-                Default: 'default',
-              },
-              manage_inventory: false,
-            },
-          ],
-        },
-        items: items.map((item) => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          description: item.description,
-        })),
+        product_id: selectedBundleId,
+        items: items.map((item) => (
+          {
+            product_id: item.product_id,
+            quantity: item.quantity,
+            details: item.details,
+          })),
       });
       setOpen(false);
       toast.success('Bundled product created successfully');
       queryClient.invalidateQueries({ queryKey: ['bundled-products'] });
-      setTitle('');
+      setSelectedBundleId(undefined);
       setItems([{ product_id: undefined, quantity: 1 }]);
+
+      if (!selectedBundleId) {
+        toast.error('Select a bundle product');
+        return;
+      }
+
+      if (items.some(item => !item.product_id)) {
+        toast.error('All items must have a product selected');
+        return;
+      }
     } catch {
       toast.error('Failed to create bundled product');
     }
   };
-  console.log('🚀 ~ CreateBundledProduct ~ products:', products);
 
   return (
     <FocusModal open={open} onOpenChange={setOpen}>
@@ -119,12 +98,36 @@ const CreateBundledProduct = () => {
             <div className="flex   w-full max-w-[720px] flex-col gap-8  ">
               <div className="flex flex-col gap-4 px-4  ">
                 <Heading level={'h2'}>Select Bundle Product</Heading>
-                <Input
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
+                <Select
+                  value={selectedBundleId}
+                  onValueChange={(value) => {
+                    setSelectedBundleId(value);
                   }}
-                />
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="Select Product" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {productsBundle?.map((product) => (
+                      <Select.Item
+                        key={product.id}
+                        value={product.id}
+                      >
+                        <div className='flex items-center gap-4'>
+                          {product.thumbnail && (
+                            <img
+                              src={product?.thumbnail}
+                              alt={product?.title}
+                              className="w-6 h-6 object-cover rounded-sm mr-2"
+                            />
+                          )}
+                          {product?.title}
+                        </div>
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+
               </div>
               <Divider />
               <div className="flex flex-col gap-2 overflow-y-scroll h-[400px] px-4 ">
@@ -135,16 +138,15 @@ const CreateBundledProduct = () => {
                     item={item}
                     index={index}
                     setItems={setItems}
-                    products={products}
-                    fetchMoreProducts={fetchMoreProducts}
-                    hasNextPage={hasNextPage}
+                    products={productsNotBundle}
+
                   />
                 ))}
                 <Button
-                  className="p-4"
-                  size="xlarge"
+                  className='p-4'
+                  size="large"
                   variant="secondary"
-                  onClick={() => setItems([...items, { product_id: undefined, quantity: 1, description: '' }])}
+                  onClick={() => setItems([...items, { product_id: undefined, quantity: 1, details: '' }])}
                 >
                   Add Item <PlusMini />
                 </Button>
@@ -152,7 +154,7 @@ const CreateBundledProduct = () => {
             </div>
           </div>
         </FocusModal.Body>
-        <FocusModal.Footer className="flex items-center w-full justify-end gap-x-2">
+        <FocusModal.Footer className="flex items-center w-full justify-end gap-x-2 py-">
           <div className="flex items-center justify-end gap-x-2">
             <Button variant="secondary" onClick={() => setOpen(false)}>
               Cancel
@@ -172,28 +174,7 @@ const BundledProductItem = ({
   index,
   setItems,
   products,
-  fetchMoreProducts,
-  hasNextPage,
 }: BundledProductItemProps) => {
-  const observer = useRef(
-    new IntersectionObserver(
-      (entries) => {
-        if (!hasNextPage) return;
-        const first = entries[0];
-        if (first.isIntersecting) fetchMoreProducts();
-      },
-      { threshold: 1 },
-    ),
-  );
-
-  const lastOptionRef = useCallback(
-    (node: HTMLDivElement) => {
-      if (!hasNextPage) return;
-      if (observer.current) observer.current.disconnect();
-      if (node) observer.current.observe(node);
-    },
-    [hasNextPage],
-  );
 
   return (
     <div className="my-2 flex flex-col gap-3">
@@ -220,13 +201,21 @@ const BundledProductItem = ({
             <Select.Value placeholder="Select Product" />
           </Select.Trigger>
           <Select.Content>
-            {products?.map((product, productIndex) => (
+            {products?.map((product) => (
               <Select.Item
                 key={product.id}
                 value={product.id}
-                ref={productIndex === products.length - 1 ? lastOptionRef : null}
               >
-                {product.title}
+                <div className='flex items-center gap-4'>
+                  {product.thumbnail && (
+                    <img
+                      src={product?.thumbnail}
+                      alt={product?.title}
+                      className="w-6 h-6 object-cover rounded-sm mr-2"
+                    />
+                  )}
+                  {product?.title}
+                </div>
               </Select.Item>
             ))}
           </Select.Content>
@@ -243,23 +232,23 @@ const BundledProductItem = ({
             onChange={(e) =>
               setItems((items) =>
                 items.map((item, i) => {
-                  return i === index ? { ...item, quantity: parseInt(e.target.value) } : item;
+                  return i === index ? { ...item, quantity: Math.max(1, Number(e.target.value)) } : item;
                 }),
               )
             }
           />
         </div>
         <div className="flex flex-col gap-1">
-          <Label>Description</Label>
+          <Label>details</Label>
           <Input
             type="text"
-            placeholder="Description"
+            placeholder="details"
             className="w-full mt-1 rounded-md border border-gray-200 p-2"
-            value={item.description}
+            value={item.details}
             onChange={(e) =>
               setItems((items) =>
                 items.map((item, i) => {
-                  return i === index ? { ...item, description: e.target.value } : item;
+                  return i === index ? { ...item, details: e.target.value } : item;
                 }),
               )
             }
@@ -267,7 +256,7 @@ const BundledProductItem = ({
         </div>
       </div>
       <Divider />
-    </div>
+    </div >
   );
 };
 

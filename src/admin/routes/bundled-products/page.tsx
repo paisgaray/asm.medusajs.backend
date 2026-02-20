@@ -1,7 +1,6 @@
 import { defineRouteConfig } from '@medusajs/admin-sdk';
 import { CubeSolid } from '@medusajs/icons';
 import {
-  Button,
   Container,
   createDataTableColumnHelper,
   DataTable,
@@ -14,7 +13,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import CreateBundledProduct from '../../components/bundleComponents/create-bundled-product';
-import DeleteBundledProduct from '../../components/bundleComponents/delete-dundled-product';
+import DeleteBundledProduct from '../../components/bundleComponents/delete-bundled-product';
+import EditBundledProduct from '../../components/bundleComponents/edit-bundled-product';
 import { sdk } from '../../lib/sdk';
 
 type BundledProduct = {
@@ -23,6 +23,7 @@ type BundledProduct = {
   product: {
     id: string;
     title: string;
+    thumbnail?: string;
   };
   items: {
     id: string;
@@ -45,7 +46,20 @@ const columns = [
   columnHelper.accessor('title', {
     header: 'Bundle Product ',
     cell: ({ row }) => {
-      return <span>{row.original.product.title}</span>;
+      return (
+        <div className="flex flex-row gap-4">
+          {row.original?.product?.thumbnail && (
+            <div data-testid="image-bundle-product" className="w-8 h-8 ">
+              <img
+                src={row.original?.product?.thumbnail}
+                alt={row.original?.product?.title}
+                className="w-full h-full object-cover "
+              />
+            </div>
+          )}
+          <span>{row.original?.product?.title}</span>
+        </div>
+      );
     },
   }),
 
@@ -73,9 +87,7 @@ const columns = [
     cell: ({ row }) => {
       return (
         <div className="flex gap-2">
-          <Button variant="primary" size="small">
-            Edit
-          </Button>
+          <EditBundledProduct bundle={row.original} />
           <DeleteBundledProduct idBundledProduct={row.original.id} />
         </div>
       );

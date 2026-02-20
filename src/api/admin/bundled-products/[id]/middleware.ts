@@ -5,6 +5,7 @@ import { validatePathParams } from '../../../../utils/validate-path-params';
 import {
   AddBundledProductItemQuerySchema,
   AddBundledProductItemSchema,
+  ListABundledProductQuerySchema,
   UpdateBundledProductQuerySchema,
   UpdateBundledProductSchema,
 } from '../validators';
@@ -12,6 +13,11 @@ import { bundledProductsItemMiddlewares } from './bundle-item/[itemId]/middlewar
 
 export const bundledProductsIdMiddlewares: MiddlewareRoute[] = [
   ...bundledProductsItemMiddlewares,
+  {
+    matcher: '/admin/bundled-products/:id',
+    methods: ['GET'],
+    middlewares: [validatePathParams(ListABundledProductQuerySchema)],
+  },
   {
     matcher: '/admin/bundled-products/:id',
     methods: ['POST'],

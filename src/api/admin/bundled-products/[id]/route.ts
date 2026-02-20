@@ -14,6 +14,23 @@ import {
 } from '../../../../workflows/bundled-product/workflows/update-bundled-product';
 import { AddBundledProductItemSchema, UpdateBundledProductSchema } from '../validators';
 
+export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
+  const query = req.scope.resolve('query');
+
+  const {
+    data: [bundledProduct],
+  } = await query.graph(
+    {
+      entity: 'bundle',
+      fields: ['id', 'product.*', 'items.*', 'items.product.*'],
+      filters: { id: req.params.id },
+    },
+    { throwIfKeyNotFound: true },
+  );
+
+  res.json(bundledProduct);
+}
+
 export async function POST(req: AuthenticatedMedusaRequest<AddBundledProductItemSchema>, res: MedusaResponse) {
   const { result: bundledProduct } = await addBundledProductItemWorkflow(req.scope).run({
     input: {

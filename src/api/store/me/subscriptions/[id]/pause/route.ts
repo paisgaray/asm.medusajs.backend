@@ -1,6 +1,5 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import SubscriptionModuleService from '../../../../../../modules/subscriptions/service';
 import { pauseSubscriptionWorkflow } from '../../../../../../workflows/subscriptions';
 
 /**
@@ -8,7 +7,7 @@ import { pauseSubscriptionWorkflow } from '../../../../../../workflows/subscript
  * Pause a subscription for the authenticated customer
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const subscriptionService = req.scope.resolve('subscriptions') as SubscriptionModuleService;
+  const query = req.scope.resolve('query');
   const customerId = req.user?.userId;
   const { id } = req.params;
 
@@ -16,10 +15,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
-  // Verify subscription belongs to customer
-  const subscription = await subscriptionService.retrieveSubscription(id);
+  // Verify subscription belongs to customer (using Links)
+  const { data: subscriptions } = await query.graph({
+    entity: 'subscription',
+    fields: ['id', 'customer.*'],
+    filters: { id },
+  });
 
-  if (subscription.customer_id !== customerId) {
+  const subscription = subscriptions[0];
+
+  if (!subscription || subscription.customer?.id !== customerId) {
     return res.status(403).json({ message: 'Forbidden' });
   }
 

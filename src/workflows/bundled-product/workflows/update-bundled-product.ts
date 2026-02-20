@@ -32,6 +32,6 @@ export const updateBundledProductWorkflow = createWorkflow(
       },
     ]);
 
-    return new WorkflowResponse({});
+    return new WorkflowResponse({ id: data.id, updated: true });
   },
 );

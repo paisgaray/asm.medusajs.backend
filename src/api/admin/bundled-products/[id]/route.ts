@@ -45,13 +45,11 @@ export async function POST(req: AuthenticatedMedusaRequest<AddBundledProductItem
 }
 
 export async function PUT(req: AuthenticatedMedusaRequest<UpdateBundledProductSchema>, res: MedusaResponse) {
-  const { result: bundledProduct } = await updateBundledProductWorkflow(req.scope).run({
+  const { result } = await updateBundledProductWorkflow(req.scope).run({
     input: { id: req.params.id, ...req.validatedBody } as UpdateBundledProductWorkflowInput,
   });
 
-  res.json({
-    bundled_product: bundledProduct,
-  });
+  res.json(result);
 }
 
 export async function DELETE(req: AuthenticatedMedusaRequest, res: MedusaResponse): Promise<void> {

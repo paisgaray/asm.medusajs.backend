@@ -22,9 +22,8 @@ export const createSubscriptionRecordStep = createStep(
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
+    // Create subscription without customer_id and bundle_product_id (handled via Links)
     const subscription = await subscriptionService.createSubscriptions({
-      customer_id: input.customer_id,
-      bundle_product_id: input.bundle_product_id,
       provider: SubscriptionProvider.STRIPE,
       provider_subscription_id: input.stripe_subscription_id,
       provider_customer_id: input.stripe_customer_id,
@@ -33,7 +32,15 @@ export const createSubscriptionRecordStep = createStep(
       status: input.status as SubscriptionStatus,
     });
 
-    return new StepResponse({ subscription }, { subscription_id: subscription.id });
+    // Return subscription and IDs needed for creating links
+    return new StepResponse(
+      {
+        subscription,
+        customer_id: input.customer_id,
+        bundle_product_id: input.bundle_product_id,
+      },
+      { subscription_id: subscription.id },
+    );
   },
   async (data, { container }) => {
     if (!data?.subscription_id) {

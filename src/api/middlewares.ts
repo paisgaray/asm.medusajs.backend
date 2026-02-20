@@ -1,4 +1,4 @@
-import { defineMiddlewares, MedusaNextFunction, MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { defineMiddlewares } from '@medusajs/framework/http';
 import multer from 'multer';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
@@ -13,29 +13,8 @@ import { wishlistMiddlewares } from './store/wishlist/middleware';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Trust proxy: só em produção. CloudFront -> ALB -> app = 2 proxies; valor configurável via TRUST_PROXY_SETTING
-const trustProxyValue = (() => {
-  const raw = process.env.TRUST_PROXY_SETTING ?? '2';
-  const n = parseInt(raw, 10);
-  if (!Number.isNaN(n) && n >= 0) return n;
-  if (raw === 'true') return true;
-  if (raw === 'false') return false;
-  return 2;
-})();
-function trustProxyMiddleware(req: MedusaRequest, _res: MedusaResponse, next: MedusaNextFunction): void {
-  if (process.env.NODE_ENV !== 'production') {
-    return next();
-  }
-  const app = (req as unknown as { app?: { set: (k: string, v: number | boolean) => void } }).app;
-  if (app?.set) {
-    app.set('trust proxy', trustProxyValue);
-  }
-  next();
-}
-
 export default defineMiddlewares({
   routes: [
-    { matcher: '/*', method: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], middlewares: [trustProxyMiddleware] },
     ...bundledProductsMiddlewares,
     ...lineItemBundlesMiddlewares,
     ...productSearchMiddlewares,

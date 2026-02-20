@@ -34,7 +34,7 @@ export class Migration20260220192539 extends Migration {
     );
 
     this.addSql(
-      `alter table if exists "subscription_item" add column if not exists "type" text check ("type" in ('single', 'bundle')) not null default 'single', add column if not exists "item_price" integer not null, add column if not exists "bundle_id" text null;`,
+      `alter table if exists "subscription_item" add column if not exists "type" text check ("type" in ('single', 'bundle')) not null default 'single', add column if not exists "item_price" integer not null default 0, add column if not exists "bundle_id" text null;`,
     );
     this.addSql(
       `alter table if exists "subscription_item" add constraint "subscription_item_bundle_id_foreign" foreign key ("bundle_id") references "subscription_bundle" ("id") on update cascade on delete set null;`,

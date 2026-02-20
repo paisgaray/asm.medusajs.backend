@@ -30,6 +30,7 @@ type BundledProduct = {
     product: {
       id: string;
       title: string;
+      thumbnail?: string;
     };
     quantity: number;
   }[];
@@ -47,7 +48,7 @@ const columns = [
     header: 'Bundle Product ',
     cell: ({ row }) => {
       return (
-        <div className="flex flex-row gap-4">
+        <div className="flex flex-row gap-4 items-center">
           {row.original?.product?.thumbnail && (
             <div data-testid="image-bundle-product" className="w-8 h-8 ">
               <img
@@ -74,8 +75,11 @@ const columns = [
     header: 'Items',
     cell: ({ row }) => {
       return row.original.items.map((item) => (
-        <div key={item.id}>
-          <Link to={`/products/${item.product.id}`}>{item.product.title}</Link> x {item.quantity}
+        <div key={item.id} className="flex flex-col  p-1 ">
+          <div className="flex items-center gap-2">
+            <img src={item.product?.thumbnail} alt={item.product?.title} className="w-8 h-8 object-cover " />
+            <Link to={`/products/${item.product.id}`}>{item.product.title}</Link> x {item.quantity}
+          </div>
         </div>
       ));
     },
@@ -121,6 +125,7 @@ const BundledProductsPage = () => {
         },
       }),
   });
+  console.log('🚀 ~ BundledProductsPage ~ data:', data);
 
   const table = useDataTable({
     columns,

@@ -68,15 +68,14 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
   const { mutateAsync: updateBundleProduct, isPending: isUpdatingBundle } =
     useMutation({
       mutationFn: async () => {
-
-        await sdk.client.fetch(`/admin/bundled-products/${selectedBundleId}`, {
+        await sdk.client.fetch(`/admin/bundled-products/${bundle.id}`, {
           method: 'PUT',
           body: {
             product_id: selectedBundleId,
           },
         });
       },
-      onSuccess: () => {
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: ['bundled-products'] });
         toast.success('Bundle updated successfully');
       },
@@ -231,6 +230,7 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
                 <Heading level="h3">Item {index + 1}</Heading>
 
                 <Select
+                  disabled={!item.isNew}
                   value={item.product_id}
                   onValueChange={(value) =>
                     setItems((prev) =>

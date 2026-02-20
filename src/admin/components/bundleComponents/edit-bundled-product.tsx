@@ -68,7 +68,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
   const { mutateAsync: updateBundleProduct, isPending: isUpdatingBundle } =
     useMutation({
       mutationFn: async () => {
-        await sdk.client.fetch(`/admin/bundled-products/${bundle.id}`, {
+
+        await sdk.client.fetch(`/admin/bundled-products/${selectedBundleId}`, {
           method: 'PUT',
           body: {
             product_id: selectedBundleId,

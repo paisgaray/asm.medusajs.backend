@@ -1,3 +1,4 @@
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
@@ -6,13 +7,14 @@ import SubscriptionModuleService from '../../../modules/subscriptions/service';
 type SnapshotBundleItemsStepInput = {
   bundle_id: string;
   subscription_id: string;
+  subscription_bundle_id: string;
 };
 
 export const snapshotBundleItemsStep = createStep(
   'snapshot-bundle-items',
   async (input: SnapshotBundleItemsStepInput, { container }) => {
     // Query to get bundle with items
-    const query = container.resolve('query');
+    const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
     const {
       data: [bundle],
@@ -52,19 +54,25 @@ export const snapshotBundleItemsStep = createStep(
 
       subscriptionItems.push({
         subscription_id: input.subscription_id,
-        product_id: snapshot.product_id,
-        variant_id: snapshot.variant_id,
-        quantity: snapshot.quantity,
+        subscription_bundle_id: input.subscription_bundle_id,
+        type: 'bundle',
+        quantity: item.quantity,
+        item_price: variant.calculated_price?.calculated_amount || 0,
         product_snapshot: snapshot,
       });
     }
 
     // Create subscription items
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
     const createdItems = await subscriptionService.createSubscriptionItems(subscriptionItems);
 
+    // Return items and IDs needed for Link creation in workflow
     return new StepResponse(
-      { subscription_items: createdItems },
+      {
+        subscription_items: createdItems,
+        product_ids: subscriptionItems.map((item) => item.product_snapshot.product_id),
+        variant_ids: subscriptionItems.map((item) => item.product_snapshot.variant_id),
+      },
       { subscription_item_ids: createdItems.map((item: any) => item.id) },
     );
   },
@@ -74,7 +82,7 @@ export const snapshotBundleItemsStep = createStep(
     }
 
     // Rollback: delete subscription items
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
     await subscriptionService.deleteSubscriptionItems(data.subscription_item_ids);
   },
 );

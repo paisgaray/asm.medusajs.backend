@@ -26,5 +26,5 @@ export const resumeSubscriptionWorkflow = createWorkflow(
       status,
       resumed_at,
     });
-  }
+  },
 );

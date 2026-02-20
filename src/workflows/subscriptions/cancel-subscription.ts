@@ -1,14 +1,17 @@
-import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
+import {
+  createWorkflow,
+  WorkflowResponse,
+} from "@medusajs/framework/workflows-sdk";
 
-import { cancelStripeSubscriptionStep } from './steps/cancel-stripe-subscription';
-import { updateSubscriptionStatusStep } from './steps/update-subscription-status';
+import { cancelStripeSubscriptionStep } from "./steps/cancel-stripe-subscription";
+import { updateSubscriptionStatusStep } from "./steps/update-subscription-status";
 
 type CancelSubscriptionWorkflowInput = {
   subscription_id: string;
 };
 
 export const cancelSubscriptionWorkflow = createWorkflow(
-  'cancel-subscription',
+  "cancel-subscription",
   (input: CancelSubscriptionWorkflowInput) => {
     // Step 1: Cancel on Stripe
     const { status, cancelled_at } = cancelStripeSubscriptionStep({
@@ -26,5 +29,5 @@ export const cancelSubscriptionWorkflow = createWorkflow(
       status,
       cancelled_at,
     });
-  }
+  },
 );

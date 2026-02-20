@@ -20,7 +20,7 @@ type CreateSubscriptionRecordStepInput = {
 export const createSubscriptionRecordStep = createStep(
   'create-subscription-record',
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
     const subscription = await subscriptionService.createSubscriptions({
       customer_id: input.customer_id,
@@ -41,7 +41,7 @@ export const createSubscriptionRecordStep = createStep(
     }
 
     // Rollback: delete the subscription record
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
     await subscriptionService.deleteSubscriptions([data.subscription_id]);
   },
 );

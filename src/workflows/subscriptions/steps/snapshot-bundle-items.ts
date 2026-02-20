@@ -1,3 +1,4 @@
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
@@ -12,7 +13,7 @@ export const snapshotBundleItemsStep = createStep(
   'snapshot-bundle-items',
   async (input: SnapshotBundleItemsStepInput, { container }) => {
     // Query to get bundle with items
-    const query = container.resolve('query');
+    const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
     const {
       data: [bundle],
@@ -60,7 +61,7 @@ export const snapshotBundleItemsStep = createStep(
     }
 
     // Create subscription items
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
     const createdItems = await subscriptionService.createSubscriptionItems(subscriptionItems);
 
     return new StepResponse(
@@ -74,7 +75,7 @@ export const snapshotBundleItemsStep = createStep(
     }
 
     // Rollback: delete subscription items
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
     await subscriptionService.deleteSubscriptionItems(data.subscription_item_ids);
   },
 );

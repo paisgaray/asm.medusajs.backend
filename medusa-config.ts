@@ -220,7 +220,7 @@ export default defineConfig({
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL || redisUrl,
     cookieOptions: {           
-      sameSite: 'none' as const,
+      sameSite: 'lax' as const,
       secure: false,           // ALB→ECS é HTTP; CloudFront Function adiciona Secure
       httpOnly: true,
     },

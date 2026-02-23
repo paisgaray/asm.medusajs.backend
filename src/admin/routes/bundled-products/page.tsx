@@ -125,7 +125,6 @@ const BundledProductsPage = () => {
         },
       }),
   });
-  console.log('🚀 ~ BundledProductsPage ~ data:', data);
 
   const table = useDataTable({
     columns,

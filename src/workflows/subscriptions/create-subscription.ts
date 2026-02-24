@@ -53,7 +53,10 @@ export const createSubscriptionWorkflow = createWorkflow(
     );
 
     // Step 3: Attach payment method if provided (must happen before creating subscription)
-    when({ payment_method_id: input.payment_method_id }, ({ payment_method_id }) => !!payment_method_id).then(() => {
+    const paymentMethodData = when(
+      { payment_method_id: input.payment_method_id },
+      ({ payment_method_id }) => !!payment_method_id,
+    ).then(() => {
       return attachPaymentMethodStep({
         payment_method_id: input.payment_method_id!,
         stripe_customer_id: resolvedCustomer.stripe_customer_id,
@@ -78,6 +81,18 @@ export const createSubscriptionWorkflow = createWorkflow(
       skip_first_charge: input.skip_first_charge,
     });
 
+    // Resolve payment method card data (may be null if not provided)
+    const resolvedPaymentMethod = transform(
+      { pmData: paymentMethodData, pmId: input.payment_method_id },
+      ({ pmData, pmId }) => ({
+        provider_payment_method_id: pmData?.payment_method_id ?? pmId ?? null,
+        payment_last4: pmData?.last4 ?? null,
+        payment_brand: pmData?.brand ?? null,
+        payment_exp_month: pmData?.exp_month ?? null,
+        payment_exp_year: pmData?.exp_year ?? null,
+      }),
+    );
+
     // Step 6: Create subscription record in database
     const subscriptionData = createSubscriptionRecordStep({
       customer_id: input.customer_id,
@@ -87,6 +102,13 @@ export const createSubscriptionWorkflow = createWorkflow(
       stripe_subscription_id: stripeResult.stripe_subscription_id,
       stripe_customer_id: resolvedCustomer.stripe_customer_id,
       status: stripeResult.status,
+      current_period_start: stripeResult.current_period_start,
+      next_billing_date: stripeResult.next_billing_date,
+      provider_payment_method_id: resolvedPaymentMethod.provider_payment_method_id,
+      payment_last4: resolvedPaymentMethod.payment_last4,
+      payment_brand: resolvedPaymentMethod.payment_brand,
+      payment_exp_month: resolvedPaymentMethod.payment_exp_month,
+      payment_exp_year: resolvedPaymentMethod.payment_exp_year,
     });
 
     // Step 7: Link subscription to customer

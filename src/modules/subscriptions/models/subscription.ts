@@ -11,9 +11,13 @@ export const Subscription = model.define('subscription', {
   status: model.text().default('active'), // active, paused, cancelled, past_due, incomplete
   subscription_price: model.number(),
   currency: model.text().default('usd'),
-  // current_period_start: model.dateTime(),
-  // current_period_end: model.dateTime(),
-  // next_billing_date: model.dateTime(),
+  current_period_start: model.dateTime().nullable(),
+  next_billing_date: model.dateTime().nullable(),
+  provider_payment_method_id: model.text().nullable(),
+  payment_last4: model.text().nullable(),
+  payment_brand: model.text().nullable(),
+  payment_exp_month: model.number().nullable(),
+  payment_exp_year: model.number().nullable(),
   metadata: model.json().nullable(),
   bundles: model.hasMany(() => SubscriptionBundle, {
     mappedBy: 'subscription',

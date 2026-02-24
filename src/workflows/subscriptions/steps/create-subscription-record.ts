@@ -11,10 +11,14 @@ type CreateSubscriptionRecordStepInput = {
   currency: string;
   stripe_subscription_id: string;
   stripe_customer_id: string;
-  // current_period_start: Date;
-  // current_period_end: Date;
-  // next_billing_date: Date;
   status: string;
+  current_period_start?: Date;
+  next_billing_date?: Date;
+  provider_payment_method_id?: string | null;
+  payment_last4?: string | null;
+  payment_brand?: string | null;
+  payment_exp_month?: number | null;
+  payment_exp_year?: number | null;
 };
 
 export const createSubscriptionRecordStep = createStep(
@@ -30,6 +34,13 @@ export const createSubscriptionRecordStep = createStep(
       subscription_price: input.subscription_price,
       currency: input.currency,
       status: input.status as SubscriptionStatus,
+      current_period_start: input.current_period_start,
+      next_billing_date: input.next_billing_date,
+      provider_payment_method_id: input.provider_payment_method_id,
+      payment_last4: input.payment_last4,
+      payment_brand: input.payment_brand,
+      payment_exp_month: input.payment_exp_month,
+      payment_exp_year: input.payment_exp_year,
     });
 
     // Return subscription and IDs needed for creating links

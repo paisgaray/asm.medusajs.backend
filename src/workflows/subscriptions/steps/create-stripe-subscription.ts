@@ -66,6 +66,8 @@ export const createStripeSubscriptionStep = createStep(
         stripe_subscription_id: stripeSubscription.id,
         stripe_customer_id: input.stripe_customer_id,
         status: stripeSubscription.status,
+        current_period_start: new Date((stripeSubscription as any).current_period_start * 1000),
+        next_billing_date: new Date((stripeSubscription as any).current_period_end * 1000),
         // client_secret: clientSecret,
       },
       {

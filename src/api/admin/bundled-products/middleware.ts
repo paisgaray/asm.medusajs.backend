@@ -2,10 +2,21 @@ import { validateAndTransformBody, validateAndTransformQuery } from '@medusajs/f
 import { MiddlewareRoute } from '@medusajs/medusa';
 
 import { bundledProductsIdMiddlewares } from './[id]/middleware';
-import { findParams, CreateBundledProductsSchema } from './validators';
+import { CreateBundledProductsSchema, findParams } from './validators';
 
 const bundledListQueryConfig = {
-  defaults: ['id', 'title', 'details', 'product.*', 'items.*', 'items.product.*'],
+  defaults: [
+    'id',
+    'product.id',
+    'product.title',
+    'product.thumbnail',
+    'items.id',
+    'items.details',
+    'items.quantity',
+    'items.product.id',
+    'items.product.title',
+    'items.product.thumbnail',
+  ],
   isList: true,
   defaultLimit: 15,
 };

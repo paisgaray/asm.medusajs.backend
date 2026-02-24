@@ -3,17 +3,12 @@ import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import BundledProductModuleService from '../../../modules/bundled-product/service';
 
-export type CreateBundleStepInput = {
-  title: string;
-  details: string;
-};
-
 export const createBundleStep = createStep(
   'create-bundle',
-  async ({ title, details }: CreateBundleStepInput, { container }) => {
+  async (_, { container }) => {
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    const bundle = await bundledProductModuleService.createBundles({ title, details });
+    const bundle = await bundledProductModuleService.createBundles({});
 
     return new StepResponse(bundle, bundle.id);
   },

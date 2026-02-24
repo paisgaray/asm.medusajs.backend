@@ -1,10 +1,10 @@
 import { HttpTypes } from '@medusajs/framework/types';
 import { PlusMini } from '@medusajs/icons';
-import { Button, Divider, FocusModal, Heading, Input, Label, Select, toast } from '@medusajs/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-
+import { Button, Divider, FocusModal, Heading, Input, Label, toast } from '@medusajs/ui';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { sdk } from '../../lib/sdk';
+import { default as ProductSelect } from '../common/autoCompleteBundle';
 
 type BundledProductItemProps = {
   item: { product_id: string | undefined; quantity: number; details?: string };
@@ -12,7 +12,7 @@ type BundledProductItemProps = {
   setItems: React.Dispatch<
     React.SetStateAction<{ product_id: string | undefined; quantity: number; details?: string }[]>
   >;
-  products: HttpTypes.AdminProduct[] | undefined;
+  products?: HttpTypes.AdminProduct[] | undefined;
 };
 
 const CreateBundledProduct = () => {
@@ -22,27 +22,6 @@ const CreateBundledProduct = () => {
   ]);
   const queryClient = useQueryClient();
   const [selectedBundleId, setSelectedBundleId] = useState<string | undefined>();
-  const { data: products = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: async () => {
-      const { products } = await sdk.admin.product.list({ limit: 2000 });
-      return products;
-    },
-  });
-  const productsBundle = useMemo(() => {
-    return products.filter(
-      (product) =>
-        product.tags?.some((tag) => tag.value === 'bundled')
-    );
-  }, [products]);
-
-  const productsNotBundle = useMemo(() => {
-    return products.filter(
-      (product) =>
-        !product.tags?.some((tag) => tag.value === 'bundled')
-    );
-  }, [products]);
-
   const { mutateAsync: createBundledProduct, isPending: isCreating } = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       await sdk.client.fetch('/admin/bundled-products', {
@@ -98,35 +77,12 @@ const CreateBundledProduct = () => {
             <div className="flex   w-full max-w-[720px] flex-col gap-8  ">
               <div className="flex flex-col gap-4 px-4  ">
                 <Heading level={'h2'}>Select Bundle Product</Heading>
-                <Select
+                <ProductSelect
                   value={selectedBundleId}
-                  onValueChange={(value) => {
-                    setSelectedBundleId(value);
-                  }}
-                >
-                  <Select.Trigger>
-                    <Select.Value placeholder="Select Product" />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {productsBundle?.map((product) => (
-                      <Select.Item
-                        key={product.id}
-                        value={product.id}
-                      >
-                        <div className='flex items-center gap-4'>
-                          {product.thumbnail && (
-                            <img
-                              src={product?.thumbnail}
-                              alt={product?.title}
-                              className="w-6 h-6 object-cover rounded-sm mr-2"
-                            />
-                          )}
-                          {product?.title}
-                        </div>
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
+                  onChange={setSelectedBundleId}
+                  placeholder="Select Bundle Product"
+                  type="bundled"
+                />
 
               </div>
               <Divider />
@@ -138,7 +94,6 @@ const CreateBundledProduct = () => {
                     item={item}
                     index={index}
                     setItems={setItems}
-                    products={productsNotBundle}
 
                   />
                 ))}
@@ -173,7 +128,6 @@ const BundledProductItem = ({
   item,
   index,
   setItems,
-  products,
 }: BundledProductItemProps) => {
 
   return (
@@ -182,44 +136,17 @@ const BundledProductItem = ({
         <Heading level={'h3'} className="mb-1">
           Item {index + 1}
         </Heading>
-        <Select
+        <ProductSelect
           value={item.product_id}
-          onValueChange={(value) =>
-            setItems((items) =>
-              items.map((item, i) => {
-                return i === index
-                  ? {
-                    ...item,
-                    product_id: value,
-                  }
-                  : item;
-              }),
+          onChange={(value) =>
+            setItems((prev) =>
+              prev.map((it, i) =>
+                i === index ? { ...it, product_id: value } : it
+              )
             )
           }
-        >
-          <Select.Trigger>
-            <Select.Value placeholder="Select Product" />
-          </Select.Trigger>
-          <Select.Content>
-            {products?.map((product) => (
-              <Select.Item
-                key={product.id}
-                value={product.id}
-              >
-                <div className='flex items-center gap-4'>
-                  {product.thumbnail && (
-                    <img
-                      src={product?.thumbnail}
-                      alt={product?.title}
-                      className="w-6 h-6 object-cover rounded-sm mr-2"
-                    />
-                  )}
-                  {product?.title}
-                </div>
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select>
+          type="not-bundled"
+        />
       </div>
       <div data-testid={`bundled-product-quantity-${index}`} className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">

@@ -6,15 +6,15 @@ import {
   Heading,
   Input,
   Label,
-  Select,
-  toast,
+  toast
 } from '@medusajs/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { sdk } from '../../lib/sdk';
+import { default as ProductSelect } from '../common/autoCompleteBundle';
 
 type BundleItemState = {
-  id?: string; // id real do bundle_item
+  id?: string;
   product_id?: string;
   quantity: number;
   details?: string;
@@ -24,13 +24,9 @@ type BundleItemState = {
 const EditBundledProduct = ({ bundle }: { bundle: any }) => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-
-  // Produto principal do bundle
   const [selectedBundleId, setSelectedBundleId] = useState<string>(
     bundle?.product?.id
   );
-
-  // Itens do bundle (mantendo valores da row)
   const [items, setItems] = useState<BundleItemState[]>(
     bundle?.items?.map((item: any) => ({
       id: item.id,
@@ -40,30 +36,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
       isNew: false,
     })) ?? []
   );
-
-
-  const { data: products = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: async () => {
-      const { products } = await sdk.admin.product.list({ limit: 2000 });
-      return products;
-    },
-  });
-
-  const productsBundle = useMemo(() => {
-    return products.filter((product) =>
-      product.tags?.some((tag) => tag.value === 'bundled')
-    );
-  }, [products]);
-
-  const productsNotBundle = useMemo(() => {
-    return products.filter(
-      (product) =>
-        !product.tags?.some((tag) => tag.value === 'bundled')
-    );
-  }, [products]);
-
-
 
   const { mutateAsync: updateBundleProduct, isPending: isUpdatingBundle } =
     useMutation({
@@ -75,9 +47,9 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
           },
         });
       },
-      onSuccess: (data) => {
+      onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['bundled-products'] });
-        toast.success('Bundle updated successfully');
+        toast.success('Bundle updated successfully',);
       },
       onError: () => {
         toast.error('Failed to update bundle');
@@ -179,35 +151,15 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
 
           <Heading level="h2">Edit Bundled Product</Heading>
 
-          {/* SELECT BUNDLE */}
           <div className="flex flex-col gap-4 w-full max-w-[720px] px-4">
             <Heading level="h3">Select Bundle Product</Heading>
 
-            <Select
+            <ProductSelect
               value={selectedBundleId}
-              onValueChange={(value) => setSelectedBundleId(value)}
-            >
-              <Select.Trigger>
-                <Select.Value placeholder="Select Product" />
-              </Select.Trigger>
-              <Select.Content>
-                {productsBundle.map((product) => (
-                  <Select.Item key={product.id} value={product.id}>
-                    <div className='flex items-center gap-4'>
-                      {product.thumbnail && (
-                        <img
-                          src={product?.thumbnail}
-                          alt={product?.title}
-                          className="w-6 h-6 object-cover rounded-sm mr-2"
-                        />
-                      )}
-                      {product?.title}
-                    </div>
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-
+              onChange={setSelectedBundleId}
+              type="bundled"
+              selectProduct={bundle.product}
+            />
             <Button
               variant="secondary"
               isLoading={isUpdatingBundle}
@@ -229,37 +181,19 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
 
                 <Heading level="h3">Item {index + 1}</Heading>
 
-                <Select
+                <ProductSelect
                   disabled={!item.isNew}
                   value={item.product_id}
-                  onValueChange={(value) =>
+                  onChange={(value) =>
                     setItems((prev) =>
                       prev.map((it, i) =>
                         i === index ? { ...it, product_id: value } : it
                       )
                     )
                   }
-                >
-                  <Select.Trigger>
-                    <Select.Value placeholder="Select Product" />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {productsNotBundle.map((product) => (
-                      <Select.Item key={product.id} value={product.id}>
-                        <div className='flex items-center gap-4'>
-                          {product.thumbnail && (
-                            <img
-                              src={product?.thumbnail}
-                              alt={product?.title}
-                              className="w-6 h-6 object-cover rounded-sm mr-2"
-                            />
-                          )}
-                          {product?.title}
-                        </div>
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
+                  type="not-bundled"
+                  selectProduct={item.isNew ? undefined : bundle.items[index].product}
+                />
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>

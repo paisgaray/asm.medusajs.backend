@@ -1,7 +1,7 @@
 import { model } from '@medusajs/framework/utils';
 
-import { SubscriptionBundle } from './subscription-bundle';
-import { SubscriptionItem } from './subscription-item';
+import { CustomBundle } from './custom-bundle';
+import { CustomBundleItem } from './custom-bundle-item';
 
 export const Subscription = model.define('subscription', {
   id: model.id().primaryKey(),
@@ -19,10 +19,10 @@ export const Subscription = model.define('subscription', {
   payment_exp_month: model.number().nullable(),
   payment_exp_year: model.number().nullable(),
   metadata: model.json().nullable(),
-  bundles: model.hasMany(() => SubscriptionBundle, {
+  bundles: model.hasMany(() => CustomBundle, {
     mappedBy: 'subscription',
   }),
-  items: model.hasMany(() => SubscriptionItem, {
+  items: model.hasMany(() => CustomBundleItem, {
     mappedBy: 'subscription',
   }),
 });

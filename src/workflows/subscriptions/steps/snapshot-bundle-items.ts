@@ -7,7 +7,7 @@ import SubscriptionModuleService from '../../../modules/subscriptions/service';
 type SnapshotBundleItemsStepInput = {
   bundle_id: string;
   subscription_id: string;
-  subscription_bundle_id: string;
+  custom_bundle_id: string;
 };
 
 export const snapshotBundleItemsStep = createStep(
@@ -21,7 +21,7 @@ export const snapshotBundleItemsStep = createStep(
     } = await query.graph({
       entity: 'bundle',
       filters: { id: input.bundle_id },
-      fields: ['id', 'title', 'items.*', 'items.product.*', 'items.product.variants.*'],
+      fields: ['id', 'items.*', 'items.product.*', 'items.product.variants.*'],
     });
 
     if (!bundle) {
@@ -32,7 +32,7 @@ export const snapshotBundleItemsStep = createStep(
       throw new Error(`Bundle ${input.bundle_id} has no items`);
     }
 
-    const subscriptionItems = [];
+    const customBundleItems = [];
 
     // Get product links for all bundle items
     for (const item of bundle.items) {
@@ -52,9 +52,9 @@ export const snapshotBundleItemsStep = createStep(
         unit_price: variant.calculated_price?.calculated_amount,
       };
 
-      subscriptionItems.push({
+      customBundleItems.push({
         subscription_id: input.subscription_id,
-        subscription_bundle_id: input.subscription_bundle_id,
+        custom_bundle_id: input.custom_bundle_id,
         type: 'bundle',
         quantity: item.quantity,
         item_price: variant.calculated_price?.calculated_amount || 0,
@@ -62,27 +62,27 @@ export const snapshotBundleItemsStep = createStep(
       });
     }
 
-    // Create subscription items
+    // Create custom bundle items
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
-    const createdItems = await subscriptionService.createSubscriptionItems(subscriptionItems);
+    const createdItems = await subscriptionService.createCustomBundleItems(customBundleItems);
 
     // Return items and IDs needed for Link creation in workflow
     return new StepResponse(
       {
-        subscription_items: createdItems,
-        product_ids: subscriptionItems.map((item) => item.product_snapshot.product_id),
-        variant_ids: subscriptionItems.map((item) => item.product_snapshot.variant_id),
+        custom_bundle_items: createdItems,
+        product_ids: customBundleItems.map((item) => item.product_snapshot.product_id),
+        variant_ids: customBundleItems.map((item) => item.product_snapshot.variant_id),
       },
-      { subscription_item_ids: createdItems.map((item: any) => item.id) },
+      { custom_bundle_item_ids: createdItems.map((item: any) => item.id) },
     );
   },
   async (data, { container }) => {
-    if (!data?.subscription_item_ids || data.subscription_item_ids.length === 0) {
+    if (!data?.custom_bundle_item_ids || data.custom_bundle_item_ids.length === 0) {
       return;
     }
 
-    // Rollback: delete subscription items
+    // Rollback: delete custom bundle items
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
-    await subscriptionService.deleteSubscriptionItems(data.subscription_item_ids);
+    await subscriptionService.deleteCustomBundleItems(data.custom_bundle_item_ids);
   },
 );

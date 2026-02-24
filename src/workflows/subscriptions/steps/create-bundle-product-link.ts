@@ -4,7 +4,7 @@ import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
 
 type CreateBundleProductLinkInput = {
-  subscription_bundle_id: string;
+  custom_bundle_id: string;
   product_id: string;
 };
 
@@ -15,7 +15,7 @@ export const createBundleProductLinkStep = createStep(
 
     await remoteLink.create({
       [SUBSCRIPTION_MODULE]: {
-        subscription_bundle_id: input.subscription_bundle_id,
+        custom_bundle_id: input.custom_bundle_id,
       },
       [Modules.PRODUCT]: {
         product_id: input.product_id,
@@ -23,8 +23,8 @@ export const createBundleProductLinkStep = createStep(
     });
 
     return new StepResponse(
-      { subscription_bundle_id: input.subscription_bundle_id, product_id: input.product_id },
-      { subscription_bundle_id: input.subscription_bundle_id, product_id: input.product_id },
+      { custom_bundle_id: input.custom_bundle_id, product_id: input.product_id },
+      { custom_bundle_id: input.custom_bundle_id, product_id: input.product_id },
     );
   },
   async (data, { container }) => {
@@ -34,7 +34,7 @@ export const createBundleProductLinkStep = createStep(
 
     await remoteLink.dismiss({
       [SUBSCRIPTION_MODULE]: {
-        subscription_bundle_id: data.subscription_bundle_id,
+        custom_bundle_id: data.custom_bundle_id,
       },
       [Modules.PRODUCT]: {
         product_id: data.product_id,

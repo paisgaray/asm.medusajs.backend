@@ -4,7 +4,7 @@ import { attachPaymentMethodStep } from './steps/attach-payment-method';
 import { createBundleProductLinkStep } from './steps/create-bundle-product-link';
 import { createItemLinksStep } from './steps/create-item-links';
 import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
-import { createSubscriptionBundleStep } from './steps/create-subscription-bundle';
+import { createCustomBundleStep } from './steps/create-subscription-bundle';
 import { createSubscriptionCustomerLinkStep } from './steps/create-subscription-customer-link';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
 import { getOrCreateStripeCustomerStep } from './steps/get-or-create-stripe-customer';
@@ -27,7 +27,7 @@ export const createSubscriptionWorkflow = createWorkflow(
   'create-subscription',
   (input: CreateSubscriptionWorkflowInput) => {
     // Step 1: Validate the bundle product
-    const { bundle, subscription_price, currency } = validateSubscriptionProductStep({
+    const { bundle, product_title, subscription_price, currency } = validateSubscriptionProductStep({
       bundle_product_id: input.bundle_product_id,
     });
 
@@ -65,7 +65,7 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 4: Get or create Stripe product for the bundle
     const { stripe_product_id } = getsertStripeProductStep({
-      product_name: bundle.title,
+      product_name: product_title,
       medusa_product_id: bundle.id,
       metadata: {
         medusa_bundle_id: bundle.id,
@@ -117,20 +117,20 @@ export const createSubscriptionWorkflow = createWorkflow(
       customer_id: subscriptionData.customer_id,
     });
 
-    // Step 8: Create SubscriptionBundle record
-    const subscriptionBundle = createSubscriptionBundleStep({
+    // Step 8: Create CustomBundle record
+    const customBundle = createCustomBundleStep({
       subscription_id: subscriptionData.subscription.id,
       bundle_price: subscription_price,
       metadata: {
         bundle_id: bundle.id,
-        bundle_title: bundle.title,
+        bundle_title: product_title,
         created_at: new Date().toISOString(),
       },
     });
 
     // Step 9: Link bundle to product
     createBundleProductLinkStep({
-      subscription_bundle_id: subscriptionBundle.id,
+      custom_bundle_id: customBundle.id,
       product_id: subscriptionData.bundle_product_id,
     });
 
@@ -138,12 +138,12 @@ export const createSubscriptionWorkflow = createWorkflow(
     const itemsData = snapshotBundleItemsStep({
       bundle_id: bundle.id,
       subscription_id: subscriptionData.subscription.id,
-      subscription_bundle_id: subscriptionBundle.id,
+      custom_bundle_id: customBundle.id,
     });
 
     // Step 11: Link items to products and variants
     createItemLinksStep({
-      subscription_items: itemsData.subscription_items,
+      custom_bundle_items: itemsData.custom_bundle_items,
       product_ids: itemsData.product_ids,
       variant_ids: itemsData.variant_ids,
     });

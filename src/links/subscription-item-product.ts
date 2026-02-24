@@ -3,4 +3,7 @@ import ProductModule from '@medusajs/medusa/product';
 
 import SubscriptionModule from '../modules/subscriptions';
 
-export default defineLink(SubscriptionModule.linkable.subscriptionItem, ProductModule.linkable.product);
+export default defineLink(
+  { linkable: SubscriptionModule.linkable.customBundleItem, isList: true },
+  ProductModule.linkable.product,
+);

@@ -40,16 +40,11 @@ export class Migration20260224191910 extends Migration {
       `ALTER INDEX IF EXISTS "IDX_subscription_item_deleted_at" RENAME TO "IDX_custom_bundle_item_deleted_at";`,
     );
 
-    // Recreate foreign keys with new names
-    this.addSql(
-      `alter table "custom_bundle" add constraint "custom_bundle_subscription_id_foreign" foreign key ("subscription_id") references "subscription" ("id") on update cascade;`,
-    );
-    this.addSql(
-      `alter table "custom_bundle_item" add constraint "custom_bundle_item_subscription_id_foreign" foreign key ("subscription_id") references "subscription" ("id") on update cascade;`,
-    );
-    this.addSql(
-      `alter table "custom_bundle_item" add constraint "custom_bundle_item_bundle_id_foreign" foreign key ("bundle_id") references "custom_bundle" ("id") on update cascade on delete set null;`,
-    );
+    // Drop subscription_id FK and column (association now managed via link table)
+    this.addSql(`DROP INDEX IF EXISTS "IDX_custom_bundle_subscription_id";`);
+    this.addSql(`alter table "custom_bundle" drop column if exists "subscription_id";`);
+    this.addSql(`DROP INDEX IF EXISTS "IDX_custom_bundle_item_subscription_id";`);
+    this.addSql(`alter table "custom_bundle_item" drop column if exists "subscription_id";`);
   }
 
   override async down(): Promise<void> {
@@ -57,11 +52,17 @@ export class Migration20260224191910 extends Migration {
     this.addSql(
       `alter table if exists "custom_bundle_item" drop constraint if exists "custom_bundle_item_bundle_id_foreign";`,
     );
+
+    // Restore subscription_id columns before renaming back
+    this.addSql(`alter table "custom_bundle" add column if not exists "subscription_id" text not null default '';`);
     this.addSql(
-      `alter table if exists "custom_bundle_item" drop constraint if exists "custom_bundle_item_subscription_id_foreign";`,
+      `CREATE INDEX IF NOT EXISTS "IDX_custom_bundle_subscription_id" ON "custom_bundle" ("subscription_id") WHERE deleted_at IS NULL;`,
     );
     this.addSql(
-      `alter table if exists "custom_bundle" drop constraint if exists "custom_bundle_subscription_id_foreign";`,
+      `alter table "custom_bundle_item" add column if not exists "subscription_id" text not null default '';`,
+    );
+    this.addSql(
+      `CREATE INDEX IF NOT EXISTS "IDX_custom_bundle_item_subscription_id" ON "custom_bundle_item" ("subscription_id") WHERE deleted_at IS NULL;`,
     );
 
     // Rename tables back

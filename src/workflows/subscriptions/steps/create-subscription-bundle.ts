@@ -1,10 +1,9 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
-import SubscriptionModuleService from '../../../modules/subscriptions/service';
+import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
+import BundledProductModuleService from '../../../modules/bundled-product/service';
 
 type CreateCustomBundleStepInput = {
-  subscription_id: string;
   bundle_price: number;
   metadata: Record<string, unknown>;
 };
@@ -12,10 +11,9 @@ type CreateCustomBundleStepInput = {
 export const createCustomBundleStep = createStep(
   'create-custom-bundle',
   async (input: CreateCustomBundleStepInput, { container }) => {
-    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
+    const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    const customBundle = await subscriptionService.createCustomBundles({
-      subscription_id: input.subscription_id,
+    const customBundle = await bundledProductService.createCustomBundles({
       bundle_price: input.bundle_price,
       metadata: input.metadata,
     });
@@ -30,7 +28,7 @@ export const createCustomBundleStep = createStep(
     }
 
     // Rollback: delete the custom bundle record
-    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
-    await subscriptionService.deleteCustomBundles([data.custom_bundle_id]);
+    const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
+    await bundledProductService.deleteCustomBundles([data.custom_bundle_id]);
   },
 );

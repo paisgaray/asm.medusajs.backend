@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { createPaymentMethodWorkflow, listCustomerPaymentMethodsWorkflow } from '../../../../workflows/payment';
-import type { StoreCreatePaymentMethodBody, StorePaymentMethodsListQuery } from '../../payment-methods/validators';
+import { createPaymentMethodWorkflow, listCustomerPaymentMethodsWorkflow } from '../../../../../workflows/payment';
+import type { StoreCreatePaymentMethodBody, StorePaymentMethodsListQuery } from '../../../payment-methods/validators';
 
 export async function GET(
   req: MedusaRequest<undefined, StorePaymentMethodsListQuery>,

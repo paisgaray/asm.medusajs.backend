@@ -1,6 +1,5 @@
 import { model } from '@medusajs/framework/utils';
 
-import { Subscription } from './subscription';
 import { CustomBundle } from './custom-bundle';
 
 export const CustomBundleItem = model.define('custom_bundle_item', {
@@ -9,9 +8,6 @@ export const CustomBundleItem = model.define('custom_bundle_item', {
   quantity: model.number().default(1),
   item_price: model.number(),
   product_snapshot: model.json(),
-  subscription: model.belongsTo(() => Subscription, {
-    mappedBy: 'items',
-  }),
   bundle: model
     .belongsTo(() => CustomBundle, {
       mappedBy: 'items',

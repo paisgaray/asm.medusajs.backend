@@ -1,7 +1,7 @@
 import { Modules } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
+import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 
 type CreateItemLinksInput = {
   custom_bundle_items: any[];
@@ -17,7 +17,7 @@ export const createItemLinksStep = createStep(
     // Create links for custom_bundle_items ↔ products
     const productLinkPromises = input.custom_bundle_items.map((item, index) =>
       remoteLink.create({
-        [SUBSCRIPTION_MODULE]: {
+        [BUNDLED_PRODUCT_MODULE]: {
           custom_bundle_item_id: item.id,
         },
         [Modules.PRODUCT]: {
@@ -29,7 +29,7 @@ export const createItemLinksStep = createStep(
     // Create links for custom_bundle_items ↔ product variants
     const variantLinkPromises = input.custom_bundle_items.map((item, index) =>
       remoteLink.create({
-        [SUBSCRIPTION_MODULE]: {
+        [BUNDLED_PRODUCT_MODULE]: {
           custom_bundle_item_id: item.id,
         },
         [Modules.PRODUCT]: {
@@ -57,7 +57,7 @@ export const createItemLinksStep = createStep(
     // Dismiss product links
     const productLinkPromises = data.custom_bundle_item_ids.map((itemId, index) =>
       remoteLink.dismiss({
-        [SUBSCRIPTION_MODULE]: {
+        [BUNDLED_PRODUCT_MODULE]: {
           custom_bundle_item_id: itemId,
         },
         [Modules.PRODUCT]: {
@@ -69,7 +69,7 @@ export const createItemLinksStep = createStep(
     // Dismiss variant links
     const variantLinkPromises = data.custom_bundle_item_ids.map((itemId, index) =>
       remoteLink.dismiss({
-        [SUBSCRIPTION_MODULE]: {
+        [BUNDLED_PRODUCT_MODULE]: {
           custom_bundle_item_id: itemId,
         },
         [Modules.PRODUCT]: {

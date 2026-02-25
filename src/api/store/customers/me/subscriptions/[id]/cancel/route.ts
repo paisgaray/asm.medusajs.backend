@@ -1,14 +1,14 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { cancelSubscriptionWorkflow } from '../../../../../../workflows/subscriptions';
+import { cancelSubscriptionWorkflow } from '../../../../../../../workflows/subscriptions';
 
 /**
  * POST /store/me/subscriptions/:id/cancel
  * Cancel a subscription for the authenticated customer
  */
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve('query');
-  const customerId = req.user?.userId;
+  const customerId = req.auth_context?.actor_id;
   const { id } = req.params;
 
   if (!customerId) {

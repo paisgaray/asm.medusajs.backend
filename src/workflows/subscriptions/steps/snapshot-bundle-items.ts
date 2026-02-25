@@ -1,12 +1,11 @@
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
-import SubscriptionModuleService from '../../../modules/subscriptions/service';
+import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
+import BundledProductModuleService from '../../../modules/bundled-product/service';
 
 type SnapshotBundleItemsStepInput = {
   bundle_id: string;
-  subscription_id: string;
   custom_bundle_id: string;
 };
 
@@ -53,7 +52,6 @@ export const snapshotBundleItemsStep = createStep(
       };
 
       customBundleItems.push({
-        subscription_id: input.subscription_id,
         custom_bundle_id: input.custom_bundle_id,
         type: 'bundle',
         quantity: item.quantity,
@@ -63,8 +61,8 @@ export const snapshotBundleItemsStep = createStep(
     }
 
     // Create custom bundle items
-    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
-    const createdItems = await subscriptionService.createCustomBundleItems(customBundleItems);
+    const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
+    const createdItems = await bundledProductService.createCustomBundleItems(customBundleItems);
 
     // Return items and IDs needed for Link creation in workflow
     return new StepResponse(
@@ -82,7 +80,7 @@ export const snapshotBundleItemsStep = createStep(
     }
 
     // Rollback: delete custom bundle items
-    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
-    await subscriptionService.deleteCustomBundleItems(data.custom_bundle_item_ids);
+    const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
+    await bundledProductService.deleteCustomBundleItems(data.custom_bundle_item_ids);
   },
 );

@@ -1,14 +1,14 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { resumeSubscriptionWorkflow } from '../../../../../../workflows/subscriptions';
+import { pauseSubscriptionWorkflow } from '../../../../../../../workflows/subscriptions';
 
 /**
- * POST /store/me/subscriptions/:id/resume
- * Resume a paused subscription for the authenticated customer
+ * POST /store/me/subscriptions/:id/pause
+ * Pause a subscription for the authenticated customer
  */
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve('query');
-  const customerId = req.user?.userId;
+  const customerId = req.auth_context?.actor_id;
   const { id } = req.params;
 
   if (!customerId) {
@@ -29,7 +29,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   try {
-    const { result } = await resumeSubscriptionWorkflow(req.scope).run({
+    const { result } = await pauseSubscriptionWorkflow(req.scope).run({
       input: {
         subscription_id: id,
       },
@@ -37,9 +37,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
     res.json(result);
   } catch (error) {
-    req.scope.resolve('logger').error('Failed to resume subscription:', error);
+    req.scope.resolve('logger').error('Failed to pause subscription:', error);
     return res.status(500).json({
-      message: 'Failed to resume subscription',
+      message: 'Failed to pause subscription',
       error: error.message,
     });
   }

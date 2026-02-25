@@ -5,6 +5,7 @@ import { createBundleProductLinkStep } from './steps/create-bundle-product-link'
 import { createItemLinksStep } from './steps/create-item-links';
 import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
 import { createCustomBundleStep } from './steps/create-subscription-bundle';
+import { createSubscriptionBundleLinkStep } from './steps/create-subscription-bundle-link';
 import { createSubscriptionCustomerLinkStep } from './steps/create-subscription-customer-link';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
 import { getOrCreateStripeCustomerStep } from './steps/get-or-create-stripe-customer';
@@ -119,13 +120,18 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 8: Create CustomBundle record
     const customBundle = createCustomBundleStep({
-      subscription_id: subscriptionData.subscription.id,
       bundle_price: subscription_price,
       metadata: {
         bundle_id: bundle.id,
         bundle_title: product_title,
         created_at: new Date().toISOString(),
       },
+    });
+
+    // Step 8b: Link subscription to custom bundle
+    createSubscriptionBundleLinkStep({
+      subscription_id: subscriptionData.subscription.id,
+      custom_bundle_id: customBundle.id,
     });
 
     // Step 9: Link bundle to product
@@ -137,7 +143,6 @@ export const createSubscriptionWorkflow = createWorkflow(
     // Step 10: Snapshot bundle items
     const itemsData = snapshotBundleItemsStep({
       bundle_id: bundle.id,
-      subscription_id: subscriptionData.subscription.id,
       custom_bundle_id: customBundle.id,
     });
 

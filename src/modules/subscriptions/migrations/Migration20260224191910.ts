@@ -54,21 +54,48 @@ export class Migration20260224191910 extends Migration {
     `);
 
     // Rename indexes on custom_bundle
-    this.addSql(
-      `ALTER INDEX IF EXISTS "IDX_subscription_bundle_subscription_id" RENAME TO "IDX_custom_bundle_subscription_id";`,
-    );
-    this.addSql(`ALTER INDEX IF EXISTS "IDX_subscription_bundle_deleted_at" RENAME TO "IDX_custom_bundle_deleted_at";`);
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_subscription_bundle_subscription_id')
+           AND NOT EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_custom_bundle_subscription_id') THEN
+          ALTER INDEX "IDX_subscription_bundle_subscription_id" RENAME TO "IDX_custom_bundle_subscription_id";
+        END IF;
+      END $$;
+    `);
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_subscription_bundle_deleted_at')
+           AND NOT EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_custom_bundle_deleted_at') THEN
+          ALTER INDEX "IDX_subscription_bundle_deleted_at" RENAME TO "IDX_custom_bundle_deleted_at";
+        END IF;
+      END $$;
+    `);
 
     // Rename indexes on custom_bundle_item
-    this.addSql(
-      `ALTER INDEX IF EXISTS "IDX_subscription_item_subscription_id" RENAME TO "IDX_custom_bundle_item_subscription_id";`,
-    );
-    this.addSql(
-      `ALTER INDEX IF EXISTS "IDX_subscription_item_bundle_id" RENAME TO "IDX_custom_bundle_item_bundle_id";`,
-    );
-    this.addSql(
-      `ALTER INDEX IF EXISTS "IDX_subscription_item_deleted_at" RENAME TO "IDX_custom_bundle_item_deleted_at";`,
-    );
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_subscription_item_subscription_id')
+           AND NOT EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_custom_bundle_item_subscription_id') THEN
+          ALTER INDEX "IDX_subscription_item_subscription_id" RENAME TO "IDX_custom_bundle_item_subscription_id";
+        END IF;
+      END $$;
+    `);
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_subscription_item_bundle_id')
+           AND NOT EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_custom_bundle_item_bundle_id') THEN
+          ALTER INDEX "IDX_subscription_item_bundle_id" RENAME TO "IDX_custom_bundle_item_bundle_id";
+        END IF;
+      END $$;
+    `);
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_subscription_item_deleted_at')
+           AND NOT EXISTS (SELECT FROM pg_indexes WHERE indexname = 'IDX_custom_bundle_item_deleted_at') THEN
+          ALTER INDEX "IDX_subscription_item_deleted_at" RENAME TO "IDX_custom_bundle_item_deleted_at";
+        END IF;
+      END $$;
+    `);
 
     // Drop subscription_id FK and column (association now managed via link table)
     this.addSql(`DROP INDEX IF EXISTS "IDX_custom_bundle_subscription_id";`);

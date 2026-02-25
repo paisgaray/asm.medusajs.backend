@@ -3,4 +3,5 @@ import ProductModule from '@medusajs/medusa/product';
 
 import BundledProductsModule from '../modules/bundled-product';
 
+// One bundle links to ONE main product (the bundle product itself)
 export default defineLink(BundledProductsModule.linkable.bundle, ProductModule.linkable.product);

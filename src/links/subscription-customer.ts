@@ -3,4 +3,7 @@ import { defineLink } from '@medusajs/framework/utils';
 
 import SubscriptionModule from '../modules/subscriptions';
 
-export default defineLink(SubscriptionModule.linkable.subscription, CustomerModule.linkable.customer);
+export default defineLink(
+  { linkable: SubscriptionModule.linkable.subscription, isList: true },
+  CustomerModule.linkable.customer,
+);

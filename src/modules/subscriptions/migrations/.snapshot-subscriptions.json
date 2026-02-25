@@ -71,6 +71,71 @@
           "default": "'usd'",
           "mappedType": "text"
         },
+        "current_period_start": {
+          "name": "current_period_start",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "next_billing_date": {
+          "name": "next_billing_date",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "provider_payment_method_id": {
+          "name": "provider_payment_method_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "payment_last4": {
+          "name": "payment_last4",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "payment_brand": {
+          "name": "payment_brand",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "payment_exp_month": {
+          "name": "payment_exp_month",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "integer"
+        },
+        "payment_exp_year": {
+          "name": "payment_exp_year",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "integer"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -211,29 +276,29 @@
           "mappedType": "datetime"
         }
       },
-      "name": "subscription_bundle",
+      "name": "custom_bundle",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_subscription_bundle_subscription_id",
+          "keyName": "IDX_custom_bundle_subscription_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_bundle_subscription_id\" ON \"subscription_bundle\" (\"subscription_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_subscription_id\" ON \"custom_bundle\" (\"subscription_id\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_subscription_bundle_deleted_at",
+          "keyName": "IDX_custom_bundle_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_bundle_deleted_at\" ON \"subscription_bundle\" (\"deleted_at\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_deleted_at\" ON \"custom_bundle\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "subscription_bundle_pkey",
+          "keyName": "custom_bundle_pkey",
           "columnNames": [
             "id"
           ],
@@ -245,12 +310,12 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "subscription_bundle_subscription_id_foreign": {
-          "constraintName": "subscription_bundle_subscription_id_foreign",
+        "custom_bundle_subscription_id_foreign": {
+          "constraintName": "custom_bundle_subscription_id_foreign",
           "columnNames": [
             "subscription_id"
           ],
-          "localTableName": "public.subscription_bundle",
+          "localTableName": "public.custom_bundle",
           "referencedColumnNames": [
             "id"
           ],
@@ -364,38 +429,38 @@
           "mappedType": "datetime"
         }
       },
-      "name": "subscription_item",
+      "name": "custom_bundle_item",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_subscription_item_subscription_id",
+          "keyName": "IDX_custom_bundle_item_subscription_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_item_subscription_id\" ON \"subscription_item\" (\"subscription_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_subscription_id\" ON \"custom_bundle_item\" (\"subscription_id\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_subscription_item_bundle_id",
+          "keyName": "IDX_custom_bundle_item_bundle_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_item_bundle_id\" ON \"subscription_item\" (\"bundle_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_bundle_id\" ON \"custom_bundle_item\" (\"bundle_id\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_subscription_item_deleted_at",
+          "keyName": "IDX_custom_bundle_item_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_item_deleted_at\" ON \"subscription_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_deleted_at\" ON \"custom_bundle_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "subscription_item_pkey",
+          "keyName": "custom_bundle_item_pkey",
           "columnNames": [
             "id"
           ],
@@ -407,28 +472,28 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "subscription_item_subscription_id_foreign": {
-          "constraintName": "subscription_item_subscription_id_foreign",
+        "custom_bundle_item_subscription_id_foreign": {
+          "constraintName": "custom_bundle_item_subscription_id_foreign",
           "columnNames": [
             "subscription_id"
           ],
-          "localTableName": "public.subscription_item",
+          "localTableName": "public.custom_bundle_item",
           "referencedColumnNames": [
             "id"
           ],
           "referencedTableName": "public.subscription",
           "updateRule": "cascade"
         },
-        "subscription_item_bundle_id_foreign": {
-          "constraintName": "subscription_item_bundle_id_foreign",
+        "custom_bundle_item_bundle_id_foreign": {
+          "constraintName": "custom_bundle_item_bundle_id_foreign",
           "columnNames": [
             "bundle_id"
           ],
-          "localTableName": "public.subscription_item",
+          "localTableName": "public.custom_bundle_item",
           "referencedColumnNames": [
             "id"
           ],
-          "referencedTableName": "public.subscription_bundle",
+          "referencedTableName": "public.custom_bundle",
           "deleteRule": "set null",
           "updateRule": "cascade"
         }

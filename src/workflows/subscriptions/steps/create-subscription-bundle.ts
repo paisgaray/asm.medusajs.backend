@@ -1,36 +1,34 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
-import SubscriptionModuleService from '../../../modules/subscriptions/service';
+import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
+import BundledProductModuleService from '../../../modules/bundled-product/service';
 
-type CreateSubscriptionBundleStepInput = {
-  subscription_id: string;
+type CreateCustomBundleStepInput = {
   bundle_price: number;
   metadata: Record<string, unknown>;
 };
 
-export const createSubscriptionBundleStep = createStep(
-  'create-subscription-bundle',
-  async (input: CreateSubscriptionBundleStepInput, { container }) => {
-    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
+export const createCustomBundleStep = createStep(
+  'create-custom-bundle',
+  async (input: CreateCustomBundleStepInput, { container }) => {
+    const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    const subscriptionBundle = await subscriptionService.createSubscriptionBundles({
-      subscription_id: input.subscription_id,
+    const customBundle = await bundledProductService.createCustomBundles({
       bundle_price: input.bundle_price,
       metadata: input.metadata,
     });
 
-    return new StepResponse(subscriptionBundle, {
-      subscription_bundle_id: subscriptionBundle.id,
+    return new StepResponse(customBundle, {
+      custom_bundle_id: customBundle.id,
     });
   },
   async (data, { container }) => {
-    if (!data?.subscription_bundle_id) {
+    if (!data?.custom_bundle_id) {
       return;
     }
 
-    // Rollback: delete the subscription bundle record
-    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
-    await subscriptionService.deleteSubscriptionBundles([data.subscription_bundle_id]);
+    // Rollback: delete the custom bundle record
+    const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
+    await bundledProductService.deleteCustomBundles([data.custom_bundle_id]);
   },
 );

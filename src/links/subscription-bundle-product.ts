@@ -1,6 +1,9 @@
 import { defineLink } from '@medusajs/framework/utils';
 import ProductModule from '@medusajs/medusa/product';
 
-import SubscriptionModule from '../modules/subscriptions';
+import BundledProductModule from '../modules/bundled-product';
 
-export default defineLink(SubscriptionModule.linkable.subscriptionBundle, ProductModule.linkable.product);
+export default defineLink(
+  { linkable: BundledProductModule.linkable.customBundle, isList: true },
+  ProductModule.linkable.product,
+);

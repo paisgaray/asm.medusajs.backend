@@ -1,3 +1,4 @@
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 type ValidateSubscriptionProductStepInput = {
@@ -7,15 +8,23 @@ type ValidateSubscriptionProductStepInput = {
 export const validateSubscriptionProductStep = createStep(
   'validate-subscription-product',
   async (input: ValidateSubscriptionProductStepInput, { container }) => {
-    const query = container.resolve('query');
+    const query = container.resolve(ContainerRegistrationKeys.QUERY);
 
-    // Query product with its linked bundle and variant prices
+    // Query product with its linked bundle, variants, and prices in one query
     const {
       data: [product],
     } = await query.graph({
       entity: 'product',
       filters: { id: input.bundle_product_id },
-      fields: ['id', 'title', 'variants.*', 'variants.prices.*', 'bundle.*', 'bundle.items.*'],
+      fields: [
+        'id',
+        'title',
+        'variants.*',
+        'variants.prices.*',
+        'bundle.id',
+        'bundle.subscription_price',
+        'bundle.currency',
+      ],
     });
 
     if (!product) {
@@ -39,6 +48,7 @@ export const validateSubscriptionProductStep = createStep(
 
     return new StepResponse({
       bundle: product.bundle,
+      product_title: product.title,
       subscription_price: subscriptionPrice,
       currency,
     });

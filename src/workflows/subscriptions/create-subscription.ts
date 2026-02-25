@@ -4,7 +4,8 @@ import { attachPaymentMethodStep } from './steps/attach-payment-method';
 import { createBundleProductLinkStep } from './steps/create-bundle-product-link';
 import { createItemLinksStep } from './steps/create-item-links';
 import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
-import { createSubscriptionBundleStep } from './steps/create-subscription-bundle';
+import { createCustomBundleStep } from './steps/create-subscription-bundle';
+import { createSubscriptionBundleLinkStep } from './steps/create-subscription-bundle-link';
 import { createSubscriptionCustomerLinkStep } from './steps/create-subscription-customer-link';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
 import { getOrCreateStripeCustomerStep } from './steps/get-or-create-stripe-customer';
@@ -27,7 +28,7 @@ export const createSubscriptionWorkflow = createWorkflow(
   'create-subscription',
   (input: CreateSubscriptionWorkflowInput) => {
     // Step 1: Validate the bundle product
-    const { bundle, subscription_price, currency } = validateSubscriptionProductStep({
+    const { bundle, product_title, subscription_price, currency } = validateSubscriptionProductStep({
       bundle_product_id: input.bundle_product_id,
     });
 
@@ -53,7 +54,10 @@ export const createSubscriptionWorkflow = createWorkflow(
     );
 
     // Step 3: Attach payment method if provided (must happen before creating subscription)
-    when({ payment_method_id: input.payment_method_id }, ({ payment_method_id }) => !!payment_method_id).then(() => {
+    const paymentMethodData = when(
+      { payment_method_id: input.payment_method_id },
+      ({ payment_method_id }) => !!payment_method_id,
+    ).then(() => {
       return attachPaymentMethodStep({
         payment_method_id: input.payment_method_id!,
         stripe_customer_id: resolvedCustomer.stripe_customer_id,
@@ -62,7 +66,7 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 4: Get or create Stripe product for the bundle
     const { stripe_product_id } = getsertStripeProductStep({
-      product_name: bundle.title,
+      product_name: product_title,
       medusa_product_id: bundle.id,
       metadata: {
         medusa_bundle_id: bundle.id,
@@ -78,6 +82,18 @@ export const createSubscriptionWorkflow = createWorkflow(
       skip_first_charge: input.skip_first_charge,
     });
 
+    // Resolve payment method card data (may be null if not provided)
+    const resolvedPaymentMethod = transform(
+      { pmData: paymentMethodData, pmId: input.payment_method_id },
+      ({ pmData, pmId }) => ({
+        provider_payment_method_id: pmData?.payment_method_id ?? pmId ?? null,
+        payment_last4: pmData?.last4 ?? null,
+        payment_brand: pmData?.brand ?? null,
+        payment_exp_month: pmData?.exp_month ?? null,
+        payment_exp_year: pmData?.exp_year ?? null,
+      }),
+    );
+
     // Step 6: Create subscription record in database
     const subscriptionData = createSubscriptionRecordStep({
       customer_id: input.customer_id,
@@ -87,6 +103,13 @@ export const createSubscriptionWorkflow = createWorkflow(
       stripe_subscription_id: stripeResult.stripe_subscription_id,
       stripe_customer_id: resolvedCustomer.stripe_customer_id,
       status: stripeResult.status,
+      current_period_start: stripeResult.current_period_start,
+      next_billing_date: stripeResult.next_billing_date,
+      provider_payment_method_id: resolvedPaymentMethod.provider_payment_method_id,
+      payment_last4: resolvedPaymentMethod.payment_last4,
+      payment_brand: resolvedPaymentMethod.payment_brand,
+      payment_exp_month: resolvedPaymentMethod.payment_exp_month,
+      payment_exp_year: resolvedPaymentMethod.payment_exp_year,
     });
 
     // Step 7: Link subscription to customer
@@ -95,33 +118,37 @@ export const createSubscriptionWorkflow = createWorkflow(
       customer_id: subscriptionData.customer_id,
     });
 
-    // Step 8: Create SubscriptionBundle record
-    const subscriptionBundle = createSubscriptionBundleStep({
-      subscription_id: subscriptionData.subscription.id,
+    // Step 8: Create CustomBundle record
+    const customBundle = createCustomBundleStep({
       bundle_price: subscription_price,
       metadata: {
         bundle_id: bundle.id,
-        bundle_title: bundle.title,
+        bundle_title: product_title,
         created_at: new Date().toISOString(),
       },
     });
 
+    // Step 8b: Link subscription to custom bundle
+    createSubscriptionBundleLinkStep({
+      subscription_id: subscriptionData.subscription.id,
+      custom_bundle_id: customBundle.id,
+    });
+
     // Step 9: Link bundle to product
     createBundleProductLinkStep({
-      subscription_bundle_id: subscriptionBundle.id,
+      custom_bundle_id: customBundle.id,
       product_id: subscriptionData.bundle_product_id,
     });
 
     // Step 10: Snapshot bundle items
     const itemsData = snapshotBundleItemsStep({
       bundle_id: bundle.id,
-      subscription_id: subscriptionData.subscription.id,
-      subscription_bundle_id: subscriptionBundle.id,
+      custom_bundle_id: customBundle.id,
     });
 
     // Step 11: Link items to products and variants
     createItemLinksStep({
-      subscription_items: itemsData.subscription_items,
+      custom_bundle_items: itemsData.custom_bundle_items,
       product_ids: itemsData.product_ids,
       variant_ids: itemsData.variant_ids,
     });

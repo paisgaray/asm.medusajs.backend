@@ -2,13 +2,9 @@ import { RemoteQueryFunction } from '@medusajs/framework/types';
 import { MedusaService } from '@medusajs/framework/utils';
 
 import { Subscription } from './models/subscription';
-import { SubscriptionBundle } from './models/subscription-bundle';
-import { SubscriptionItem } from './models/subscription-item';
 
 export default class SubscriptionModuleService extends MedusaService({
   Subscription,
-  SubscriptionBundle,
-  SubscriptionItem,
 }) {
   async getProductWithPrice(
     query: Omit<RemoteQueryFunction, symbol>,

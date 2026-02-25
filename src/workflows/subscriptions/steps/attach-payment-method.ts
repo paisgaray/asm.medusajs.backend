@@ -44,7 +44,11 @@ export const attachPaymentMethodStep = createStep(
     logger.info(`Payment method ${payment_method_id} set as default`);
 
     return new StepResponse({
-      success: true,
+      payment_method_id,
+      last4: paymentMethod.card?.last4 ?? null,
+      brand: paymentMethod.card?.brand ?? null,
+      exp_month: paymentMethod.card?.exp_month ?? null,
+      exp_year: paymentMethod.card?.exp_year ?? null,
     });
   },
 );

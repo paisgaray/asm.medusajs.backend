@@ -1,4 +1,4 @@
-import { defineMiddlewares } from '@medusajs/framework/http';
+import { authenticate, defineMiddlewares } from '@medusajs/framework/http';
 import multer from 'multer';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
@@ -32,5 +32,9 @@ export default defineMiddlewares({
     // O Admin UI envia arquivo via URL no body, não via multipart/form-data
     // Se necessário, podemos adicionar de volta para suportar ambos os formatos
     ...paymentMethodsMiddlewares,
+    {
+      matcher: '/store/customers/me/*',
+      middlewares: [authenticate('customer', ['bearer', 'session'])],
+    },
   ],
 });

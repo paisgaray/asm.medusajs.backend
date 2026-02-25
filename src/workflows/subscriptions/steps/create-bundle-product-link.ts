@@ -1,10 +1,10 @@
 import { Modules } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
+import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 
 type CreateBundleProductLinkInput = {
-  subscription_bundle_id: string;
+  custom_bundle_id: string;
   product_id: string;
 };
 
@@ -14,8 +14,8 @@ export const createBundleProductLinkStep = createStep(
     const remoteLink = container.resolve('remoteLink');
 
     await remoteLink.create({
-      [SUBSCRIPTION_MODULE]: {
-        subscription_bundle_id: input.subscription_bundle_id,
+      [BUNDLED_PRODUCT_MODULE]: {
+        custom_bundle_id: input.custom_bundle_id,
       },
       [Modules.PRODUCT]: {
         product_id: input.product_id,
@@ -23,8 +23,8 @@ export const createBundleProductLinkStep = createStep(
     });
 
     return new StepResponse(
-      { subscription_bundle_id: input.subscription_bundle_id, product_id: input.product_id },
-      { subscription_bundle_id: input.subscription_bundle_id, product_id: input.product_id },
+      { custom_bundle_id: input.custom_bundle_id, product_id: input.product_id },
+      { custom_bundle_id: input.custom_bundle_id, product_id: input.product_id },
     );
   },
   async (data, { container }) => {
@@ -33,8 +33,8 @@ export const createBundleProductLinkStep = createStep(
     const remoteLink = container.resolve('remoteLink');
 
     await remoteLink.dismiss({
-      [SUBSCRIPTION_MODULE]: {
-        subscription_bundle_id: data.subscription_bundle_id,
+      [BUNDLED_PRODUCT_MODULE]: {
+        custom_bundle_id: data.custom_bundle_id,
       },
       [Modules.PRODUCT]: {
         product_id: data.product_id,

@@ -31,17 +31,23 @@ export class Migration20260224191910 extends Migration {
       END $$;
     `);
 
-    // Rename primary key constraints (only if they still have the old name)
+    // Rename primary key constraints (only if they still have the old name on the target table)
     this.addSql(`
       DO $$ BEGIN
-        IF EXISTS (SELECT FROM pg_constraint WHERE conname = 'subscription_bundle_pkey') THEN
+        IF EXISTS (
+          SELECT FROM pg_constraint c JOIN pg_class t ON c.conrelid = t.oid
+          WHERE c.conname = 'subscription_bundle_pkey' AND t.relname = 'custom_bundle'
+        ) THEN
           ALTER TABLE "custom_bundle" RENAME CONSTRAINT "subscription_bundle_pkey" TO "custom_bundle_pkey";
         END IF;
       END $$;
     `);
     this.addSql(`
       DO $$ BEGIN
-        IF EXISTS (SELECT FROM pg_constraint WHERE conname = 'subscription_item_pkey') THEN
+        IF EXISTS (
+          SELECT FROM pg_constraint c JOIN pg_class t ON c.conrelid = t.oid
+          WHERE c.conname = 'subscription_item_pkey' AND t.relname = 'custom_bundle_item'
+        ) THEN
           ALTER TABLE "custom_bundle_item" RENAME CONSTRAINT "subscription_item_pkey" TO "custom_bundle_item_pkey";
         END IF;
       END $$;

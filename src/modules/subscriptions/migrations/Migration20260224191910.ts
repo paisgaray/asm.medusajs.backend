@@ -2,7 +2,7 @@ import { Migration } from '@medusajs/framework/mikro-orm/migrations';
 
 export class Migration20260224191910 extends Migration {
   override async up(): Promise<void> {
-    // Drop old foreign keys before renaming
+    // Drop old foreign keys before renaming (safe regardless)
     this.addSql(
       `alter table if exists "subscription_item" drop constraint if exists "subscription_item_bundle_id_foreign";`,
     );
@@ -13,15 +13,39 @@ export class Migration20260224191910 extends Migration {
       `alter table if exists "subscription_bundle" drop constraint if exists "subscription_bundle_subscription_id_foreign";`,
     );
 
-    // Rename tables (preserves data)
-    this.addSql(`alter table if exists "subscription_bundle" rename to "custom_bundle";`);
-    this.addSql(`alter table if exists "subscription_item" rename to "custom_bundle_item";`);
+    // Conditionally rename tables only if subscription_bundle exists (may have been created fresh as custom_bundle already)
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'subscription_bundle')
+           AND NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'custom_bundle') THEN
+          ALTER TABLE "subscription_bundle" RENAME TO "custom_bundle";
+        END IF;
+      END $$;
+    `);
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'subscription_item')
+           AND NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'custom_bundle_item') THEN
+          ALTER TABLE "subscription_item" RENAME TO "custom_bundle_item";
+        END IF;
+      END $$;
+    `);
 
-    // Rename primary key constraints
-    this.addSql(`alter table "custom_bundle" rename constraint "subscription_bundle_pkey" to "custom_bundle_pkey";`);
-    this.addSql(
-      `alter table "custom_bundle_item" rename constraint "subscription_item_pkey" to "custom_bundle_item_pkey";`,
-    );
+    // Rename primary key constraints (only if they still have the old name)
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_constraint WHERE conname = 'subscription_bundle_pkey') THEN
+          ALTER TABLE "custom_bundle" RENAME CONSTRAINT "subscription_bundle_pkey" TO "custom_bundle_pkey";
+        END IF;
+      END $$;
+    `);
+    this.addSql(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT FROM pg_constraint WHERE conname = 'subscription_item_pkey') THEN
+          ALTER TABLE "custom_bundle_item" RENAME CONSTRAINT "subscription_item_pkey" TO "custom_bundle_item_pkey";
+        END IF;
+      END $$;
+    `);
 
     // Rename indexes on custom_bundle
     this.addSql(
@@ -42,9 +66,9 @@ export class Migration20260224191910 extends Migration {
 
     // Drop subscription_id FK and column (association now managed via link table)
     this.addSql(`DROP INDEX IF EXISTS "IDX_custom_bundle_subscription_id";`);
-    this.addSql(`alter table "custom_bundle" drop column if exists "subscription_id";`);
+    this.addSql(`alter table if exists "custom_bundle" drop column if exists "subscription_id";`);
     this.addSql(`DROP INDEX IF EXISTS "IDX_custom_bundle_item_subscription_id";`);
-    this.addSql(`alter table "custom_bundle_item" drop column if exists "subscription_id";`);
+    this.addSql(`alter table if exists "custom_bundle_item" drop column if exists "subscription_id";`);
   }
 
   override async down(): Promise<void> {

@@ -20,7 +20,7 @@ export default async function seedZipcodes({ container }: ExecArgs) {
   logger.info("Starting seed: create regions (if needed) + region_zipcode from zip_codes.json...")
 
   // --- Load JSON (zipcode -> regionName)
-  const zipPath = path.resolve(process.cwd(), "src", "scripts", "zip_codes.json")
+  const zipPath = path.resolve(__dirname, "zip_codes.json")
   const zipRaw = fs.readFileSync(zipPath, "utf-8")
   const zipData: ZipJson = JSON.parse(zipRaw)
 

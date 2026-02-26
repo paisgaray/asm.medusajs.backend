@@ -17,7 +17,7 @@ export const ensureAccountHolderStep = createStep(
     const { data: customerData } = await query.graph(
       {
         entity: 'customer',
-        fields: ['id'],
+        fields: ['id', 'email'],
         filters: {
           id: input.customer_id,
         },
@@ -31,64 +31,55 @@ export const ensureAccountHolderStep = createStep(
       throw new Error('Customer not found');
     }
 
-    try {
-      const allLinks = await link.list({
-        [Modules.CUSTOMER]: { customer_id: input.customer_id },
-      });
+    const customer = customerData[0] as { id: string; email: string };
 
-      if (allLinks && allLinks.length > 0) {
-        const accountHolderIds = allLinks
-          .map((linkEntry) => linkEntry[Modules.PAYMENT]?.account_holder_id)
-          .filter((id): id is string => !!id);
+    const allLinks = await link.list({
+      [Modules.CUSTOMER]: { customer_id: input.customer_id },
+    });
 
-        if (accountHolderIds.length > 0) {
-          const { data: accountHoldersData } = await query.graph(
-            {
-              entity: 'account_holder',
-              fields: ['id', 'provider_id', 'data'],
-              filters: {
-                id: accountHolderIds,
-                provider_id: input.provider_id,
-              },
+    if (allLinks && allLinks.length > 0) {
+      const accountHolderIds = allLinks
+        .map((linkEntry) => linkEntry[Modules.PAYMENT]?.account_holder_id)
+        .filter((id): id is string => !!id);
+
+      if (accountHolderIds.length > 0) {
+        const { data: accountHoldersData } = await query.graph(
+          {
+            entity: 'account_holder',
+            fields: ['id', 'provider_id', 'data'],
+            filters: {
+              id: accountHolderIds,
+              provider_id: input.provider_id,
             },
-            {
-              throwIfKeyNotFound: false,
-            },
-          );
+          },
+          {
+            throwIfKeyNotFound: false,
+          },
+        );
 
-          if (accountHoldersData && accountHoldersData.length > 0) {
-            const existing = accountHoldersData[0] as {
-              id: string;
-              provider_id: string;
-              data: {
-                id?: string;
-              };
+        if (accountHoldersData && accountHoldersData.length > 0) {
+          const existing = accountHoldersData[0] as {
+            id: string;
+            provider_id: string;
+            data: {
+              id?: string;
             };
+          };
 
-            if (existing?.data?.id) {
-              return new StepResponse({
-                id: existing.id,
-                provider_id: existing.provider_id,
-                data: {
-                  id: existing.data.id,
-                },
-              } as AccountHolderData);
-            }
+          if (existing?.data?.id) {
+            return new StepResponse({
+              id: existing.id,
+              provider_id: existing.provider_id,
+              data: {
+                id: existing.data.id,
+              },
+            } as AccountHolderData);
           }
         }
       }
-    } catch {}
+    }
 
-    const paymentModuleService = container.resolve('payment') as {
-      createAccountHolder?: (params: {
-        provider_id: string;
-        context: {
-          customer: {
-            id: string;
-          };
-        };
-      }) => Promise<{ id: string }>;
-    };
+    const paymentModuleService = container.resolve('payment');
 
     if (!paymentModuleService?.createAccountHolder) {
       throw new Error('Payment provider does not support creating account holders');
@@ -100,6 +91,7 @@ export const ensureAccountHolderStep = createStep(
         context: {
           customer: {
             id: input.customer_id,
+            email: customer.email,
           },
         },
       });
@@ -108,16 +100,14 @@ export const ensureAccountHolderStep = createStep(
         throw new Error('Failed to create account holder');
       }
 
-      try {
-        await link.create([
-          {
-            [Modules.CUSTOMER]: { customer_id: input.customer_id },
-            [Modules.PAYMENT]: {
-              account_holder_id: accountHolderData.id,
-            },
+      await link.create([
+        {
+          [Modules.CUSTOMER]: { customer_id: input.customer_id },
+          [Modules.PAYMENT]: {
+            account_holder_id: accountHolderData.id,
           },
-        ]);
-      } catch {}
+        },
+      ]);
 
       const { data: createdAccountHolders } = await query.graph(
         {

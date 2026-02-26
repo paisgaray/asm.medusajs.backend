@@ -36,7 +36,7 @@ export default async function seedZipcodes({ container }: ExecArgs) {
     return
   }
 
-  const pg = container.resolve("__pg_connection__") // Knex
+  const pg = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) // Knex
 
   // --- Collect regions from JSON
   const regionNames = Array.from(

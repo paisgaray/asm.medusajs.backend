@@ -1,6 +1,6 @@
 import { validateAndTransformBody, validateAndTransformQuery } from '@medusajs/framework';
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
-import { MedusaError, ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, MedusaError, Modules } from '@medusajs/framework/utils';
 import { MiddlewareRoute } from '@medusajs/medusa';
 
 import {
@@ -44,22 +44,22 @@ async function ensurePaymentMethodOwnership(req: MedusaRequest, _res: MedusaResp
 
 export const paymentMethodsMiddlewares: MiddlewareRoute[] = [
   {
-    matcher: '/store/me/payment-methods',
+    matcher: '/store/customers/me/payment-methods',
     methods: ['GET'],
     middlewares: [validateAndTransformQuery(StorePaymentMethodsListQuerySchema, paymentMethodsListQueryConfig)],
   },
   {
-    matcher: '/store/me/payment-methods',
+    matcher: '/store/customers/me/payment-methods',
     methods: ['POST'],
     middlewares: [validateAndTransformBody(StoreCreatePaymentMethodBodySchema)],
   },
   {
-    matcher: '/store/payment-methods/:id',
+    matcher: '/store/customers/me/payment-methods/:id',
     methods: ['DELETE'],
     middlewares: [validateAndTransformBody(StoreDeletePaymentMethodBodySchema), ensurePaymentMethodOwnership],
   },
   {
-    matcher: '/store/payment-methods/:id',
+    matcher: '/store/customers/me/payment-methods/:id',
     methods: ['PUT'],
     middlewares: [validateAndTransformBody(StoreUpdatePaymentMethodBodySchema), ensurePaymentMethodOwnership],
   },

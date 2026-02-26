@@ -128,7 +128,10 @@ export default async function seedZipcodes({ container }: ExecArgs) {
       }
     })
 
-    await pg("region_zipcode").insert(rows)
+    await pg("region_zipcode")
+      .insert(rows)
+      .onConflict("zipcode")
+      .merge(["region_id", "updated_at", "deleted_at"])
 
     logger.info(`Inserted batch ${Math.floor(i / BATCH) + 1}/${Math.ceil(zipcodes.length / BATCH)}`)
   }

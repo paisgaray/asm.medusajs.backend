@@ -4,6 +4,7 @@ import multer from 'multer';
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
 import { contactAdminMiddlewares } from './admin/contact/middleware';
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
+import { customBundleProductsMiddlewares } from './store/bundle-products/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
 import { contactStoreMiddlewares } from './store/contact/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
@@ -16,6 +17,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 export default defineMiddlewares({
   routes: [
     ...bundledProductsMiddlewares,
+    ...customBundleProductsMiddlewares,
     ...lineItemBundlesMiddlewares,
     ...productSearchMiddlewares,
     ...newsletterMiddlewares,

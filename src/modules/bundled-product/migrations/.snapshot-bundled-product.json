@@ -235,6 +235,15 @@
           "nullable": false,
           "mappedType": "text"
         },
+        "bundle_id": {
+          "name": "bundle_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
         "bundle_price": {
           "name": "bundle_price",
           "type": "integer",
@@ -366,8 +375,8 @@
           "nullable": false,
           "mappedType": "json"
         },
-        "bundle_id": {
-          "name": "bundle_id",
+        "custom_bundle_id": {
+          "name": "custom_bundle_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -412,13 +421,13 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_custom_bundle_item_bundle_id",
+          "keyName": "IDX_custom_bundle_item_custom_bundle_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_bundle_id\" ON \"custom_bundle_item\" (\"bundle_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_custom_bundle_id\" ON \"custom_bundle_item\" (\"custom_bundle_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_custom_bundle_item_deleted_at",
@@ -442,10 +451,10 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "custom_bundle_item_bundle_id_foreign": {
-          "constraintName": "custom_bundle_item_bundle_id_foreign",
+        "custom_bundle_item_custom_bundle_id_foreign": {
+          "constraintName": "custom_bundle_item_custom_bundle_id_foreign",
           "columnNames": [
-            "bundle_id"
+            "custom_bundle_id"
           ],
           "localTableName": "public.custom_bundle_item",
           "referencedColumnNames": [

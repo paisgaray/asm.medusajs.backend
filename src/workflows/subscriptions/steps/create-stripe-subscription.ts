@@ -61,11 +61,19 @@ export const createStripeSubscriptionStep = createStep(
 
     // console.log('clientSecret', clientSecret);
 
+    // In Stripe API 2026-01-28.clover+, current_period_start/end moved from
+    // the subscription root to each subscription item.
+    const firstItem = stripeSubscription.items.data[0];
+    const periodStart = firstItem?.current_period_start;
+    const periodEnd = firstItem?.current_period_end;
+
     return new StepResponse(
       {
         stripe_subscription_id: stripeSubscription.id,
         stripe_customer_id: input.stripe_customer_id,
         status: stripeSubscription.status,
+        current_period_start: periodStart ? new Date(periodStart * 1000) : undefined,
+        next_billing_date: periodEnd ? new Date(periodEnd * 1000) : undefined,
         // client_secret: clientSecret,
       },
       {

@@ -24,7 +24,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/.medusa/server .
 COPY --from=build /app/start.sh .
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/src/scripts/zip_codes.json ./src/scripts/zip_codes.json  # ← adicionar esta linha
+COPY --from=build /app/src/scripts/zip_codes.json ./src/scripts/zip_codes.json
 
 RUN chmod +x /app/start.sh
 

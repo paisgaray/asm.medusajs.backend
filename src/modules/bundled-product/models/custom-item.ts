@@ -2,7 +2,7 @@ import { model } from '@medusajs/framework/utils';
 
 import { CustomBundle } from './custom-bundle';
 
-export const CustomBundleItem = model.define('custom_bundle_item', {
+export const CustomItem = model.define('custom_item', {
   id: model.id().primaryKey(),
   type: model.enum(['single', 'bundle']).default('single'),
   quantity: model.number().default(1),
@@ -10,3 +10,4 @@ export const CustomBundleItem = model.define('custom_bundle_item', {
   product_snapshot: model.json(),
   customBundle: model.belongsTo(() => CustomBundle, { mappedBy: 'items' }).nullable(),
 });
+

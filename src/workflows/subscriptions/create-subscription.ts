@@ -22,6 +22,10 @@ type CreateSubscriptionWorkflowInput = {
   skip_first_charge?: boolean;
   /** Payment method to attach to customer (only used if customer needs to be created) */
   payment_method_id?: string;
+  /** How often the subscription renews (from line item metadata) */
+  frequency?: string;
+  /** Preferred delivery period (from line item metadata) */
+  period?: string;
 };
 
 export const createSubscriptionWorkflow = createWorkflow(
@@ -110,6 +114,8 @@ export const createSubscriptionWorkflow = createWorkflow(
       payment_brand: resolvedPaymentMethod.payment_brand,
       payment_exp_month: resolvedPaymentMethod.payment_exp_month,
       payment_exp_year: resolvedPaymentMethod.payment_exp_year,
+      frequency: input.frequency,
+      period: input.period,
     });
 
     // Step 7: Link subscription to customer
@@ -148,7 +154,7 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 11: Link items to products and variants
     createItemLinksStep({
-      custom_bundle_items: itemsData.custom_bundle_items,
+      custom_items: itemsData.custom_items,
       product_ids: itemsData.product_ids,
       variant_ids: itemsData.variant_ids,
     });

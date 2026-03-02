@@ -31,7 +31,7 @@ export const snapshotBundleItemsStep = createStep(
       throw new Error(`Bundle ${input.bundle_id} has no items`);
     }
 
-    const customBundleItems = [];
+    const customItems = [];
 
     // Get product links for all bundle items
     for (const item of bundle.items) {
@@ -51,7 +51,7 @@ export const snapshotBundleItemsStep = createStep(
         unit_price: variant.calculated_price?.calculated_amount,
       };
 
-      customBundleItems.push({
+      customItems.push({
         custom_bundle_id: input.custom_bundle_id,
         type: 'bundle',
         quantity: item.quantity,
@@ -60,27 +60,27 @@ export const snapshotBundleItemsStep = createStep(
       });
     }
 
-    // Create custom bundle items
+    // Create custom items
     const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
-    const createdItems = await bundledProductService.createCustomBundleItems(customBundleItems);
+    const createdItems = await bundledProductService.createCustomItems(customItems);
 
     // Return items and IDs needed for Link creation in workflow
     return new StepResponse(
       {
-        custom_bundle_items: createdItems,
-        product_ids: customBundleItems.map((item) => item.product_snapshot.product_id),
-        variant_ids: customBundleItems.map((item) => item.product_snapshot.variant_id),
+        custom_items: createdItems,
+        product_ids: customItems.map((item) => item.product_snapshot.product_id),
+        variant_ids: customItems.map((item) => item.product_snapshot.variant_id),
       },
-      { custom_bundle_item_ids: createdItems.map((item: any) => item.id) },
+      { custom_item_ids: createdItems.map((item: any) => item.id) },
     );
   },
   async (data, { container }) => {
-    if (!data?.custom_bundle_item_ids || data.custom_bundle_item_ids.length === 0) {
+    if (!data?.custom_item_ids || data.custom_item_ids.length === 0) {
       return;
     }
 
-    // Rollback: delete custom bundle items
+    // Rollback: delete custom items
     const bundledProductService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
-    await bundledProductService.deleteCustomBundleItems(data.custom_bundle_item_ids);
+    await bundledProductService.deleteCustomItems(data.custom_item_ids);
   },
 );

@@ -12,7 +12,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import CreateBundledProduct from '../../components/create-bundled-product';
+import CreateBundledProduct from '../../components/bundleComponents/create-bundled-product';
+import DeleteBundledProduct from '../../components/bundleComponents/delete-bundled-product';
+import EditBundledProduct from '../../components/bundleComponents/edit-bundled-product';
 import { sdk } from '../../lib/sdk';
 
 type BundledProduct = {
@@ -20,12 +22,15 @@ type BundledProduct = {
   title: string;
   product: {
     id: string;
+    title: string;
+    thumbnail?: string;
   };
   items: {
     id: string;
     product: {
       id: string;
       title: string;
+      thumbnail?: string;
     };
     quantity: number;
   }[];
@@ -40,22 +45,56 @@ const columns = [
     header: 'ID',
   }),
   columnHelper.accessor('title', {
-    header: 'Title',
+    header: 'Bundle Product ',
+    cell: ({ row }) => {
+      return (
+        <div className="flex flex-row gap-4 items-center">
+          {row.original?.product?.thumbnail && (
+            <div data-testid="image-bundle-product" className="w-8 h-8 ">
+              <img
+                src={row.original?.product?.thumbnail}
+                alt={row.original?.product?.title}
+                className="w-full h-full object-cover "
+              />
+            </div>
+          )}
+          <span>{row.original?.product?.title}</span>
+        </div>
+      );
+    },
   }),
+
+  columnHelper.accessor('product', {
+    header: 'Details Product',
+    cell: ({ row }) => {
+      return <Link to={`/products/${row.original.product?.id}`}>View Product</Link>;
+    },
+  }),
+
   columnHelper.accessor('items', {
     header: 'Items',
     cell: ({ row }) => {
       return row.original.items.map((item) => (
-        <div key={item.id}>
-          <Link to={`/products/${item.product.id}`}>{item.product.title}</Link> x {item.quantity}
+        <div key={item.id} className="flex flex-col  p-1 ">
+          <div className="flex items-center gap-2">
+            <img src={item.product?.thumbnail} alt={item.product?.title} className="w-8 h-8 object-cover " />
+            <Link to={`/products/${item.product.id}`}>{item.product.title}</Link> x {item.quantity}
+          </div>
         </div>
       ));
     },
   }),
-  columnHelper.accessor('product', {
-    header: 'Product',
+
+  columnHelper.display({
+    id: 'actions',
+    header: 'Actions',
     cell: ({ row }) => {
-      return <Link to={`/products/${row.original.product?.id}`}>View Product</Link>;
+      return (
+        <div className="flex gap-2">
+          <EditBundledProduct bundle={row.original} />
+          <DeleteBundledProduct idBundledProduct={row.original.id} />
+        </div>
+      );
     },
   }),
 ];

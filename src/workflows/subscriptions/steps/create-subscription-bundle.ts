@@ -5,6 +5,7 @@ import BundledProductModuleService from '../../../modules/bundled-product/servic
 
 type CreateCustomBundleStepInput = {
   bundle_price: number;
+  bundle_id: string;
   metadata: Record<string, unknown>;
 };
 
@@ -15,11 +16,13 @@ export const createCustomBundleStep = createStep(
 
     const customBundle = await bundledProductService.createCustomBundles({
       bundle_price: input.bundle_price,
+      bundle_id: input.bundle_id,
       metadata: input.metadata,
     });
 
     return new StepResponse(customBundle, {
       custom_bundle_id: customBundle.id,
+      bundle_id: customBundle.bundle_id,
     });
   },
   async (data, { container }) => {

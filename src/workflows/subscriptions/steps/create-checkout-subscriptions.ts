@@ -14,18 +14,17 @@ type CreateCheckoutSubscriptionsInput = {
 };
 
 type CheckoutSubscriptionsOutput = {
-  subscription: unknown;
-  subscription_id: string;
-  subscription_ids: string[]; // For backward compatibility with updateOrderMetadataStep
+  subscriptions: unknown[];
+  subscription_ids: string[];
 };
 
 type CompensationData = {
-  subscription_id: string;
+  subscription_ids: string[];
 };
 
 /**
- * Creates a single subscription with multiple bundles for items detected at checkout.
- * Calls the existing create-subscription workflow with all bundle products.
+ * Creates one subscription per subscription item detected at checkout.
+ * The Stripe customer is resolved once (first item) and reused for all subsequent items.
  */
 export const createCheckoutSubscriptionsStep = createStep(
   'create-checkout-subscriptions',
@@ -41,54 +40,55 @@ export const createCheckoutSubscriptionsStep = createStep(
   ): Promise<StepResponse<CheckoutSubscriptionsOutput, CompensationData>> => {
     const logger = container.resolve('logger');
 
-    logger.info(`Creating subscription with ${subscription_items.length} bundle(s) for order ${order_id}`);
-
-    // TODO: Once create-subscription workflow is updated to handle multiple bundles,
-    // we should create one subscription with all bundles instead of this loop
-
-    // For now, create one subscription for the first bundle
-    // (Multiple bundles in checkout will be supported after workflow update)
-    const firstBundle = subscription_items[0];
-
-    if (!firstBundle) {
+    if (!subscription_items.length) {
       throw new Error('No subscription items found');
     }
 
-    // skip_first_charge: true because checkout already charged the customer for the first period
-    const { result } = await createSubscriptionWorkflow(container).run({
-      input: {
-        customer_id,
-        bundle_product_id: firstBundle.product_id,
-        stripe_customer_id,
-        payment_method_id,
-        skip_first_charge: true,
-      },
-    });
+    logger.info(`Creating ${subscription_items.length} subscription(s) for order ${order_id}`);
 
-    logger.info(`Created subscription ${result.subscription.id} for bundle ${firstBundle.product_id}`);
+    const subscriptions: unknown[] = [];
+    const subscription_ids: string[] = [];
 
-    if (subscription_items.length > 1) {
-      logger.warn(
-        `Multiple subscription bundles in checkout not yet supported. Created subscription for first bundle only. Found ${subscription_items.length} bundles.`,
-      );
+    // Resolve the Stripe customer once, then reuse it for every subsequent item
+    // to avoid creating duplicate Stripe customers for the same checkout.
+    let resolvedStripeCustomerId = stripe_customer_id;
+
+    for (const item of subscription_items) {
+      // skip_first_charge: true because checkout already charged the customer for the first period.
+      // Only attach the payment method on the first call (subsequent ones reuse the already-resolved customer).
+      const { result } = await createSubscriptionWorkflow(container).run({
+        input: {
+          customer_id,
+          bundle_product_id: item.product_id,
+          stripe_customer_id: resolvedStripeCustomerId,
+          payment_method_id: resolvedStripeCustomerId ? undefined : payment_method_id,
+          skip_first_charge: true,
+          frequency: item.frequency,
+          period: item.period,
+        },
+      });
+
+      logger.info(`Created subscription ${result.subscription.id} for bundle ${item.product_id}`);
+
+      subscriptions.push(result.subscription);
+      subscription_ids.push(result.subscription.id);
+
+      // After the first iteration the Stripe customer is guaranteed to exist;
+      // use its ID directly for all remaining items.
+      if (!resolvedStripeCustomerId) {
+        resolvedStripeCustomerId = (result.subscription as any).provider_customer_id;
+      }
     }
 
-    return new StepResponse(
-      {
-        subscription: result.subscription,
-        subscription_id: result.subscription.id,
-        subscription_ids: [result.subscription.id], // Array format for backward compatibility
-      },
-      {
-        subscription_id: result.subscription.id,
-      },
-    );
+    return new StepResponse({ subscriptions, subscription_ids }, { subscription_ids });
   },
   async (compensationData: CompensationData | undefined, { container }) => {
-    if (!compensationData?.subscription_id) return;
+    if (!compensationData?.subscription_ids?.length) return;
 
     const logger = container.resolve('logger');
-    // Individual subscription rollback is handled by createSubscriptionWorkflow
-    logger.info(`Checkout subscription step compensation for subscription ${compensationData.subscription_id}`);
+    // Individual subscription rollback is handled inside createSubscriptionWorkflow.
+    logger.info(
+      `Checkout subscription step compensation for subscriptions: ${compensationData.subscription_ids.join(', ')}`,
+    );
   },
 );

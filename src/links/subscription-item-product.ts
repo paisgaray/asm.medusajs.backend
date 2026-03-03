@@ -4,6 +4,6 @@ import ProductModule from '@medusajs/medusa/product';
 import BundledProductModule from '../modules/bundled-product';
 
 export default defineLink(
-  { linkable: BundledProductModule.linkable.customBundleItem, isList: true },
+  { linkable: BundledProductModule.linkable.customItem, isList: true },
   ProductModule.linkable.product,
 );

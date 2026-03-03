@@ -40,8 +40,10 @@ export default class SubscriptionModuleService extends MedusaService({
     subscriptions: Record<string, any>[],
   ) {
     const allItemIds = subscriptions.flatMap((sub) => {
-      const bundleItemIds = (sub.custom_bundles || []).flatMap((b: any) => (b.items || []).map((i: any) => i.id));
-      const standaloneItemIds = (sub.custom_items || []).map((i: any) => i.id);
+      const bundleItemIds = (sub?.custom_bundles || []).flatMap((b: any) =>
+        (b?.custom_items || []).map((i: any) => i.id),
+      );
+      const standaloneItemIds = (sub?.custom_items || []).map((i: any) => i.id);
       return [...bundleItemIds, ...standaloneItemIds];
     });
     const uniqueItemIds = [...new Set(allItemIds)];
@@ -56,12 +58,12 @@ export default class SubscriptionModuleService extends MedusaService({
     const productByItemId = Object.fromEntries(itemsWithProducts.map((i) => [i.id, i.product]));
 
     for (const sub of subscriptions) {
-      for (const bundle of sub.custom_bundles || []) {
-        for (const item of bundle.items || []) {
+      for (const bundle of sub?.custom_bundles || []) {
+        for (const item of bundle?.custom_items || []) {
           item.product = productByItemId[item.id] ?? null;
         }
       }
-      for (const item of sub.custom_items || []) {
+      for (const item of sub?.custom_items || []) {
         item.product = productByItemId[item.id] ?? null;
       }
     }

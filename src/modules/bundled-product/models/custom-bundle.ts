@@ -8,6 +8,6 @@ export const CustomBundle = model.define('custom_bundle', {
   bundle_price: model.number(),
   metadata: model.json().nullable(),
   items: model.hasMany(() => CustomItem, {
-    mappedBy: 'bundle',
+    mappedBy: 'customBundle',
   }),
 });

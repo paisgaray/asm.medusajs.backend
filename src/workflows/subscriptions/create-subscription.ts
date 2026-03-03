@@ -127,6 +127,7 @@ export const createSubscriptionWorkflow = createWorkflow(
     // Step 8: Create CustomBundle record
     const customBundle = createCustomBundleStep({
       bundle_price: subscription_price,
+      bundle_id: bundle.id,
       metadata: {
         bundle_id: bundle.id,
         bundle_title: product_title,

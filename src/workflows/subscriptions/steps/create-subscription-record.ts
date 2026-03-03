@@ -28,7 +28,6 @@ export const createSubscriptionRecordStep = createStep(
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
-    // Create subscription without customer_id and bundle_product_id (handled via Links)
     const subscription = await subscriptionService.createSubscriptions({
       provider: SubscriptionProvider.STRIPE,
       provider_subscription_id: input.stripe_subscription_id,

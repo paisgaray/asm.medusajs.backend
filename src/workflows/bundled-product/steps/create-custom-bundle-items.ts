@@ -43,7 +43,7 @@ export const createCustomBundleItemsStep = createStep(
       });
     }
 
-    const customBundleItems = await bundledProductModuleService.createCustomBundleItems(itensToBeCreate);
+    const customBundleItems = await bundledProductModuleService.createCustomItems(itensToBeCreate);
 
     return new StepResponse(
       customBundleItems,
@@ -55,6 +55,6 @@ export const createCustomBundleItemsStep = createStep(
 
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    await bundledProductModuleService.deleteCustomBundleItems(itemIds);
+    await bundledProductModuleService.deleteCustomItems(itemIds);
   },
 );

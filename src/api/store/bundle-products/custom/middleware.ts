@@ -5,7 +5,7 @@ import { CreateCustomBundledProductsSchema } from './validators';
 
 export const customBundleProductsMiddlewares: MiddlewareRoute[] = [
   {
-    matcher: '/store/bundle-products',
+    matcher: '/store/bundle-products/custom',
     methods: ['POST'],
     middlewares: [validateAndTransformBody(CreateCustomBundledProductsSchema)],
   },

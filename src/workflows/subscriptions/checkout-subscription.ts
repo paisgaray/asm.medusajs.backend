@@ -20,9 +20,7 @@ export const checkoutSubscriptionWorkflow = createWorkflow(
   'checkout-subscription',
   function (input: CheckoutSubscriptionWorkflowInput) {
     // Step 1: Fetch order with items
-    const { order } = fetchOrderForSubscriptionStep({
-      order_id: input.order_id,
-    });
+    const { order } = fetchOrderForSubscriptionStep({ order_id: input.order_id });
 
     // Step 2: Detect subscription items by 'subscription' tag
     const { has_subscriptions, subscription_items } = detectSubscriptionItemsStep({ order });

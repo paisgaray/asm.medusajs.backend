@@ -4,7 +4,7 @@ import { createRemoteLinkStep } from '@medusajs/medusa/core-flows';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import { createCustomBundleStep } from '../steps/create-custom-bundle';
-import { createCustomBundleItemsStep } from '../steps/create-custom-bundle-items';
+import { createCustomBundleItemsStep } from '../steps/create-custom-items';
 
 export type CreateCustomBundledProductWorkflowInput = {
   currency_code: string;
@@ -20,13 +20,15 @@ export const createCustomBundledProductWorkflow = createWorkflow(
   ({ currency_code, bundle_id, items }: CreateCustomBundledProductWorkflowInput) => {
     const customBundle = createCustomBundleStep({ currency_code, bundle_id });
 
-    const customBundleItems = createCustomBundleItemsStep({ currency_code, custom_bundle_id: customBundle.id, items });
+    const customBundleItems = createCustomBundleItemsStep({ customBundle_id: customBundle.id, items });
 
     const bundleProductLinks = transform({ items, customBundleItems }, (data) => {
-      return data.customBundleItems.map((item, index) => ({
-        [BUNDLED_PRODUCT_MODULE]: { custom_bundle_item_id: item.id },
-        [Modules.PRODUCT]: { product_id: data.items[index].product_id },
-      }));
+      return data.customBundleItems.map((item, index) => {
+        return {
+          [BUNDLED_PRODUCT_MODULE]: { custom_item_id: item.id },
+          [Modules.PRODUCT]: { product_id: data.items[index].product_id },
+        };
+      });
     });
 
     createRemoteLinkStep(bundleProductLinks).config({

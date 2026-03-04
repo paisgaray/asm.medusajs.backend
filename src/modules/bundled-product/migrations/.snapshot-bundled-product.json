@@ -123,16 +123,6 @@
           "nullable": true,
           "mappedType": "text"
         },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "default": "1",
-          "mappedType": "integer"
-        },
         "bundle_id": {
           "name": "bundle_id",
           "type": "text",
@@ -244,15 +234,6 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "bundle_price": {
-          "name": "bundle_price",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "integer"
-        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -347,25 +328,6 @@
           ],
           "mappedType": "enum"
         },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "default": "1",
-          "mappedType": "integer"
-        },
-        "item_price": {
-          "name": "item_price",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "integer"
-        },
         "product_snapshot": {
           "name": "product_snapshot",
           "type": "jsonb",
@@ -417,29 +379,29 @@
           "mappedType": "datetime"
         }
       },
-      "name": "custom_bundle_item",
+      "name": "custom_item",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_custom_bundle_item_custom_bundle_id",
+          "keyName": "IDX_custom_item_custom_bundle_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_custom_bundle_id\" ON \"custom_bundle_item\" (\"custom_bundle_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_item_custom_bundle_id\" ON \"custom_item\" (\"custom_bundle_id\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_custom_bundle_item_deleted_at",
+          "keyName": "IDX_custom_item_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_deleted_at\" ON \"custom_bundle_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_item_deleted_at\" ON \"custom_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "custom_bundle_item_pkey",
+          "keyName": "custom_item_pkey",
           "columnNames": [
             "id"
           ],
@@ -451,17 +413,160 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "custom_bundle_item_custom_bundle_id_foreign": {
-          "constraintName": "custom_bundle_item_custom_bundle_id_foreign",
+        "custom_item_custom_bundle_id_foreign": {
+          "constraintName": "custom_item_custom_bundle_id_foreign",
           "columnNames": [
             "custom_bundle_id"
           ],
-          "localTableName": "public.custom_bundle_item",
+          "localTableName": "public.custom_item",
           "referencedColumnNames": [
             "id"
           ],
           "referencedTableName": "public.custom_bundle",
           "deleteRule": "set null",
+          "updateRule": "cascade"
+        }
+      },
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "delivery_date": {
+          "name": "delivery_date",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "custom_bundle_id": {
+          "name": "custom_bundle_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
+        "custom_item_id": {
+          "name": "custom_item_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "custom_item_override",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "IDX_custom_item_override_custom_bundle_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_item_override_custom_bundle_id\" ON \"custom_item_override\" (\"custom_bundle_id\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_custom_item_override_custom_item_id_unique",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_custom_item_override_custom_item_id_unique\" ON \"custom_item_override\" (\"custom_item_id\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_custom_item_override_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_item_override_deleted_at\" ON \"custom_item_override\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "custom_item_override_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {
+        "custom_item_override_custom_bundle_id_foreign": {
+          "constraintName": "custom_item_override_custom_bundle_id_foreign",
+          "columnNames": [
+            "custom_bundle_id"
+          ],
+          "localTableName": "public.custom_item_override",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.custom_bundle",
+          "deleteRule": "set null",
+          "updateRule": "cascade"
+        },
+        "custom_item_override_custom_item_id_foreign": {
+          "constraintName": "custom_item_override_custom_item_id_foreign",
+          "columnNames": [
+            "custom_item_id"
+          ],
+          "localTableName": "public.custom_item_override",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.custom_item",
           "updateRule": "cascade"
         }
       },

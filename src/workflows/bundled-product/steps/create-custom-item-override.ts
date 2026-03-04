@@ -18,7 +18,7 @@ export const createCustomBundleItemOverrideStep = createStep(
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
     const customBundleItemOverride = await bundledProductModuleService.createCustomItemOverrides([
-      { customBundle_id, customItem_id: item.bundleItemId, delivery_date: next_billing_date },
+      { custom_bundle_id: customBundle_id, customItem_id: item.bundleItemId, delivery_date: next_billing_date },
     ]);
 
     return new StepResponse(

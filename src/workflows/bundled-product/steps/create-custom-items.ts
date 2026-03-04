@@ -17,18 +17,19 @@ type CreateBundleItemsStepInput = {
 export const createCustomBundleItemsStep = createStep(
   'create-custom-bundle-items',
   async ({ customBundle_id, items }: CreateBundleItemsStepInput, { container }) => {
-    // const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const productModuleService = container.resolve(Modules.PRODUCT);
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    let customItems: InferTypeOf<typeof CustomItem>[] = null;
+    const customItems: InferTypeOf<typeof CustomItem>[] = [];
 
     for (const item of items) {
       const [newProduct] = await productModuleService.listProducts({ id: item.product_id });
 
-      customItems = await bundledProductModuleService.createCustomItems([
-        { type: 'bundle', customBundle_id, product_snapshot: { ...newProduct } },
+      const [createCustomItems] = await bundledProductModuleService.createCustomItems([
+        { type: 'bundle', custom_bundle_id: customBundle_id, product_snapshot: { ...newProduct } },
       ]);
+
+      customItems.push(createCustomItems);
     }
 
     return new StepResponse(

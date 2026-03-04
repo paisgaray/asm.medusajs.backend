@@ -53,22 +53,23 @@ export const createCheckoutSubscriptionsStep = createStep(
     // to avoid creating duplicate Stripe customers for the same checkout.
     let resolvedStripeCustomerId = stripe_customer_id;
 
-    for (const item of subscription_items) {
+    for (const subscription_item of subscription_items) {
       // skip_first_charge: true because checkout already charged the customer for the first period.
       // Only attach the payment method on the first call (subsequent ones reuse the already-resolved customer).
       const { result } = await createSubscriptionWorkflow(container).run({
         input: {
           customer_id,
-          bundle_product_id: item.product_id,
+          bundle_product_id: subscription_item.product_id,
           stripe_customer_id: resolvedStripeCustomerId,
           payment_method_id: resolvedStripeCustomerId ? undefined : payment_method_id,
           skip_first_charge: true,
-          frequency: item.frequency,
-          period: item.period,
+          frequency: subscription_item.frequency,
+          period: subscription_item.period,
+          metadata: subscription_item.item.metadata,
         },
       });
 
-      logger.info(`Created subscription ${result.subscription.id} for bundle ${item.product_id}`);
+      logger.info(`Created subscription ${result.subscription.id} for bundle ${subscription_item.product_id}`);
 
       subscriptions.push(result.subscription);
       subscription_ids.push(result.subscription.id);

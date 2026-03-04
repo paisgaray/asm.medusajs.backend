@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, QueryContext } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, Modules, QueryContext } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
@@ -15,6 +15,7 @@ export const createCustomBundleStep = createStep(
   async ({ bundle_id, isSubscription, currency_code }: Input, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
+    const remoteLink = container.resolve('remoteLink');
 
     const {
       data: [bundle],
@@ -30,13 +31,24 @@ export const createCustomBundleStep = createStep(
       bundle_price: bundle?.product?.variants?.[isSubscription ? 1 : 0]?.calculated_price?.calculated_amount || 0,
     });
 
-    return new StepResponse(customBundle, customBundle.id);
+    await remoteLink.create({
+      [BUNDLED_PRODUCT_MODULE]: { custom_bundle_id: customBundle.id },
+      [Modules.PRODUCT]: { product_id: bundle.product.id },
+    });
+
+    return new StepResponse(customBundle, { customBundleId: customBundle.id, productId: bundle.product.id });
   },
-  async (bundleId, { container }) => {
-    if (!bundleId) return;
+  async ({ customBundleId, productId }, { container }) => {
+    if (!customBundleId) return;
+    const remoteLink = container.resolve('remoteLink');
 
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    await bundledProductModuleService.deleteCustomBundles(bundleId);
+    await bundledProductModuleService.deleteCustomBundles(customBundleId);
+
+    await remoteLink.dismiss({
+      [BUNDLED_PRODUCT_MODULE]: { custom_bundle_id: customBundleId },
+      [Modules.PRODUCT]: { product_id: productId },
+    });
   },
 );

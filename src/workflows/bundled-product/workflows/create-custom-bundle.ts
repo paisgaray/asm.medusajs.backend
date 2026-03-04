@@ -24,10 +24,12 @@ export const createCustomBundledProductWorkflow = createWorkflow(
     const customBundleItems = createCustomBundleItemsStep({ customBundle_id: customBundle.id, items });
 
     const bundleProductLinks = transform({ items, customBundleItems }, (data) => {
-      return data.customBundleItems.map((item, index) => ({
-        [BUNDLED_PRODUCT_MODULE]: { custom_bundle_item_id: item.id },
-        [Modules.PRODUCT]: { product_id: data.items[index].product_id },
-      }));
+      return data.customBundleItems.map((item, index) => {
+        return {
+          [BUNDLED_PRODUCT_MODULE]: { custom_item_id: item.id },
+          [Modules.PRODUCT]: { product_id: data.items[index].product_id },
+        };
+      });
     });
 
     createRemoteLinkStep(bundleProductLinks).config({

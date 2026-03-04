@@ -39,7 +39,7 @@ export const prepareBundleCartDataStep = createStep(
 
       return {
         variant_id: selectedItem.variant_id,
-        quantity: item.quantity * quantity,
+        quantity,
         metadata: {
           bundle_id: bundle.id,
           quantity,

@@ -3,7 +3,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/
 import {
   createCustomBundledProductWorkflow,
   CreateCustomBundledProductWorkflowInput,
-} from '../../../workflows/bundled-product/workflows/create-custom-bundle';
+} from '../../../../workflows/bundled-product/workflows/create-custom-bundle';
 import type { CreateCustomBundledProductsSchema } from './validators';
 
 export async function POST(req: AuthenticatedMedusaRequest<CreateCustomBundledProductsSchema>, res: MedusaResponse) {

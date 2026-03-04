@@ -7,15 +7,14 @@ import BundledProductModuleService from '../../../modules/bundled-product/servic
 type Input = {
   currency_code: string;
   bundle_id: string;
+  isSubscription: boolean;
 };
 
 export const createCustomBundleStep = createStep(
   'create-custom-bundle',
-  async ({ bundle_id, currency_code }: Input, { container }) => {
+  async ({ bundle_id, isSubscription, currency_code }: Input, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
-
-    console.log({ currency_code });
 
     const {
       data: [bundle],
@@ -28,7 +27,7 @@ export const createCustomBundleStep = createStep(
 
     const customBundle = await bundledProductModuleService.createCustomBundles({
       bundle_id,
-      bundle_price: bundle?.product?.variants?.[0]?.calculated_price?.calculated_amount || 0,
+      bundle_price: bundle?.product?.variants?.[isSubscription ? 1 : 0]?.calculated_price?.calculated_amount || 0,
     });
 
     return new StepResponse(customBundle, customBundle.id);

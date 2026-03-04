@@ -44,5 +44,26 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
 
   await subscriptionService.enrichSubscriptionsWithProducts(query, [subscription]);
 
+  for (const customBundle of subscription.custom_bundles) {
+    const { data: customBundleItemOverrides } = await query.graph({
+      entity: 'custom_bundle_item_override',
+      fields: ['id', 'product.*', 'product_variant.*'],
+      filters: { bundle_id: customBundle.id }, // TODO: Cria filtro baseado na data atual de for maior que o next_biling_date
+      pagination: { order: { created_at: 'DESC' } },
+    });
+
+    const overrideMap = new Map(customBundleItemOverrides.map((o) => [o.customBundleItem_id, o]));
+
+    for (const customBundledItem of customBundle.items) {
+      const override = overrideMap.get(customBundledItem.id);
+
+      if (override) {
+        customBundledItem.product = override.product;
+        customBundledItem.product_variant = override.product_variant;
+        customBundledItem.metadata = { ...customBundledItem.metadata, override_id: override.id, is_override: true };
+      }
+    }
+  }
+
   res.json({ subscription });
 };

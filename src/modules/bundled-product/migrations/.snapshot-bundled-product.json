@@ -234,15 +234,6 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "bundle_price": {
-          "name": "bundle_price",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "integer"
-        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",

@@ -61,9 +61,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 };
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { customer_id, bundle_product_id } = req.body as {
+  const { customer_id, bundle_product_id, metadata } = req.body as {
     customer_id: string;
     bundle_product_id: string;
+    metadata: Record<string, unknown>;
   };
 
   if (!customer_id || !bundle_product_id) {
@@ -75,6 +76,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       input: {
         customer_id,
         bundle_product_id,
+        metadata,
       },
     });
 

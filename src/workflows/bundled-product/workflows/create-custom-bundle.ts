@@ -9,7 +9,6 @@ import { createCustomBundleItemsStep } from '../steps/create-custom-items';
 export type CreateCustomBundledProductWorkflowInput = {
   currency_code: string;
   bundle_id: string;
-  isSubscription: boolean;
   items: {
     bundleItemId: string;
     product_id: string;
@@ -18,8 +17,8 @@ export type CreateCustomBundledProductWorkflowInput = {
 
 export const createCustomBundledProductWorkflow = createWorkflow(
   'create-custom-bundle',
-  ({ currency_code, bundle_id, isSubscription, items }: CreateCustomBundledProductWorkflowInput) => {
-    const customBundle = createCustomBundleStep({ currency_code, bundle_id, isSubscription });
+  ({ currency_code, bundle_id, items }: CreateCustomBundledProductWorkflowInput) => {
+    const customBundle = createCustomBundleStep({ currency_code, bundle_id });
 
     const customBundleItems = createCustomBundleItemsStep({ customBundle_id: customBundle.id, items });
 

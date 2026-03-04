@@ -6,7 +6,6 @@ export const findParams = createFindParams();
 
 export const CreateCustomBundledProductsSchema = z.object({
   bundle_id: z.string(),
-  isSubscription: z.boolean(),
   items: z.array(
     z.object({
       bundleItemId: z.string(),

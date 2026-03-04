@@ -31,7 +31,7 @@ export const POST = async (req: AuthenticatedMedusaRequest<UpdateCustomItemSchem
     const { result } = await updateCustomBundledItemWorkflow(req.scope).run({
       input: {
         ...req.validatedBody,
-        bundle_id: bundleId,
+        customBundle_id: bundleId,
         next_billing_date: subscription.next_billing_date,
       } as UpdateCustomBundledItemWorkflowInput,
     });

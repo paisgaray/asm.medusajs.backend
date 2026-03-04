@@ -8,7 +8,7 @@ import { createCustomBundleItemsStep } from '../steps/create-custom-items';
 import { removeCustomBundleItemsStep } from '../steps/remove-custom-items';
 
 export type UpdateCustomBundledItemWorkflowInput = {
-  bundle_id: string;
+  customBundle_id: string;
   applyToAllShipments: boolean;
   next_billing_date: Date;
   item: {
@@ -19,9 +19,9 @@ export type UpdateCustomBundledItemWorkflowInput = {
 
 export const updateCustomBundledItemWorkflow = createWorkflow(
   'update-custom-bundle',
-  ({ bundle_id, applyToAllShipments, next_billing_date, item }: UpdateCustomBundledItemWorkflowInput) => {
+  ({ customBundle_id, applyToAllShipments, next_billing_date, item }: UpdateCustomBundledItemWorkflowInput) => {
     when({ applyToAllShipments }, ({ applyToAllShipments }) => !applyToAllShipments).then(() => {
-      const customBundleItems = createCustomBundleItemOverrideStep({ bundle_id, next_billing_date, item });
+      const customBundleItems = createCustomBundleItemOverrideStep({ customBundle_id, next_billing_date, item });
 
       createRemoteLinkStep([
         {
@@ -35,7 +35,7 @@ export const updateCustomBundledItemWorkflow = createWorkflow(
       removeCustomBundleItemsStep({ bundleItemId: item.bundleItemId });
       removeRemoteLinkStep({ [BUNDLED_PRODUCT_MODULE]: { custom_bundle_item_id: item.bundleItemId } });
 
-      const customBundleItems = createCustomBundleItemsStep({ bundle_id, items: [item] });
+      const customBundleItems = createCustomBundleItemsStep({ customBundle_id, items: [item] });
 
       createRemoteLinkStep([
         {

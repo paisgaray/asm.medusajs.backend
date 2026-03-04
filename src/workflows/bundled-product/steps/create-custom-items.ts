@@ -7,7 +7,7 @@ import { CustomItem } from '../../../modules/bundled-product/models/custom-item'
 import BundledProductModuleService from '../../../modules/bundled-product/service';
 
 type CreateBundleItemsStepInput = {
-  bundle_id: string;
+  customBundle_id: string;
   items: {
     bundleItemId: string;
     product_id: string;
@@ -16,7 +16,7 @@ type CreateBundleItemsStepInput = {
 
 export const createCustomBundleItemsStep = createStep(
   'create-custom-bundle-items',
-  async ({ bundle_id, items }: CreateBundleItemsStepInput, { container }) => {
+  async ({ customBundle_id, items }: CreateBundleItemsStepInput, { container }) => {
     // const query = container.resolve(ContainerRegistrationKeys.QUERY);
     const productModuleService = container.resolve(Modules.PRODUCT);
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
@@ -27,7 +27,7 @@ export const createCustomBundleItemsStep = createStep(
       const [newProduct] = await productModuleService.listProducts({ id: item.product_id });
 
       customItems = await bundledProductModuleService.createCustomItems([
-        { type: 'bundle', bundle_id, product_snapshot: { ...newProduct } },
+        { type: 'bundle', customBundle_id, product_snapshot: { ...newProduct } },
       ]);
     }
 

@@ -16,7 +16,6 @@ import { default as ProductSelect } from '../common/autoCompleteBundle';
 type BundleItemState = {
   id?: string;
   product_id?: string;
-  quantity: number;
   details?: string;
   isNew?: boolean;
 };
@@ -31,7 +30,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
     bundle?.items?.map((item: any) => ({
       id: item.id,
       product_id: item.product.id,
-      quantity: item.quantity,
       details: item.details,
       isNew: false,
     })) ?? []
@@ -66,7 +64,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
           {
             method: 'PUT',
             body: {
-              quantity: item.quantity,
               details: item.details,
             },
           }
@@ -111,7 +108,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
             method: 'POST',
             body: {
               product_id: item.product_id,
-              quantity: item.quantity,
               details: item.details,
             },
           }
@@ -133,7 +129,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
       ...prev,
       {
         product_id: undefined,
-        quantity: 1,
         details: '',
         isNew: true,
       },
@@ -142,7 +137,7 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
 
   function clearState() {
     setSelectedBundleId(undefined);
-    setItems([{ product_id: undefined, quantity: 1 }]);
+    setItems([{ product_id: undefined }]);
 
   }
 
@@ -204,23 +199,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
                 />
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label>Quantity</Label>
-                    <Input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((it, i) =>
-                            i === index
-                              ? { ...it, quantity: Math.max(1, Number(e.target.value)) }
-                              : it
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
                   <div>
                     <Label>Details</Label>
                     <Input

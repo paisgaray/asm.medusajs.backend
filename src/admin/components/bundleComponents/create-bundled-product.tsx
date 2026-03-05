@@ -7,18 +7,18 @@ import { sdk } from '../../lib/sdk';
 import { default as ProductSelect } from '../common/autoCompleteBundle';
 
 type BundledProductItemProps = {
-  item: { product_id: string | undefined; quantity: number; details?: string };
+  item: { product_id: string | undefined; details?: string };
   index: number;
   setItems: React.Dispatch<
-    React.SetStateAction<{ product_id: string | undefined; quantity: number; details?: string }[]>
+    React.SetStateAction<{ product_id: string | undefined; details?: string }[]>
   >;
   products?: HttpTypes.AdminProduct[] | undefined;
 };
 
 const CreateBundledProduct = () => {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<{ product_id: string | undefined; quantity: number | null; details?: string }[]>([
-    { product_id: undefined, quantity: null },
+  const [items, setItems] = useState<{ product_id: string | undefined; details?: string }[]>([
+    { product_id: undefined },
   ]);
   const queryClient = useQueryClient();
   const [selectedBundleId, setSelectedBundleId] = useState<string | undefined>();
@@ -38,7 +38,6 @@ const CreateBundledProduct = () => {
         items: items.map((item) => (
           {
             product_id: item.product_id,
-            quantity: item.quantity,
             details: item.details,
           })),
       });
@@ -46,7 +45,7 @@ const CreateBundledProduct = () => {
       toast.success('Bundled product created successfully');
       queryClient.invalidateQueries({ queryKey: ['bundled-products'] });
       setSelectedBundleId(undefined);
-      setItems([{ product_id: undefined, quantity: 1 }]);
+      setItems([{ product_id: undefined }]);
 
       if (!selectedBundleId) {
         toast.error('Select a bundle product');
@@ -64,7 +63,7 @@ const CreateBundledProduct = () => {
 
   function clearState() {
     setSelectedBundleId(undefined);
-    setItems([{ product_id: undefined, quantity: null }]);
+    setItems([{ product_id: undefined }]);
 
   }
 
@@ -107,7 +106,7 @@ const CreateBundledProduct = () => {
                   className='p-4 h-6 w-1/4'
                   size="large"
                   variant="secondary"
-                  onClick={() => setItems([...items, { product_id: undefined, quantity: 1, details: '' }])}
+                  onClick={() => setItems([...items, { product_id: undefined, details: '' }])}
                 >
                   Add Item <PlusMini />
                 </Button>
@@ -154,23 +153,8 @@ const BundledProductItem = ({
           type="not-bundled"
         />
       </div>
-      <div data-testid={`bundled-product-quantity-${index}`} className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1">
-          <Label>Quantity</Label>
-          <Input
-            type="number"
-            placeholder="Quantity"
-            className="w-full mt-1 rounded-md border border-gray-200 p-2"
-            value={item.quantity}
-            onChange={(e) =>
-              setItems((items) =>
-                items.map((item, i) => {
-                  return i === index ? { ...item, quantity: Math.max(1, Number(e.target.value)) } : item;
-                }),
-              )
-            }
-          />
-        </div>
+      <div data-testid={`bundled-product-details-${index}`} className="grid grid-cols-2 gap-2">
+
         <div className="flex flex-col gap-1">
           <Label>details</Label>
           <Input

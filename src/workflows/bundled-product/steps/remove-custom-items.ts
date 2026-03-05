@@ -4,19 +4,19 @@ import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import BundledProductModuleService from '../../../modules/bundled-product/service';
 
 type RemoveBundleItemStepInput = {
-  bundleItemId: string;
+  custom_item_id: string;
 };
 
 export const removeCustomBundleItemsStep = createStep(
   'remove-custom-bundle-items',
-  async ({ bundleItemId }: RemoveBundleItemStepInput, { container }) => {
+  async ({ custom_item_id }: RemoveBundleItemStepInput, { container }) => {
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
-    await bundledProductModuleService.softDeleteCustomItems({ id: bundleItemId });
+    await bundledProductModuleService.softDeleteCustomItems({ id: custom_item_id });
 
     return new StepResponse({
-      bundleItemId,
-      object: 'bundled_item',
+      custom_item_id,
+      object: 'custom_item',
       deleted: true,
     });
   },

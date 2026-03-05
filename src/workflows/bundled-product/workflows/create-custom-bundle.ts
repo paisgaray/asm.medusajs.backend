@@ -19,7 +19,7 @@ export const createCustomBundledProductWorkflow = createWorkflow(
   ({ currency_code, bundle_id, items }: CreateCustomBundledProductWorkflowInput) => {
     const customBundle = createCustomBundleStep({ currency_code, bundle_id });
 
-    const customBundleItems = createCustomBundleItemsStep({ customBundle_id: customBundle.id, items });
+    const customBundleItems = createCustomBundleItemsStep({ custom_bundle_id: customBundle.id, items });
 
     const bundleProductLinks = transform({ items, customBundleItems }, (data) => {
       return data.customBundleItems.map((item, index) => {

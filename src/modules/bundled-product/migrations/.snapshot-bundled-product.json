@@ -440,8 +440,8 @@
           "nullable": false,
           "mappedType": "text"
         },
-        "delivery_date": {
-          "name": "delivery_date",
+        "expire_date": {
+          "name": "expire_date",
           "type": "timestamptz",
           "unsigned": false,
           "autoincrement": false,
@@ -514,13 +514,13 @@
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_item_override_custom_bundle_id\" ON \"custom_item_override\" (\"custom_bundle_id\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_custom_item_override_custom_item_id_unique",
+          "keyName": "IDX_custom_item_override_custom_item_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_custom_item_override_custom_item_id_unique\" ON \"custom_item_override\" (\"custom_item_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_item_override_custom_item_id\" ON \"custom_item_override\" (\"custom_item_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_custom_item_override_deleted_at",

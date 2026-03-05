@@ -8,5 +8,5 @@ export const CustomItem = model.define('custom_item', {
   type: model.enum(['single', 'bundle']).default('single'),
   product_snapshot: model.json(),
   custom_bundle: model.belongsTo(() => CustomBundle, { mappedBy: 'items' }).nullable(),
-  overrides: model.hasOne(() => CustomItemOverride, { mappedBy: 'customItem' }).nullable(),
+  overrides: model.hasMany(() => CustomItemOverride, { mappedBy: 'custom_item' }),
 });

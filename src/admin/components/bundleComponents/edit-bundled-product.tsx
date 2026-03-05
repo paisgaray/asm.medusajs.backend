@@ -24,7 +24,7 @@ type BundleItemState = {
 const EditBundledProduct = ({ bundle }: { bundle: any }) => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [selectedBundleId, setSelectedBundleId] = useState<string>(
+  const [selectedBundleId, setSelectedBundleId] = useState<string | undefined>(
     bundle?.product?.id
   );
   const [items, setItems] = useState<BundleItemState[]>(
@@ -140,6 +140,12 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
     ]);
   };
 
+  function clearState() {
+    setSelectedBundleId(undefined);
+    setItems([{ product_id: undefined, quantity: 1 }]);
+
+  }
+
   return (
     <FocusModal open={open} onOpenChange={setOpen}>
       <FocusModal.Trigger asChild>
@@ -161,6 +167,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
               selectProduct={bundle.product}
             />
             <Button
+              className='p-4 h-6 w-1/4'
+
               variant="secondary"
               isLoading={isUpdatingBundle}
               onClick={() => updateBundleProduct()}
@@ -234,6 +242,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
                 <div className="flex gap-2">
                   {item.isNew ? (
                     <Button
+                      className='p-4 h-6 w-1/4'
+
                       variant="secondary"
                       isLoading={isCreatingItem}
                       disabled={isCreatingItem}
@@ -243,6 +253,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
                     </Button>
                   ) : (
                     <Button
+                      className='p-4 h-6 w-1/4'
+
                       variant="secondary"
                       isLoading={isUpdatingItem}
                       disabled={isUpdatingItem}
@@ -254,6 +266,7 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
 
                   {!item.isNew && (
                     <Button
+                      className='p-4 h-6 w-1/4'
                       variant="danger"
                       isLoading={isDeletingItem}
                       disabled={isDeletingItem}
@@ -276,7 +289,7 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
         </FocusModal.Body>
 
         <FocusModal.Footer>
-          <Button variant="secondary" onClick={() => setOpen(false)}>
+          <Button variant="secondary" onClick={() => { setOpen(false); clearState(); }}>
             Close
           </Button>
         </FocusModal.Footer>

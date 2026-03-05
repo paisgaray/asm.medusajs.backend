@@ -17,8 +17,8 @@ type BundledProductItemProps = {
 
 const CreateBundledProduct = () => {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<{ product_id: string | undefined; quantity: number; details?: string }[]>([
-    { product_id: undefined, quantity: 1 },
+  const [items, setItems] = useState<{ product_id: string | undefined; quantity: number | null; details?: string }[]>([
+    { product_id: undefined, quantity: null },
   ]);
   const queryClient = useQueryClient();
   const [selectedBundleId, setSelectedBundleId] = useState<string | undefined>();
@@ -62,6 +62,12 @@ const CreateBundledProduct = () => {
     }
   };
 
+  function clearState() {
+    setSelectedBundleId(undefined);
+    setItems([{ product_id: undefined, quantity: null }]);
+
+  }
+
   return (
     <FocusModal open={open} onOpenChange={setOpen}>
       <FocusModal.Trigger asChild>
@@ -98,7 +104,7 @@ const CreateBundledProduct = () => {
                   />
                 ))}
                 <Button
-                  className='p-4'
+                  className='p-4 h-6 w-1/4'
                   size="large"
                   variant="secondary"
                   onClick={() => setItems([...items, { product_id: undefined, quantity: 1, details: '' }])}
@@ -111,7 +117,7 @@ const CreateBundledProduct = () => {
         </FocusModal.Body>
         <FocusModal.Footer className="flex items-center w-full justify-end gap-x-2 py-">
           <div className="flex items-center justify-end gap-x-2">
-            <Button variant="secondary" onClick={() => setOpen(false)}>
+            <Button variant="secondary" onClick={() => { setOpen(false); clearState(); }} >
               Cancel
             </Button>
             <Button variant="primary" onClick={handleCreate} isLoading={isCreating}>

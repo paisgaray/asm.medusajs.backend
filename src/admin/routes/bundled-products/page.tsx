@@ -51,11 +51,13 @@ const columns = [
         <div className="flex flex-row gap-4 items-center">
           {row.original?.product?.thumbnail && (
             <div data-testid="image-bundle-product" className="w-8 h-8 ">
-              <img
-                src={row.original?.product?.thumbnail}
-                alt={row.original?.product?.title}
-                className="w-full h-full object-cover "
-              />
+              <Link to={`/products/${row.original.product.id}`}>
+                <img
+                  src={row.original?.product?.thumbnail}
+                  alt={row.original?.product?.title}
+                  className="w-full h-full object-cover "
+                />
+              </Link>
             </div>
           )}
           <span>{row.original?.product?.title}</span>
@@ -64,19 +66,12 @@ const columns = [
     },
   }),
 
-  columnHelper.accessor('product', {
-    header: 'Details Product',
-    cell: ({ row }) => {
-      return <Link to={`/products/${row.original.product?.id}`}>View Product</Link>;
-    },
-  }),
-
   columnHelper.accessor('items', {
     header: 'Items',
     cell: ({ row }) => {
       return row.original.items.map((item) => (
         <div key={item.id} className="flex flex-col  p-1 ">
-          <div className="flex items-center gap-2">
+          <div className="flex  items-center gap-2">
             <img src={item.product?.thumbnail} alt={item.product?.title} className="w-8 h-8 object-cover " />
             <Link to={`/products/${item.product.id}`}>{item.product.title}</Link> x {item.quantity}
           </div>

@@ -46,9 +46,9 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
 
   for (const customBundle of subscription.custom_bundles) {
     const { data: customBundleItemOverrides } = await query.graph({
-      entity: 'custom_bundle_item_override',
+      entity: 'custom_item_override',
       fields: ['id', 'product.*', 'product_variant.*'],
-      filters: { bundle_id: customBundle.id }, // TODO: Cria filtro baseado na data atual de for maior que o next_biling_date
+      filters: { custom_bundle_id: customBundle.id }, // TODO: Cria filtro baseado na data atual de for maior que o delivery_date
       pagination: { order: { created_at: 'DESC' } },
     });
 

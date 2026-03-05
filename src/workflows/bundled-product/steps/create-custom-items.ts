@@ -9,7 +9,6 @@ import BundledProductModuleService from '../../../modules/bundled-product/servic
 type CreateBundleItemsStepInput = {
   customBundle_id: string;
   items: {
-    bundleItemId: string;
     product_id: string;
   }[];
 };

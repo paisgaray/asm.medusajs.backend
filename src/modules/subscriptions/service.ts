@@ -22,8 +22,10 @@ export const SUBSCRIPTION_FIELDS = [
   'created_at',
   'updated_at',
   'custom_bundles.*',
-  'custom_bundles.items.*',
+  'custom_bundles.product.*',
+  'custom_bundles.items.product.*',
   'custom_items.*',
+  'custom_items.product.*',
 ] as const;
 
 export default class SubscriptionModuleService extends MedusaService({

@@ -10,7 +10,6 @@ export type CreateCustomBundledProductWorkflowInput = {
   currency_code: string;
   bundle_id: string;
   items: {
-    bundleItemId: string;
     product_id: string;
   }[];
 };

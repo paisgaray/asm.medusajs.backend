@@ -9,7 +9,7 @@ import { UpdateCustomItemSchema } from './validators';
 export const POST = async (req: AuthenticatedMedusaRequest<UpdateCustomItemSchema>, res: MedusaResponse) => {
   const query = req.scope.resolve('query');
   const customerId = req.auth_context?.actor_id;
-  const { id, bundleId } = req.params;
+  const { id, bundleId, bundleItemId } = req.params;
 
   if (!customerId) {
     return res.status(401).json({ message: 'Unauthorized' });
@@ -19,7 +19,7 @@ export const POST = async (req: AuthenticatedMedusaRequest<UpdateCustomItemSchem
     data: [subscription],
   } = await query.graph({
     entity: 'subscription',
-    fields: ['id', 'customer.*'],
+    fields: ['id', 'customer.*', 'next_billing_date'],
     filters: { id },
   });
 
@@ -31,8 +31,9 @@ export const POST = async (req: AuthenticatedMedusaRequest<UpdateCustomItemSchem
     const { result } = await updateCustomBundledItemWorkflow(req.scope).run({
       input: {
         ...req.validatedBody,
-        customBundle_id: bundleId,
-        next_billing_date: subscription.next_billing_date,
+        custom_bundle_id: bundleId,
+        custom_item_id: bundleItemId,
+        expire_date: subscription.next_billing_date,
       } as UpdateCustomBundledItemWorkflowInput,
     });
 

@@ -44,24 +44,20 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
 
   await subscriptionService.enrichSubscriptionsWithProducts(query, [subscription]);
 
+  // TODO: migra esse loop como uma função no service do bundled
   for (const customBundle of subscription.custom_bundles) {
     const { data: customBundleItemOverrides } = await query.graph({
       entity: 'custom_item_override',
-      fields: ['id', 'product.*', 'product_variant.*'],
-      filters: { custom_bundle_id: customBundle.id }, // TODO: Cria filtro baseado na data atual de for maior que o delivery_date
-      pagination: { order: { created_at: 'DESC' } },
+      fields: ['id', 'custom_item_id', 'product.*'],
+      filters: { custom_bundle_id: customBundle.id, expire_date: { $gte: new Date() } },
+      pagination: { order: { created_at: 'ASC' } },
     });
 
-    const overrideMap = new Map(customBundleItemOverrides.map((o) => [o.customBundleItem_id, o]));
+    const overrideMap = new Map(customBundleItemOverrides.map((i) => [i.custom_item_id, i]));
 
     for (const customBundledItem of customBundle.items) {
       const override = overrideMap.get(customBundledItem.id);
-
-      if (override) {
-        customBundledItem.product = override.product;
-        customBundledItem.product_variant = override.product_variant;
-        customBundledItem.metadata = { ...customBundledItem.metadata, override_id: override.id, is_override: true };
-      }
+      if (override) customBundledItem.product = override.product;
     }
   }
 

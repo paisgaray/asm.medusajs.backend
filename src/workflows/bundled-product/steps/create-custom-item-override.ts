@@ -4,21 +4,18 @@ import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import BundledProductModuleService from '../../../modules/bundled-product/service';
 
 type CreateBundleItemOverrideStepInput = {
-  customBundle_id: string;
-  next_billing_date: Date;
-  item: {
-    bundleItemId: string;
-    product_id: string;
-  };
+  custom_bundle_id: string;
+  custom_item_id: string;
+  expire_date: Date;
 };
 
 export const createCustomBundleItemOverrideStep = createStep(
   'create-custom-bundle-item-override',
-  async ({ customBundle_id, next_billing_date, item }: CreateBundleItemOverrideStepInput, { container }) => {
+  async ({ custom_bundle_id, custom_item_id, expire_date }: CreateBundleItemOverrideStepInput, { container }) => {
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);
 
     const customBundleItemOverride = await bundledProductModuleService.createCustomItemOverrides([
-      { custom_bundle_id: customBundle_id, customItem_id: item.bundleItemId, delivery_date: next_billing_date },
+      { custom_bundle_id, custom_item_id, expire_date },
     ]);
 
     return new StepResponse(

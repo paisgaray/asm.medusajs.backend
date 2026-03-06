@@ -8,39 +8,47 @@ import { createCustomBundleItemsStep } from '../steps/create-custom-items';
 import { removeCustomBundleItemsStep } from '../steps/remove-custom-items';
 
 export type UpdateCustomBundledItemWorkflowInput = {
-  customBundle_id: string;
+  custom_bundle_id: string;
+  custom_item_id: string;
   applyToAllShipments: boolean;
-  next_billing_date: Date;
-  item: {
-    bundleItemId: string;
-    product_id: string;
-  };
+  expire_date: Date;
+  product_id: string;
 };
 
 export const updateCustomBundledItemWorkflow = createWorkflow(
   'update-custom-bundle',
-  ({ customBundle_id, applyToAllShipments, next_billing_date, item }: UpdateCustomBundledItemWorkflowInput) => {
+  ({
+    custom_bundle_id,
+    custom_item_id,
+    product_id,
+    applyToAllShipments,
+    expire_date,
+  }: UpdateCustomBundledItemWorkflowInput) => {
     when({ applyToAllShipments }, ({ applyToAllShipments }) => !applyToAllShipments).then(() => {
-      const customBundleItems = createCustomBundleItemOverrideStep({ customBundle_id, next_billing_date, item });
+      const customBundleItems = createCustomBundleItemOverrideStep({
+        custom_bundle_id,
+        custom_item_id,
+        expire_date,
+      });
 
       createRemoteLinkStep([
         {
-          [BUNDLED_PRODUCT_MODULE]: { custom_bundle_item_override_id: customBundleItems[0].id },
-          [Modules.PRODUCT]: { product_id: item.product_id },
+          [BUNDLED_PRODUCT_MODULE]: { custom_item_override_id: customBundleItems[0].id },
+          [Modules.PRODUCT]: { product_id },
         },
       ]).config({ name: 'create-link-with-applyToNextShipments' });
     });
 
     when({ applyToAllShipments }, ({ applyToAllShipments }) => applyToAllShipments).then(() => {
-      removeCustomBundleItemsStep({ bundleItemId: item.bundleItemId });
-      removeRemoteLinkStep({ [BUNDLED_PRODUCT_MODULE]: { custom_bundle_item_id: item.bundleItemId } });
+      removeCustomBundleItemsStep({ custom_item_id });
+      removeRemoteLinkStep({ [BUNDLED_PRODUCT_MODULE]: { custom_item_id } });
 
-      const customBundleItems = createCustomBundleItemsStep({ customBundle_id, items: [item] });
+      const customBundleItems = createCustomBundleItemsStep({ custom_bundle_id, items: [{ product_id }] });
 
       createRemoteLinkStep([
         {
-          [BUNDLED_PRODUCT_MODULE]: { custom_bundle_item_id: customBundleItems[0].id },
-          [Modules.PRODUCT]: { product_id: item.product_id },
+          [BUNDLED_PRODUCT_MODULE]: { custom_item_id: customBundleItems[0].id },
+          [Modules.PRODUCT]: { product_id },
         },
       ]).config({ name: 'create-link-without-applyToNextShipments' });
     });

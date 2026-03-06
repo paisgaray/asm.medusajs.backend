@@ -67,7 +67,7 @@ export const detectSubscriptionItemsStep = createStep(
       }
 
       // Check if product has 'subscription' tag
-      const hasSubscriptionTag = product.tags?.some((tag) => tag.value?.toLowerCase() === 'subscription');
+      const hasSubscriptionTag = item.metadata?.is_subscription;
 
       if (hasSubscriptionTag) {
         // This is a subscription item

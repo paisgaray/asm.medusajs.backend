@@ -124,7 +124,7 @@ export const createSubscriptionWorkflow = createWorkflow(
     // Step 8: Link subscription to custom bundle
     createSubscriptionBundleLinkStep({
       subscription_id: subscriptionData.subscription.id,
-      custom_bundle_id: input.metadata.customBundleId as string,
+      custom_bundle_id: input.metadata.custom_bundle_id as string,
     });
 
     return new WorkflowResponse({

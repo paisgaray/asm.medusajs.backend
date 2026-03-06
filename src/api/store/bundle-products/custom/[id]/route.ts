@@ -7,7 +7,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const { data } = await query.graph(
     {
       entity: 'custom_bundle',
-      fields: ['*', 'items.product.*', 'itemsOverride.product.*'],
+      fields: ['*', 'items.product.*'],
       filters: { id },
     },
     { throwIfKeyNotFound: true },

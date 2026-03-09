@@ -16,7 +16,6 @@ import { default as ProductSelect } from '../common/autoCompleteBundle';
 type BundleItemState = {
   id?: string;
   product_id?: string;
-  quantity: number;
   details?: string;
   isNew?: boolean;
 };
@@ -24,14 +23,13 @@ type BundleItemState = {
 const EditBundledProduct = ({ bundle }: { bundle: any }) => {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [selectedBundleId, setSelectedBundleId] = useState<string>(
+  const [selectedBundleId, setSelectedBundleId] = useState<string | undefined>(
     bundle?.product?.id
   );
   const [items, setItems] = useState<BundleItemState[]>(
     bundle?.items?.map((item: any) => ({
       id: item.id,
       product_id: item.product.id,
-      quantity: item.quantity,
       details: item.details,
       isNew: false,
     })) ?? []
@@ -66,7 +64,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
           {
             method: 'PUT',
             body: {
-              quantity: item.quantity,
               details: item.details,
             },
           }
@@ -111,7 +108,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
             method: 'POST',
             body: {
               product_id: item.product_id,
-              quantity: item.quantity,
               details: item.details,
             },
           }
@@ -133,12 +129,17 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
       ...prev,
       {
         product_id: undefined,
-        quantity: 1,
         details: '',
         isNew: true,
       },
     ]);
   };
+
+  function clearState() {
+    setSelectedBundleId(undefined);
+    setItems([{ product_id: undefined }]);
+
+  }
 
   return (
     <FocusModal open={open} onOpenChange={setOpen}>
@@ -161,6 +162,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
               selectProduct={bundle.product}
             />
             <Button
+              className='p-4 h-6 w-1/4'
+
               variant="secondary"
               isLoading={isUpdatingBundle}
               onClick={() => updateBundleProduct()}
@@ -197,23 +200,6 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label>Quantity</Label>
-                    <Input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((it, i) =>
-                            i === index
-                              ? { ...it, quantity: Math.max(1, Number(e.target.value)) }
-                              : it
-                          )
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
                     <Label>Details</Label>
                     <Input
                       type="text"
@@ -234,6 +220,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
                 <div className="flex gap-2">
                   {item.isNew ? (
                     <Button
+                      className='p-4 h-6 w-1/4'
+
                       variant="secondary"
                       isLoading={isCreatingItem}
                       disabled={isCreatingItem}
@@ -243,6 +231,8 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
                     </Button>
                   ) : (
                     <Button
+                      className='p-4 h-6 w-1/4'
+
                       variant="secondary"
                       isLoading={isUpdatingItem}
                       disabled={isUpdatingItem}
@@ -254,6 +244,7 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
 
                   {!item.isNew && (
                     <Button
+                      className='p-4 h-6 w-1/4'
                       variant="danger"
                       isLoading={isDeletingItem}
                       disabled={isDeletingItem}
@@ -276,7 +267,7 @@ const EditBundledProduct = ({ bundle }: { bundle: any }) => {
         </FocusModal.Body>
 
         <FocusModal.Footer>
-          <Button variant="secondary" onClick={() => setOpen(false)}>
+          <Button variant="secondary" onClick={() => { setOpen(false); clearState(); }}>
             Close
           </Button>
         </FocusModal.Footer>

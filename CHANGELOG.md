@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [unrelease]
 
+-[ASM-474](https://qualitydigital.atlassian.net/browse/ASM-437) - admin bundle adjusts
+
 -[ASM-437](https://qualitydigital.atlassian.net/browse/ASM-437) - admin bundle
 
 ## [0.0.8] - 2025-11-13

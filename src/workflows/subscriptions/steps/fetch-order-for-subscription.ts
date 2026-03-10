@@ -25,6 +25,8 @@ export const fetchOrderForSubscriptionStep = createStep(
         'items.product_id',
         'items.variant_id',
         'payment_collections.*',
+        'shipping_address.*',
+        'billing_address.*',
         'payment_collections.payment_sessions.*',
       ],
       filters: { id: order_id },

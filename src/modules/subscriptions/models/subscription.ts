@@ -1,5 +1,7 @@
 import { model } from '@medusajs/framework/utils';
 
+import { SubscriptionAddress } from './subscriptionAddress';
+
 export const Subscription = model.define('subscription', {
   id: model.id().primaryKey(),
   provider: model.text(), // 'stripe', 'paypal', etc.
@@ -9,6 +11,7 @@ export const Subscription = model.define('subscription', {
   subscription_price: model.number(),
   currency: model.text().default('usd'),
   frequency: model.enum(['weekly', 'biweekly', 'monthly']).default('monthly'),
+  periodDate: model.dateTime().nullable(),
   period: model.enum(['morning', 'afternoon', 'evening']).nullable(),
   current_period_start: model.dateTime().nullable(),
   next_billing_date: model.dateTime().nullable(),
@@ -18,4 +21,5 @@ export const Subscription = model.define('subscription', {
   payment_exp_month: model.number().nullable(),
   payment_exp_year: model.number().nullable(),
   metadata: model.json().nullable(),
+  address: model.belongsTo(() => SubscriptionAddress, { mappedBy: 'subscription' }).nullable(),
 });

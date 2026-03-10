@@ -2,6 +2,7 @@ import { RemoteQueryFunction } from '@medusajs/framework/types';
 import { MedusaService } from '@medusajs/framework/utils';
 
 import { Subscription } from './models/subscription';
+import { SubscriptionAddress } from './models/subscriptionAddress';
 
 export const SUBSCRIPTION_FIELDS = [
   'id',
@@ -11,6 +12,7 @@ export const SUBSCRIPTION_FIELDS = [
   'subscription_price',
   'currency',
   'frequency',
+  'periodDate',
   'period',
   'current_period_start',
   'next_billing_date',
@@ -26,10 +28,12 @@ export const SUBSCRIPTION_FIELDS = [
   'custom_bundles.items.product.*',
   'custom_items.*',
   'custom_items.product.*',
+  'address.*',
 ] as const;
 
 export default class SubscriptionModuleService extends MedusaService({
   Subscription,
+  SubscriptionAddress,
 }) {
   /**
    * Resolve product data for all custom_items within subscriptions

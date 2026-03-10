@@ -79,8 +79,8 @@ export const formatOrderStep = createStep(
       },
 
       deliverySchedule: {
-        deliveryDate: order.shipping_address?.province?.split(' ')[0],
-        deliveryTime: order.shipping_address?.province?.split(' ')[1],
+        deliveryDate: order.metadata?.periodDate,
+        deliveryTime: order.metadata?.period,
       },
 
       paymentMethod: {

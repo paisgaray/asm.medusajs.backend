@@ -1,3 +1,4 @@
+import { OrderDTO } from '@medusajs/framework/types';
 import { StepResponse, createStep } from '@medusajs/framework/workflows-sdk';
 
 import { createSubscriptionWorkflow } from '../create-subscription';
@@ -7,6 +8,7 @@ type CreateCheckoutSubscriptionsInput = {
   customer_id: string;
   subscription_items: SubscriptionItem[];
   order_id: string;
+  order: OrderDTO;
   /** Pre-resolved Stripe customer ID from checkout payment session */
   stripe_customer_id?: string;
   /** Payment method ID from checkout to attach to the customer */
@@ -33,6 +35,7 @@ export const createCheckoutSubscriptionsStep = createStep(
       customer_id,
       subscription_items,
       order_id,
+      order,
       stripe_customer_id,
       payment_method_id,
     }: CreateCheckoutSubscriptionsInput,
@@ -64,8 +67,8 @@ export const createCheckoutSubscriptionsStep = createStep(
           payment_method_id: resolvedStripeCustomerId ? undefined : payment_method_id,
           skip_first_charge: true,
           frequency: subscription_item.frequency,
-          period: subscription_item.period,
           metadata: subscription_item.item.metadata,
+          order,
         },
       });
 

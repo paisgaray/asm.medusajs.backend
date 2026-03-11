@@ -9,7 +9,6 @@ export type SubscriptionItem = {
   unit_price: number;
   currency_code: string;
   frequency?: string;
-  period?: string;
   item: OrderLineItemDTO;
 };
 
@@ -80,7 +79,6 @@ export const detectSubscriptionItemsStep = createStep(
             unit_price: item.unit_price,
             currency_code: order.currency_code,
             frequency: (item.metadata?.frequency as string) ?? undefined,
-            period: (item.metadata?.period as string) ?? undefined,
             item,
           });
         }

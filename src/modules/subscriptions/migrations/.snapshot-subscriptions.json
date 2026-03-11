@@ -15,6 +15,158 @@
           "nullable": false,
           "mappedType": "text"
         },
+        "first_name": {
+          "name": "first_name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "address_1": {
+          "name": "address_1",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "address_2": {
+          "name": "address_2",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "country_code": {
+          "name": "country_code",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "province": {
+          "name": "province",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "postal_code": {
+          "name": "postal_code",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "json"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "default": "now()",
+          "mappedType": "datetime"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "subscription_address",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "IDX_subscription_address_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_address_deleted_at\" ON \"subscription_address\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "subscription_address_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {},
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "mappedType": "text"
+        },
         "provider": {
           "name": "provider",
           "type": "text",
@@ -70,6 +222,45 @@
           "nullable": false,
           "default": "'usd'",
           "mappedType": "text"
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "'monthly'",
+          "enumItems": [
+            "weekly",
+            "biweekly",
+            "monthly"
+          ],
+          "mappedType": "enum"
+        },
+        "periodDate": {
+          "name": "periodDate",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "length": 6,
+          "mappedType": "datetime"
+        },
+        "period": {
+          "name": "period",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "enumItems": [
+            "morning",
+            "afternoon",
+            "evening"
+          ],
+          "mappedType": "enum"
         },
         "current_period_start": {
           "name": "current_period_start",
@@ -145,6 +336,15 @@
           "nullable": true,
           "mappedType": "json"
         },
+        "address_id": {
+          "name": "address_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "mappedType": "text"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -182,6 +382,15 @@
       "schema": "public",
       "indexes": [
         {
+          "keyName": "IDX_subscription_address_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_subscription_address_id\" ON \"subscription\" (\"address_id\") WHERE deleted_at IS NULL"
+        },
+        {
           "keyName": "IDX_subscription_deleted_at",
           "columnNames": [],
           "composite": false,
@@ -202,298 +411,17 @@
         }
       ],
       "checks": [],
-      "foreignKeys": {},
-      "nativeEnums": {}
-    },
-    {
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        },
-        "bundle_price": {
-          "name": "bundle_price",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "integer"
-        },
-        "metadata": {
-          "name": "metadata",
-          "type": "jsonb",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "mappedType": "json"
-        },
-        "subscription_id": {
-          "name": "subscription_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "length": 6,
-          "default": "now()",
-          "mappedType": "datetime"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "length": 6,
-          "default": "now()",
-          "mappedType": "datetime"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "length": 6,
-          "mappedType": "datetime"
-        }
-      },
-      "name": "custom_bundle",
-      "schema": "public",
-      "indexes": [
-        {
-          "keyName": "IDX_custom_bundle_subscription_id",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_subscription_id\" ON \"custom_bundle\" (\"subscription_id\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "IDX_custom_bundle_deleted_at",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_deleted_at\" ON \"custom_bundle\" (\"deleted_at\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "custom_bundle_pkey",
-          "columnNames": [
-            "id"
-          ],
-          "composite": false,
-          "constraint": true,
-          "primary": true,
-          "unique": true
-        }
-      ],
-      "checks": [],
       "foreignKeys": {
-        "custom_bundle_subscription_id_foreign": {
-          "constraintName": "custom_bundle_subscription_id_foreign",
+        "subscription_address_id_foreign": {
+          "constraintName": "subscription_address_id_foreign",
           "columnNames": [
-            "subscription_id"
+            "address_id"
           ],
-          "localTableName": "public.custom_bundle",
+          "localTableName": "public.subscription",
           "referencedColumnNames": [
             "id"
           ],
-          "referencedTableName": "public.subscription",
-          "updateRule": "cascade"
-        }
-      },
-      "nativeEnums": {}
-    },
-    {
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "default": "'single'",
-          "enumItems": [
-            "single",
-            "bundle"
-          ],
-          "mappedType": "enum"
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "default": "1",
-          "mappedType": "integer"
-        },
-        "item_price": {
-          "name": "item_price",
-          "type": "integer",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "integer"
-        },
-        "product_snapshot": {
-          "name": "product_snapshot",
-          "type": "jsonb",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "json"
-        },
-        "subscription_id": {
-          "name": "subscription_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "mappedType": "text"
-        },
-        "bundle_id": {
-          "name": "bundle_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "mappedType": "text"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "length": 6,
-          "default": "now()",
-          "mappedType": "datetime"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "length": 6,
-          "default": "now()",
-          "mappedType": "datetime"
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "length": 6,
-          "mappedType": "datetime"
-        }
-      },
-      "name": "custom_bundle_item",
-      "schema": "public",
-      "indexes": [
-        {
-          "keyName": "IDX_custom_bundle_item_subscription_id",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_subscription_id\" ON \"custom_bundle_item\" (\"subscription_id\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "IDX_custom_bundle_item_bundle_id",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_bundle_id\" ON \"custom_bundle_item\" (\"bundle_id\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "IDX_custom_bundle_item_deleted_at",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_custom_bundle_item_deleted_at\" ON \"custom_bundle_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "custom_bundle_item_pkey",
-          "columnNames": [
-            "id"
-          ],
-          "composite": false,
-          "constraint": true,
-          "primary": true,
-          "unique": true
-        }
-      ],
-      "checks": [],
-      "foreignKeys": {
-        "custom_bundle_item_subscription_id_foreign": {
-          "constraintName": "custom_bundle_item_subscription_id_foreign",
-          "columnNames": [
-            "subscription_id"
-          ],
-          "localTableName": "public.custom_bundle_item",
-          "referencedColumnNames": [
-            "id"
-          ],
-          "referencedTableName": "public.subscription",
-          "updateRule": "cascade"
-        },
-        "custom_bundle_item_bundle_id_foreign": {
-          "constraintName": "custom_bundle_item_bundle_id_foreign",
-          "columnNames": [
-            "bundle_id"
-          ],
-          "localTableName": "public.custom_bundle_item",
-          "referencedColumnNames": [
-            "id"
-          ],
-          "referencedTableName": "public.custom_bundle",
+          "referencedTableName": "public.subscription_address",
           "deleteRule": "set null",
           "updateRule": "cascade"
         }

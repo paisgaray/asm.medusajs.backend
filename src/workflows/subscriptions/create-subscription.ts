@@ -1,7 +1,9 @@
+import { OrderDTO } from '@medusajs/framework/types';
 import { createWorkflow, transform, when, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
 import { attachPaymentMethodStep } from './steps/attach-payment-method';
 import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
+import { createSubscriptionAddressStep } from './steps/create-subscription-address';
 import { createSubscriptionBundleLinkStep } from './steps/create-subscription-bundle-link';
 import { createSubscriptionCustomerLinkStep } from './steps/create-subscription-customer-link';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
@@ -20,8 +22,7 @@ type CreateSubscriptionWorkflowInput = {
   payment_method_id?: string;
   /** How often the subscription renews (from line item metadata) */
   frequency?: string;
-  /** Preferred delivery period (from line item metadata) */
-  period?: string;
+  order?: OrderDTO;
   metadata: Record<string, unknown>;
 };
 
@@ -81,6 +82,7 @@ export const createSubscriptionWorkflow = createWorkflow(
       subscription_price,
       currency,
       skip_first_charge: input.skip_first_charge,
+      metadata: input.metadata,
     });
 
     // Resolve payment method card data (may be null if not provided)
@@ -94,6 +96,8 @@ export const createSubscriptionWorkflow = createWorkflow(
         payment_exp_year: pmData?.exp_year ?? null,
       }),
     );
+
+    const { subscriptionAddress } = createSubscriptionAddressStep({ order: input.order });
 
     // Step 6: Create subscription record in database
     const subscriptionData = createSubscriptionRecordStep({
@@ -112,7 +116,8 @@ export const createSubscriptionWorkflow = createWorkflow(
       payment_exp_month: resolvedPaymentMethod.payment_exp_month,
       payment_exp_year: resolvedPaymentMethod.payment_exp_year,
       frequency: input.frequency,
-      period: input.period,
+      order: input.order,
+      address_id: subscriptionAddress.id,
     });
 
     // Step 7: Link subscription to customer

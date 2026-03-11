@@ -10,7 +10,6 @@ type Input = {
   items?: {
     product_id: string;
     details: string;
-    quantity: number;
   }[];
 };
 

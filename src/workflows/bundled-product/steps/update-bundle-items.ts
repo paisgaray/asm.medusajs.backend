@@ -19,9 +19,9 @@ export const updateBundleItemsStep = createStep(
 
     const bundleItemsUpdated = await bundledProductModuleService.updateBundleItems(input);
 
-    const { id, details, quantity } = bundle[0];
+    const { id, details } = bundle[0];
 
-    return new StepResponse(bundleItemsUpdated, { id, details, quantity });
+    return new StepResponse(bundleItemsUpdated, { id, details });
   },
   async (data, { container }) => {
     const bundledProductModuleService: BundledProductModuleService = container.resolve(BUNDLED_PRODUCT_MODULE);

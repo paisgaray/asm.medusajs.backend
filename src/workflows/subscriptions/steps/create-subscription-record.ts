@@ -19,6 +19,8 @@ type CreateSubscriptionRecordStepInput = {
   payment_brand?: string | null;
   payment_exp_month?: number | null;
   payment_exp_year?: number | null;
+  frequency?: string;
+  period?: string;
 };
 
 export const createSubscriptionRecordStep = createStep(
@@ -26,7 +28,6 @@ export const createSubscriptionRecordStep = createStep(
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
-    // Create subscription without customer_id and bundle_product_id (handled via Links)
     const subscription = await subscriptionService.createSubscriptions({
       provider: SubscriptionProvider.STRIPE,
       provider_subscription_id: input.stripe_subscription_id,
@@ -41,6 +42,8 @@ export const createSubscriptionRecordStep = createStep(
       payment_brand: input.payment_brand,
       payment_exp_month: input.payment_exp_month,
       payment_exp_year: input.payment_exp_year,
+      ...(input.frequency && { frequency: input.frequency as any }),
+      ...(input.period && { period: input.period as any }),
     });
 
     // Return subscription and IDs needed for creating links

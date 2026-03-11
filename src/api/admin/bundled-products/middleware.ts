@@ -12,7 +12,6 @@ const bundledListQueryConfig = {
     'product.thumbnail',
     'items.id',
     'items.details',
-    'items.quantity',
     'items.product.id',
     'items.product.title',
     'items.product.thumbnail',

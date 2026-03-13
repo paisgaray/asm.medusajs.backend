@@ -13,7 +13,18 @@ export const createSubscriptionAddressStep = createStep(
   async (input: CreateSubscriptionAddressStepInput, { container }) => {
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
-    const subscriptionAddress = await subscriptionService.createSubscriptionAddresses(input.order.shipping_address);
+    const address = input.order.shipping_address;
+
+    const subscriptionAddress = await subscriptionService.createSubscriptionAddresses({
+      first_name: address.first_name,
+      last_name: address.last_name,
+      address_1: address.address_1,
+      address_2: address.address_2,
+      city: address.city,
+      country_code: address.country_code,
+      postal_code: address.postal_code,
+      metadata: address.metadata,
+    });
 
     return new StepResponse({ subscriptionAddress }, { subscription_address_id: subscriptionAddress.id });
   },

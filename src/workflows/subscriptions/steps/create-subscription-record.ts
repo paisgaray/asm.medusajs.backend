@@ -30,6 +30,9 @@ export const createSubscriptionRecordStep = createStep(
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
+    const [day, month, year] = (input.order.metadata?.delivery_date as string).split('/');
+    const delivery_date = new Date(`${year}-${month}-${day}`);
+
     const subscription = await subscriptionService.createSubscriptions({
       provider: SubscriptionProvider.STRIPE,
       provider_subscription_id: input.stripe_subscription_id,
@@ -45,7 +48,7 @@ export const createSubscriptionRecordStep = createStep(
       payment_exp_month: input.payment_exp_month,
       payment_exp_year: input.payment_exp_year,
       period: input.order.metadata?.period as any,
-      periodDate: input.order.metadata?.periodDate as any,
+      delivery_date,
       frequency: input.frequency as any,
       address_id: input.address_id,
     });

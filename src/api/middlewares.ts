@@ -7,7 +7,7 @@ import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { customBundleProductsMiddlewares } from './store/bundle-products/custom/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
 import { contactStoreMiddlewares } from './store/contact/middleware';
-import { updateCustomItemSubscriptionMiddlewares } from './store/customers/me/subscriptions/[id]/bundle/[bundleId]/item/[bundleItemId]/middleware';
+import { subscriptionMiddlewares } from './store/customers/me/subscriptions/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
 import { paymentMethodsMiddlewares } from './store/payment-methods/middleware';
 import { productSearchMiddlewares } from './store/products/search/middleware';
@@ -26,7 +26,7 @@ export default defineMiddlewares({
     ...regionZipcodeMiddlewares,
     ...contactAdminMiddlewares,
     ...contactStoreMiddlewares,
-    ...updateCustomItemSubscriptionMiddlewares,
+    ...subscriptionMiddlewares,
     {
       matcher: '/admin/imports/disfruta',
       method: ['POST'],

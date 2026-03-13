@@ -1,3 +1,4 @@
+import { OrderDTO } from '@medusajs/framework/types';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
@@ -19,14 +20,18 @@ type CreateSubscriptionRecordStepInput = {
   payment_brand?: string | null;
   payment_exp_month?: number | null;
   payment_exp_year?: number | null;
-  frequency?: string;
-  period?: string;
+  frequency: string;
+  order: OrderDTO;
+  address_id: string;
 };
 
 export const createSubscriptionRecordStep = createStep(
   'create-subscription-record',
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
+
+    const [day, month, year] = (input.order.metadata?.delivery_date as string).split('/');
+    const delivery_date = new Date(`${year}-${month}-${day}`);
 
     const subscription = await subscriptionService.createSubscriptions({
       provider: SubscriptionProvider.STRIPE,
@@ -42,8 +47,10 @@ export const createSubscriptionRecordStep = createStep(
       payment_brand: input.payment_brand,
       payment_exp_month: input.payment_exp_month,
       payment_exp_year: input.payment_exp_year,
-      ...(input.frequency && { frequency: input.frequency as any }),
-      ...(input.period && { period: input.period as any }),
+      period: input.order.metadata?.period as any,
+      delivery_date,
+      frequency: input.frequency as any,
+      address_id: input.address_id,
     });
 
     // Return subscription and IDs needed for creating links

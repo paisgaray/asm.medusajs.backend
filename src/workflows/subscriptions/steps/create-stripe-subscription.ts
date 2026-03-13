@@ -8,12 +8,25 @@ type CreateStripeSubscriptionStepInput = {
   currency: string;
   /** When true, first payment was already handled by checkout. Subscription starts billing next month. */
   skip_first_charge?: boolean;
+  metadata: Record<string, unknown>;
 };
 
 export const createStripeSubscriptionStep = createStep(
   'create-stripe-subscription',
   async (input: CreateStripeSubscriptionStepInput, { container: _container }) => {
     const stripe = new Stripe(process.env.STRIPE_API_KEY!);
+
+    let recurring: Stripe.SubscriptionCreateParams.Item.PriceData.Recurring;
+    switch (input.metadata?.frequency) {
+      case 'weekly':
+        recurring = { interval: 'week' };
+        break;
+      case 'biweekly':
+        recurring = { interval_count: 2, interval: 'week' };
+        break;
+      default:
+        recurring = { interval: 'month' };
+    }
 
     // Create Stripe subscription
     const subscriptionParams: Stripe.SubscriptionCreateParams = {
@@ -24,9 +37,7 @@ export const createStripeSubscriptionStep = createStep(
             currency: input.currency,
             product: input.stripe_product_id,
             unit_amount: Math.round(input.subscription_price * 100), // Convert to cents
-            recurring: {
-              interval: 'month',
-            },
+            recurring,
           },
         },
       ],

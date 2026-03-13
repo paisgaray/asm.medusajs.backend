@@ -9,9 +9,9 @@ export const Subscription = model.define('subscription', {
   provider_customer_id: model.text(),
   status: model.text().default('active'), // active, paused, cancelled, past_due, incomplete
   subscription_price: model.number(),
-  currency: model.text().default('usd'),
+  currency: model.text().default('eur'),
   frequency: model.enum(['weekly', 'biweekly', 'monthly']).default('monthly'),
-  periodDate: model.dateTime().nullable(),
+  delivery_date: model.dateTime().nullable(),
   period: model.enum(['morning', 'afternoon', 'evening']).nullable(),
   current_period_start: model.dateTime().nullable(),
   next_billing_date: model.dateTime().nullable(),

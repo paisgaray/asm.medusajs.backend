@@ -14,6 +14,23 @@ import {
 } from '../../../../workflows/bundled-product/workflows/update-bundled-product';
 import { AddBundledProductItemSchema, UpdateBundledProductSchema } from '../validators';
 
+export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
+  const query = req.scope.resolve('query');
+
+  const {
+    data: [bundledProduct],
+  } = await query.graph(
+    {
+      entity: 'bundle',
+      fields: ['id', 'product.*', 'items.*', 'items.product.*'],
+      filters: { id: req.params.id },
+    },
+    { throwIfKeyNotFound: true },
+  );
+
+  res.json(bundledProduct);
+}
+
 export async function POST(req: AuthenticatedMedusaRequest<AddBundledProductItemSchema>, res: MedusaResponse) {
   const { result: bundledProduct } = await addBundledProductItemWorkflow(req.scope).run({
     input: {
@@ -28,13 +45,11 @@ export async function POST(req: AuthenticatedMedusaRequest<AddBundledProductItem
 }
 
 export async function PUT(req: AuthenticatedMedusaRequest<UpdateBundledProductSchema>, res: MedusaResponse) {
-  const { result: bundledProduct } = await updateBundledProductWorkflow(req.scope).run({
+  const { result } = await updateBundledProductWorkflow(req.scope).run({
     input: { id: req.params.id, ...req.validatedBody } as UpdateBundledProductWorkflowInput,
   });
 
-  res.json({
-    bundled_product: bundledProduct,
-  });
+  res.json(result);
 }
 
 export async function DELETE(req: AuthenticatedMedusaRequest, res: MedusaResponse): Promise<void> {

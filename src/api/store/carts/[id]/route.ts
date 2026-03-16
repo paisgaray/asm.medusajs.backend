@@ -81,6 +81,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse): Promise<void
         'items.product_id',
         'items.product.categories.id',
         'items.product.tags.id',
+        'items.product.tags.value',
         'items.product.collection_id',
         'items.product.type_id',
         'items.product_type_id',

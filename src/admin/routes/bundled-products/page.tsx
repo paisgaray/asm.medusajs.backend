@@ -12,7 +12,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import CreateBundledProduct from '../../components/create-bundled-product';
+import CreateBundledProduct from '../../components/bundleComponents/create-bundled-product';
+import DeleteBundledProduct from '../../components/bundleComponents/delete-bundled-product';
+import EditBundledProduct from '../../components/bundleComponents/edit-bundled-product';
 import { sdk } from '../../lib/sdk';
 
 type BundledProduct = {
@@ -20,14 +22,16 @@ type BundledProduct = {
   title: string;
   product: {
     id: string;
+    title: string;
+    thumbnail?: string;
   };
   items: {
     id: string;
     product: {
       id: string;
       title: string;
+      thumbnail?: string;
     };
-    quantity: number;
   }[];
   created_at: Date;
   updated_at: Date;
@@ -36,26 +40,54 @@ type BundledProduct = {
 const columnHelper = createDataTableColumnHelper<BundledProduct>();
 
 const columns = [
-  columnHelper.accessor('id', {
-    header: 'ID',
-  }),
   columnHelper.accessor('title', {
-    header: 'Title',
-  }),
-  columnHelper.accessor('items', {
-    header: 'Items',
+    header: 'Bundle Product ',
     cell: ({ row }) => {
-      return row.original.items.map((item) => (
-        <div key={item.id}>
-          <Link to={`/products/${item.product.id}`}>{item.product.title}</Link> x {item.quantity}
+      return (
+        <div className="flex flex-row gap-4 items-center min-w-[300px]">
+          {row.original?.product?.thumbnail && (
+            <div data-testid="image-bundle-product">
+              <Link to={`/products/${row.original.product.id}`} className=" h-8 flex-row flex gap-2 items-center">
+                <img src={row.original?.product?.thumbnail} alt={row.original?.product?.title} className="   w-8 h-8" />
+                <span>{row.original?.product?.title}</span>
+              </Link>
+            </div>
+          )}
         </div>
-      ));
+      );
     },
   }),
-  columnHelper.accessor('product', {
-    header: 'Product',
+
+  columnHelper.accessor('items', {
+    header: 'Items',
+    meta: {
+      className: '',
+    },
+
     cell: ({ row }) => {
-      return <Link to={`/products/${row.original.product?.id}`}>View Product</Link>;
+      return (
+        <div className="flex flex-col max-h-[100px] min-w-[300px] overflow-y-auto gap-4 py-2 ">
+          {row.original.items.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 min-w-[160px] w-auto">
+              <img src={item.product?.thumbnail} className="w-8 h-8 rounded" alt={item.product?.title} />
+              <span className="text-sm cursor-default">{item.product.title}</span>
+            </div>
+          ))}
+        </div>
+      );
+    },
+  }),
+
+  columnHelper.accessor('title', {
+    header: 'Actions',
+    headerAlign: 'right',
+    cell: ({ row }) => {
+      return (
+        <div className="flex gap-2 flex-row justify-end">
+          <EditBundledProduct bundle={row.original} />
+          <DeleteBundledProduct idBundledProduct={row.original.id} />
+        </div>
+      );
     },
   }),
 ];

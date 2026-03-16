@@ -10,6 +10,18 @@ export enum SubscriptionProvider {
   STRIPE = 'stripe',
 }
 
+export enum SubscriptionFrequency {
+  WEEKLY = 'weekly',
+  BIWEEKLY = 'biweekly',
+  MONTHLY = 'monthly',
+}
+
+export enum SubscriptionPeriod {
+  MORNING = 'morning',
+  AFTERNOON = 'afternoon',
+  EVENING = 'evening',
+}
+
 export interface CreateSubscriptionInput {
   customer_id: string;
   bundle_product_id: string;
@@ -18,6 +30,8 @@ export interface CreateSubscriptionInput {
   provider_customer_id: string;
   subscription_price: number;
   currency: string;
+  frequency?: SubscriptionFrequency;
+  period?: SubscriptionPeriod;
   current_period_start: Date;
   current_period_end: Date;
   next_billing_date: Date;

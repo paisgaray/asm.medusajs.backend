@@ -8,6 +8,7 @@ export type SubscriptionItem = {
   quantity: number;
   unit_price: number;
   currency_code: string;
+  frequency?: string;
   item: OrderLineItemDTO;
 };
 
@@ -65,7 +66,7 @@ export const detectSubscriptionItemsStep = createStep(
       }
 
       // Check if product has 'subscription' tag
-      const hasSubscriptionTag = product.tags?.some((tag) => tag.value?.toLowerCase() === 'subscription');
+      const hasSubscriptionTag = item.metadata?.is_subscription;
 
       if (hasSubscriptionTag) {
         // This is a subscription item
@@ -77,6 +78,7 @@ export const detectSubscriptionItemsStep = createStep(
             quantity: item.quantity,
             unit_price: item.unit_price,
             currency_code: order.currency_code,
+            frequency: (item.metadata?.frequency as string) ?? undefined,
             item,
           });
         }

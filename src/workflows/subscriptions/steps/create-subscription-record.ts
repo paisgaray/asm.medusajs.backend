@@ -1,3 +1,4 @@
+import { OrderDTO } from '@medusajs/framework/types';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
@@ -11,29 +12,56 @@ type CreateSubscriptionRecordStepInput = {
   currency: string;
   stripe_subscription_id: string;
   stripe_customer_id: string;
-  // current_period_start: Date;
-  // current_period_end: Date;
-  // next_billing_date: Date;
   status: string;
+  current_period_start?: Date;
+  next_billing_date?: Date;
+  provider_payment_method_id?: string | null;
+  payment_last4?: string | null;
+  payment_brand?: string | null;
+  payment_exp_month?: number | null;
+  payment_exp_year?: number | null;
+  frequency: string;
+  order: OrderDTO;
+  address_id: string;
 };
 
 export const createSubscriptionRecordStep = createStep(
   'create-subscription-record',
   async (input: CreateSubscriptionRecordStepInput, { container }) => {
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
+
+    const [day, month, year] = (input.order.metadata?.delivery_date as string).split('/');
+    const delivery_date = new Date(`${year}-${month}-${day}`);
 
     const subscription = await subscriptionService.createSubscriptions({
-      customer_id: input.customer_id,
-      bundle_product_id: input.bundle_product_id,
       provider: SubscriptionProvider.STRIPE,
       provider_subscription_id: input.stripe_subscription_id,
       provider_customer_id: input.stripe_customer_id,
       subscription_price: input.subscription_price,
       currency: input.currency,
       status: input.status as SubscriptionStatus,
+      current_period_start: input.current_period_start,
+      next_billing_date: input.next_billing_date,
+      provider_payment_method_id: input.provider_payment_method_id,
+      payment_last4: input.payment_last4,
+      payment_brand: input.payment_brand,
+      payment_exp_month: input.payment_exp_month,
+      payment_exp_year: input.payment_exp_year,
+      period: input.order.metadata?.period as any,
+      delivery_date,
+      frequency: input.frequency as any,
+      address_id: input.address_id,
     });
 
-    return new StepResponse({ subscription }, { subscription_id: subscription.id });
+    // Return subscription and IDs needed for creating links
+    return new StepResponse(
+      {
+        subscription,
+        customer_id: input.customer_id,
+        bundle_product_id: input.bundle_product_id,
+      },
+      { subscription_id: subscription.id },
+    );
   },
   async (data, { container }) => {
     if (!data?.subscription_id) {
@@ -41,7 +69,7 @@ export const createSubscriptionRecordStep = createStep(
     }
 
     // Rollback: delete the subscription record
-    const subscriptionService = container.resolve(SUBSCRIPTION_MODULE) as SubscriptionModuleService;
+    const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
     await subscriptionService.deleteSubscriptions([data.subscription_id]);
   },
 );

@@ -40,6 +40,7 @@ export const checkoutSubscriptionWorkflow = createWorkflow(
         order_id: input.order_id,
         stripe_customer_id: paymentMethodData.stripe_customer_id,
         payment_method_id: paymentMethodData.payment_method_id,
+        order,
       });
     });
 

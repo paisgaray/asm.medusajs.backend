@@ -69,7 +69,10 @@ export const prepareOneTimeItemsStep = createStep(
 
     return new StepResponse(
       { one_time_items: oneTimeItems },
-      { one_time_items: oneTimeItems, created_stripe_products: createdStripeProducts },
+      {
+        one_time_items: oneTimeItems,
+        created_stripe_products: createdStripeProducts,
+      },
     );
   },
   async (data, { container }) => {

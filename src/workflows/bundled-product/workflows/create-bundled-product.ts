@@ -13,7 +13,6 @@ export type CreateBundledProductWorkflowInput = {
     items: {
       product_id: string;
       details: string;
-      quantity: number;
     }[];
   };
 };
@@ -28,14 +27,7 @@ export const createBundledProductWorkflow = createWorkflow(
     const bundleItems = createBundleItemsStep({ bundle_id: bundle.id, items: bundleData.items });
 
     const bundleProduct = updateProductsWorkflow.runAsStep({
-      input: {
-        products: [
-          {
-            id: bundleData.product_id,
-            metadata: { bundle_id: bundle.id },
-          },
-        ],
-      },
+      input: { products: [{ id: bundleData.product_id, metadata: { bundle_id: bundle.id } }] },
     });
 
     createRemoteLinkStep([
@@ -59,9 +51,7 @@ export const createBundledProductWorkflow = createWorkflow(
     const { data } = useQueryGraphStep({
       entity: 'bundle',
       fields: ['*', 'items.*'],
-      filters: {
-        id: bundle.id,
-      },
+      filters: { id: bundle.id },
     });
 
     return new WorkflowResponse(data[0]);

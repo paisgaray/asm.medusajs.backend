@@ -5,14 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+
+## [unrelease]
+
+-[ASM-474](https://qualitydigital.atlassian.net/browse/ASM-437) - admin bundle adjusts
+
+-[ASM-437](https://qualitydigital.atlassian.net/browse/ASM-437) - admin bundle
+
 ## [0.0.8] - 2025-11-13
 
 ### Changed
 - refactor(wishlist): alinhar middlewares, rotas e workflows ao padrão Medusa;
-<<<<<<< HEAD
-=======
 - feat: add bundle product update and bundle product item update;
->>>>>>> origin/develop
 
 ### Fixed
 - fix - medusa.config;

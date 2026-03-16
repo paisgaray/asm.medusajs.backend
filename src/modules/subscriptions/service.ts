@@ -2,12 +2,80 @@ import { RemoteQueryFunction } from '@medusajs/framework/types';
 import { MedusaService } from '@medusajs/framework/utils';
 
 import { Subscription } from './models/subscription';
-import { SubscriptionItem } from './models/subscription-item';
+import { SubscriptionAddress } from './models/subscriptionAddress';
+
+export const SUBSCRIPTION_FIELDS = [
+  'id',
+  'status',
+  'provider',
+  'provider_subscription_id',
+  'subscription_price',
+  'currency',
+  'frequency',
+  'delivery_date',
+  'period',
+  'current_period_start',
+  'next_billing_date',
+  'payment_last4',
+  'payment_brand',
+  'payment_exp_month',
+  'payment_exp_year',
+  'metadata',
+  'created_at',
+  'updated_at',
+  'custom_bundles.*',
+  'custom_bundles.product.*',
+  'custom_bundles.product.variants.*',
+  'custom_bundles.items.product.*',
+  'custom_items.*',
+  'custom_items.product.*',
+  'address.*',
+] as const;
 
 export default class SubscriptionModuleService extends MedusaService({
   Subscription,
-  SubscriptionItem,
+  SubscriptionAddress,
 }) {
+  /**
+   * Resolve product data for all custom_items within subscriptions
+   * (both bundle items and standalone items).
+   * Cross-module link (custom_item → product) can't be traversed
+   * in a single query.graph call, so we resolve it separately.
+   */
+  async enrichSubscriptionsWithProducts(
+    query: Omit<RemoteQueryFunction, symbol>,
+    subscriptions: Record<string, any>[],
+  ) {
+    const allItemIds = subscriptions.flatMap((sub) => {
+      const bundleItemIds = (sub?.custom_bundles || []).flatMap((b: any) =>
+        (b?.custom_items || []).map((i: any) => i.id),
+      );
+      const standaloneItemIds = (sub?.custom_items || []).map((i: any) => i.id);
+      return [...bundleItemIds, ...standaloneItemIds];
+    });
+    const uniqueItemIds = [...new Set(allItemIds)];
+
+    if (!uniqueItemIds.length) return;
+
+    const { data: itemsWithProducts } = await query.graph({
+      entity: 'custom_item',
+      fields: ['id', 'product.*'],
+      filters: { id: uniqueItemIds },
+    });
+    const productByItemId = Object.fromEntries(itemsWithProducts.map((i) => [i.id, i.product]));
+
+    for (const sub of subscriptions) {
+      for (const bundle of sub?.custom_bundles || []) {
+        for (const item of bundle?.custom_items || []) {
+          item.product = productByItemId[item.id] ?? null;
+        }
+      }
+      for (const item of sub?.custom_items || []) {
+        item.product = productByItemId[item.id] ?? null;
+      }
+    }
+  }
+
   async getProductWithPrice(
     query: Omit<RemoteQueryFunction, symbol>,
     productId: string,

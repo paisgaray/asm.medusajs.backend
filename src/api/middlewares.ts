@@ -1,11 +1,13 @@
-import { defineMiddlewares } from '@medusajs/framework/http';
+import { authenticate, defineMiddlewares } from '@medusajs/framework/http';
 import multer from 'multer';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
 import { contactAdminMiddlewares } from './admin/contact/middleware';
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
+import { customBundleProductsMiddlewares } from './store/bundle-products/custom/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
 import { contactStoreMiddlewares } from './store/contact/middleware';
+import { subscriptionMiddlewares } from './store/customers/me/subscriptions/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
 import { paymentMethodsMiddlewares } from './store/payment-methods/middleware';
 import { productSearchMiddlewares } from './store/products/search/middleware';
@@ -16,6 +18,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 export default defineMiddlewares({
   routes: [
     ...bundledProductsMiddlewares,
+    ...customBundleProductsMiddlewares,
     ...lineItemBundlesMiddlewares,
     ...productSearchMiddlewares,
     ...newsletterMiddlewares,
@@ -23,6 +26,7 @@ export default defineMiddlewares({
     ...regionZipcodeMiddlewares,
     ...contactAdminMiddlewares,
     ...contactStoreMiddlewares,
+    ...subscriptionMiddlewares,
     {
       matcher: '/admin/imports/disfruta',
       method: ['POST'],
@@ -32,5 +36,9 @@ export default defineMiddlewares({
     // O Admin UI envia arquivo via URL no body, não via multipart/form-data
     // Se necessário, podemos adicionar de volta para suportar ambos os formatos
     ...paymentMethodsMiddlewares,
+    {
+      matcher: '/store/customers/me/*',
+      middlewares: [authenticate('customer', ['bearer', 'session'])],
+    },
   ],
 });

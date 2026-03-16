@@ -218,6 +218,15 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.
 export default defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    databaseDriverOptions: {
+      pool: {
+        min:                      parseInt(process.env.DB_POOL_MIN  || '0'),
+        max:                      parseInt(process.env.DB_POOL_MAX  || '10'),
+        idleTimeoutMillis:        30000,
+        reapIntervalMillis:       1000,
+        createRetryIntervalMillis: 200,
+      },
+    },
     redisUrl: process.env.REDIS_URL || redisUrl,
     cookieOptions: {           
       sameSite: 'lax' as const,

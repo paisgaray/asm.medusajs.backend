@@ -79,7 +79,7 @@ export const formatOrderStep = createStep(
       },
 
       deliverySchedule: {
-        deliveryDate: order.metadata?.periodDate,
+        deliveryDate: order.metadata?.delivery_date,
         deliveryTime: order.metadata?.period,
       },
 

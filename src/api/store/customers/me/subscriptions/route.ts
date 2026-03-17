@@ -15,6 +15,8 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
+  console.log('Customer ID:', customerId);
+
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
   const subscriptionService = req.scope.resolve<SubscriptionModuleService>(SUBSCRIPTION_MODULE);
 

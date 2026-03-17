@@ -137,6 +137,14 @@ Triggered from order-placed subscriber. Orchestrates subscription detection and 
 1. `updateSubscriptionFrequencyStep` — updates `frequency` on subscription record.
    > **TODO:** Add Stripe frequency update logic (currently local-only).
 
+#### `skip-subscription`
+Skips the next billing cycle by voiding the upcoming invoice and advancing `next_billing_date` by one interval. Uses the **provider adapter pattern** to delegate to the correct payment provider.
+1. `validateAndComputeSkipStep` — validates subscription is `active` and has `next_billing_date`; computes new date based on `frequency` (`weekly` → +7d, `biweekly` → +14d, `monthly` → +1 month). Returns `provider`, `provider_subscription_id`, `new_next_billing_date`.
+2. `skipProviderSubscriptionStep` — resolves the provider adapter via `getProviderAdapter(provider)` and calls `adapter.skipNextPayment()`. Compensation calls `adapter.rollbackSkip()`.
+3. `updateSubscriptionNextBillingStep` — persists `next_billing_date` in DB. Compensation restores previous value.
+
+**Stripe implementation:** Uses `pause_collection` with `behavior: 'void'` and `resumes_at` set to the new billing date ([Stripe docs](https://docs.stripe.com/billing/subscriptions/pause-payment)). The next invoice is voided, subscription stays `active`, and collection auto-resumes.
+
 ### Subscribers
 
 - **`order-placed.ts`** — listens to `order.placed` event; runs `checkoutSubscriptionWorkflow`. Catches errors to avoid failing the order.
@@ -153,6 +161,7 @@ All store routes require customer authentication via `authenticate('customer', [
 | POST | `/store/customers/me/subscriptions/:id/pause` | Pause subscription (verifies ownership) |
 | POST | `/store/customers/me/subscriptions/:id/resume` | Resume subscription (verifies ownership) |
 | POST | `/store/customers/me/subscriptions/:id/cancel` | Cancel subscription (verifies ownership) |
+| POST | `/store/customers/me/subscriptions/:id/skip` | Skip next billing cycle (verifies ownership) |
 | POST | `/store/customers/me/subscriptions/:id/address` | Update delivery address + schedule (validated with zod) |
 | POST | `/store/customers/me/subscriptions/:id/frequency` | Change frequency: `weekly \| biweekly \| monthly` (validated with zod) |
 | POST | `/store/customers/me/subscriptions/:id/bundle/:bundleId/item/:bundleItemId` | Update a custom bundle item — swap product via override (validated with zod) |
@@ -297,6 +306,7 @@ Customers can manage subscriptions via the store API:
 - **Cancel**: Immediate Stripe cancellation
 - **Change address/schedule**: Updates local `subscription_address` and delivery date/period
 - **Change frequency**: Updates local record (TODO: sync to Stripe)
+- **Skip next payment**: Voids upcoming invoice via provider adapter; advances `next_billing_date` by one interval
 - **Swap bundle items**: Creates `CustomItemOverride` with `expire_date = next_billing_date`
 
 ## Setup Instructions
@@ -327,6 +337,8 @@ All workflow steps have compensation handlers where applicable:
 - `getsertStripeProductStep` → deletes Stripe product if newly created
 - `pauseStripeSubscriptionStep` → resumes subscription on rollback
 - `resumeStripeSubscriptionStep` → re-pauses on rollback
+- `skipProviderSubscriptionStep` → calls `adapter.rollbackSkip()` (unsets `pause_collection` for Stripe)
+- `updateSubscriptionNextBillingStep` → restores previous `next_billing_date`
 - `createSubscriptionRecordStep` → deletes subscription record
 - `createSubscriptionAddressStep` → deletes address record
 - `createSubscriptionCustomerLinkStep` → dismisses link
@@ -343,7 +355,33 @@ export enum SubscriptionProvider {
 }
 ```
 
-To add a new provider: create provider-specific steps, add provider logic in workflows, update types/enums.
+### Provider Adapter Pattern (`src/modules/subscriptions/adapters/`)
+
+The `skip-subscription` workflow uses an adapter pattern for provider-agnostic payment operations:
+
+```typescript
+// Interface — src/modules/subscriptions/adapters/provider-adapter.ts
+export interface SubscriptionProviderAdapter {
+  skipNextPayment(providerSubscriptionId: string, resumesAt: Date): Promise<void>;
+  rollbackSkip(providerSubscriptionId: string): Promise<void>;
+}
+```
+
+**Implementations:**
+- `StripeSubscriptionAdapter` (`adapters/stripe-adapter.ts`) — uses `pause_collection` with `behavior: 'void'` + `resumes_at`
+
+**Registry** (`adapters/index.ts`):
+```typescript
+getProviderAdapter(provider: string): SubscriptionProviderAdapter
+```
+Looks up the provider in a registry map and returns the adapter instance. Throws if no adapter is registered.
+
+**Adding a new provider:**
+1. Create `adapters/new-provider-adapter.ts` implementing `SubscriptionProviderAdapter`
+2. Register in `adapters/index.ts`: `newProvider: () => new NewProviderAdapter()`
+3. No workflow or step changes needed.
+
+Other workflows (pause, resume, cancel) still call Stripe-specific steps directly. These can be migrated to the adapter pattern as needed.
 
 ## Key Files Reference
 
@@ -363,6 +401,7 @@ To add a new provider: create provider-specific steps, add provider logic in wor
 | Middleware config | `src/api/middlewares.ts` |
 | Order-placed subscriber | `src/subscribers/order-placed.ts` |
 | Payment failed webhook | `src/api/webhooks/payment-failed/route.ts` |
+| Provider adapters | `src/modules/subscriptions/adapters/` |
 | Bundle model | `src/modules/bundled-product/models/bundle.ts` |
 | CustomBundle model | `src/modules/bundled-product/models/custom-bundle.ts` |
 | CustomItem model | `src/modules/bundled-product/models/custom-item.ts` |
@@ -383,6 +422,7 @@ To add a new provider: create provider-specific steps, add provider logic in wor
 - [ ] Pause subscription → Stripe paused, local status `paused`
 - [ ] Resume subscription → Stripe resumed, local status `active`
 - [ ] Cancel subscription → Stripe cancelled, local status `cancelled`
+- [ ] Skip next payment → Stripe `pause_collection` set with `resumes_at`, DB `next_billing_date` advanced
 - [ ] Change address and delivery schedule
 - [ ] Change frequency
 - [ ] Swap custom bundle item (override)

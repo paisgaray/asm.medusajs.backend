@@ -226,6 +226,9 @@ export default defineConfig({
         reapIntervalMillis:       1000,
         createRetryIntervalMillis: 200,
       },
+      connection: {
+        ssl: { rejectUnauthorized: false },
+      },
     },
     redisUrl: process.env.REDIS_URL || redisUrl,
     cookieOptions: {           

@@ -32,6 +32,7 @@ export const POST = async (req: AuthenticatedMedusaRequest<AddSubscriptionItemSc
       input: {
         subscription_id: id,
         product_id: req.validatedBody.product_id,
+        quantity: req.validatedBody.quantity,
       } as AddItemToSubscriptionWorkflowInput,
     });
 

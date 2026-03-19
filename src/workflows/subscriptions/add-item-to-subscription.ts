@@ -12,12 +12,13 @@ import { updateSubscriptionPriceRecordStep } from './steps/update-subscription-p
 export type AddItemToSubscriptionWorkflowInput = {
   subscription_id: string;
   product_id: string;
+  quantity: number;
 };
 
 export const addItemToSubscriptionWorkflow = createWorkflow(
   'add-item-to-subscription',
-  ({ subscription_id, product_id }: AddItemToSubscriptionWorkflowInput) => {
-    const pricing = fetchSubscriptionPricingStep({ subscription_id, product_id });
+  ({ subscription_id, product_id, quantity }: AddItemToSubscriptionWorkflowInput) => {
+    const pricing = fetchSubscriptionPricingStep({ subscription_id, product_id, quantity });
 
     const customItem = createStandaloneCustomItemStep({ product_id });
 

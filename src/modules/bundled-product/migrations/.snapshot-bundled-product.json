@@ -234,6 +234,16 @@
           "nullable": false,
           "mappedType": "text"
         },
+        "item_price": {
+          "name": "item_price",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "0",
+          "mappedType": "integer"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -327,6 +337,26 @@
             "bundle"
           ],
           "mappedType": "enum"
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "1",
+          "mappedType": "integer"
+        },
+        "item_price": {
+          "name": "item_price",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "default": "0",
+          "mappedType": "integer"
         },
         "product_snapshot": {
           "name": "product_snapshot",

@@ -8,12 +8,7 @@ export const updateProviderSubscriptionPriceStep = createStep(
   async (input: SubscriptionPricingResult, { container }) => {
     const adapter = getProviderAdapter(input.provider);
 
-    await adapter.updatePrice(
-      input.provider_subscription_id,
-      Math.round(input.new_price * 100),
-      input.currency,
-      input.frequency,
-    );
+    await adapter.updatePrice(input.provider_subscription_id, input.new_price, input.currency, input.frequency);
 
     container
       .resolve('logger')
@@ -40,7 +35,7 @@ export const updateProviderSubscriptionPriceStep = createStep(
     try {
       await adapter.rollbackUpdatePrice(
         data.provider_subscription_id,
-        Math.round(data.previous_price * 100),
+        data.previous_price,
         data.currency,
         data.frequency,
       );

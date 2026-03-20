@@ -36,7 +36,7 @@ export const createStripeSubscriptionStep = createStep(
           price_data: {
             currency: input.currency,
             product: input.stripe_product_id,
-            unit_amount: Math.round(input.subscription_price * 100), // Convert to cents
+            unit_amount: input.subscription_price,
             recurring,
           },
         },

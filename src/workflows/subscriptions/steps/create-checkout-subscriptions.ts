@@ -64,7 +64,7 @@ export const createCheckoutSubscriptionsStep = createStep(
           customer_id,
           bundle_product_id: subscription_item.product_id,
           stripe_customer_id: resolvedStripeCustomerId,
-          payment_method_id: resolvedStripeCustomerId ? undefined : payment_method_id,
+          payment_method_id,
           skip_first_charge: true,
           frequency: subscription_item.frequency,
           metadata: subscription_item.item.metadata,

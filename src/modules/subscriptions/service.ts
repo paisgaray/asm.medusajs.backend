@@ -1,6 +1,7 @@
 import { RemoteQueryFunction } from '@medusajs/framework/types';
 import { MedusaService } from '@medusajs/framework/utils';
 
+import { formatPrice } from '../../utils/resolve-subscription-price';
 import { Subscription } from './models/subscription';
 import { SubscriptionAddress } from './models/subscriptionAddress';
 
@@ -57,7 +58,15 @@ export default class SubscriptionModuleService extends MedusaService({
     });
     const uniqueItemIds = [...new Set(allItemIds)];
 
-    if (!uniqueItemIds.length) return;
+    if (!uniqueItemIds.length) {
+      for (const sub of subscriptions) {
+        sub.calculated_price = formatPrice(sub.subscription_price ?? 0);
+        for (const bundle of sub?.custom_bundles || []) {
+          bundle.calculated_price = formatPrice(bundle.item_price ?? 0);
+        }
+      }
+      return;
+    }
 
     const { data: itemsWithProducts } = await query.graph({
       entity: 'custom_item',
@@ -67,13 +76,19 @@ export default class SubscriptionModuleService extends MedusaService({
     const productByItemId = Object.fromEntries(itemsWithProducts.map((i) => [i.id, i.product]));
 
     for (const sub of subscriptions) {
+      sub.calculated_price = formatPrice(sub.subscription_price ?? 0);
+
       for (const bundle of sub?.custom_bundles || []) {
+        bundle.calculated_price = formatPrice(bundle.item_price ?? 0);
+
         for (const item of bundle?.custom_items || []) {
           item.product = productByItemId[item.id] ?? null;
+          item.calculated_price = formatPrice(item.item_price ?? 0);
         }
       }
       for (const item of sub?.custom_items || []) {
         item.product = productByItemId[item.id] ?? null;
+        item.calculated_price = formatPrice(item.item_price ?? 0);
       }
     }
   }

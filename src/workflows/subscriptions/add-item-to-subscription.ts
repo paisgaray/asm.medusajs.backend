@@ -4,34 +4,42 @@ import { createRemoteLinkStep } from '@medusajs/medusa/core-flows';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../modules/bundled-product';
 import { SUBSCRIPTION_MODULE } from '../../modules/subscriptions';
-import { createStandaloneCustomItemStep } from '../bundled-product/steps/create-standalone-custom-item';
+import { createStandaloneCustomItemsStep } from '../bundled-product/steps/create-standalone-custom-item';
 import { fetchSubscriptionPricingStep } from './steps/fetch-subscription-pricing';
 import { updateProviderSubscriptionPriceStep } from './steps/update-provider-subscription-price';
 import { updateSubscriptionPriceRecordStep } from './steps/update-subscription-price-record';
 
 export type AddItemToSubscriptionWorkflowInput = {
   subscription_id: string;
-  product_id: string;
-  quantity: number;
+  items: { product_id: string; quantity: number }[];
 };
 
 export const addItemToSubscriptionWorkflow = createWorkflow(
   'add-item-to-subscription',
-  ({ subscription_id, product_id, quantity }: AddItemToSubscriptionWorkflowInput) => {
-    const pricing = fetchSubscriptionPricingStep({ subscription_id, product_id, quantity });
+  ({ subscription_id, items }: AddItemToSubscriptionWorkflowInput) => {
+    const pricing = fetchSubscriptionPricingStep({ subscription_id, items });
 
-    const customItem = createStandaloneCustomItemStep({ product_id });
+    const itemsWithPrices = transform({ items, pricing }, (data) =>
+      data.items.map((item, index) => ({
+        ...item,
+        item_price: data.pricing.item_prices[index] ?? 0,
+      })),
+    );
 
-    const links = transform({ customItem, subscription_id, product_id }, (data) => [
-      {
-        [BUNDLED_PRODUCT_MODULE]: { custom_item_id: data.customItem.id },
-        [Modules.PRODUCT]: { product_id: data.product_id },
-      },
-      {
-        [SUBSCRIPTION_MODULE]: { subscription_id: data.subscription_id },
-        [BUNDLED_PRODUCT_MODULE]: { custom_item_id: data.customItem.id },
-      },
-    ]);
+    const customItems = createStandaloneCustomItemsStep({ items: itemsWithPrices });
+
+    const links = transform({ customItems, subscription_id, items }, (data) =>
+      data.customItems.flatMap((customItem, index) => [
+        {
+          [BUNDLED_PRODUCT_MODULE]: { custom_item_id: customItem.id },
+          [Modules.PRODUCT]: { product_id: data.items[index].product_id },
+        },
+        {
+          [SUBSCRIPTION_MODULE]: { subscription_id: data.subscription_id },
+          [BUNDLED_PRODUCT_MODULE]: { custom_item_id: customItem.id },
+        },
+      ]),
+    );
 
     createRemoteLinkStep(links).config({ name: 'add-subscription-item-links' });
 
@@ -43,6 +51,6 @@ export const addItemToSubscriptionWorkflow = createWorkflow(
       previous_price: pricing.previous_price,
     });
 
-    return new WorkflowResponse(customItem);
+    return new WorkflowResponse(customItems);
   },
 );

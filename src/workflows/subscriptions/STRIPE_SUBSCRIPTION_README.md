@@ -137,6 +137,57 @@ Triggered from order-placed subscriber. Orchestrates subscription detection and 
 1. `updateSubscriptionFrequencyStep` — updates `frequency` on subscription record.
    > **TODO:** Add Stripe frequency update logic (currently local-only).
 
+#### `add-item-to-subscription`
+Adds one or more standalone custom items to an existing subscription and updates the Stripe subscription price to reflect the new total.
+1. `fetchSubscriptionPricingStep` — for each product in `items`, queries the product via `query.graph` (including `variants.options.*` and `variants.options.option.*`); resolves the subscription-variant price via `resolveSubscriptionPrice`; accumulates the new total price.
+2. `transform` — merges resolved `item_prices` back onto the input items array.
+3. `createStandaloneCustomItemsStep` — creates `custom_item` records in the Bundled Product Module (with `quantity` and `item_price` in cents).
+4. `createRemoteLinkStep` — for each created item, creates two links: `custom_item ↔ product` and `subscription ↔ custom_item`.
+5. `updateProviderSubscriptionPriceStep` — updates the Stripe subscription price.
+6. `updateSubscriptionPriceRecordStep` — persists the new `subscription_price` in the DB.
+
+**Input:**
+```typescript
+{
+  subscription_id: string;
+  items: { product_id: string; quantity: number }[];
+}
+```
+
+#### `update-subscription-item-quantity`
+Changes the quantity of an existing standalone custom item and adjusts the subscription price by the signed delta.
+1. `updateItemQuantityStep` — reads the item's current quantity, updates it, returns `{ previous_quantity, new_quantity }`. Compensation restores the previous value.
+2. `transform` — computes `quantity_delta = new_quantity - previous_quantity`.
+3. `fetchItemPriceDeltaStep` — calculates price change: `delta × item.item_price`. Returns a `SubscriptionPricingResult`.
+4. `updateProviderSubscriptionPriceStep` — applies the new price to Stripe.
+5. `updateSubscriptionPriceRecordStep` — persists the updated `subscription_price`.
+
+**Input:**
+```typescript
+{
+  subscription_id: string;
+  item_id: string;
+  quantity: number;  // new absolute quantity (≥ 1)
+}
+```
+
+#### `remove-subscription-item`
+Fully removes a standalone custom item from a subscription: dismisses all links, deletes the entity, and reduces the Stripe subscription price by the item's full value (`quantity × item_price`).
+1. `fetchItemPriceDeltaStep` (with `remove_item: true`) — computes `delta = -(item.quantity)`. Returns pricing result.
+2. `useQueryGraphStep` — fetches the item's linked `product.id` for link dismissal.
+3. `dismissRemoteLinkStep` (×2) — removes `subscription ↔ custom_item` and `custom_item ↔ product` remote links.
+4. `deleteCustomItemStep` — deletes the `custom_item` record. Compensation re-creates from a snapshot.
+5. `updateProviderSubscriptionPriceStep` — applies reduced price to Stripe.
+6. `updateSubscriptionPriceRecordStep` — persists the updated `subscription_price`.
+
+**Input:**
+```typescript
+{
+  subscription_id: string;
+  item_id: string;
+}
+```
+
 #### `skip-subscription`
 Skips the next billing cycle by voiding the upcoming invoice and advancing `next_billing_date` by one interval. Uses the **provider adapter pattern** to delegate to the correct payment provider.
 1. `validateAndComputeSkipStep` — validates subscription is `active` and has `next_billing_date`; computes new date based on `frequency` (`weekly` → +7d, `biweekly` → +14d, `monthly` → +1 month). Returns `provider`, `provider_subscription_id`, `new_next_billing_date`.
@@ -144,6 +195,42 @@ Skips the next billing cycle by voiding the upcoming invoice and advancing `next
 3. `updateSubscriptionNextBillingStep` — persists `next_billing_date` in DB. Compensation restores previous value.
 
 **Stripe implementation:** Uses `pause_collection` with `behavior: 'void'` and `resumes_at` set to the new billing date ([Stripe docs](https://docs.stripe.com/billing/subscriptions/pause-payment)). The next invoice is voided, subscription stays `active`, and collection auto-resumes.
+
+### Shared Steps (`src/workflows/subscriptions/steps/`)
+
+#### `fetch-subscription-pricing`
+Read-only step used by `add-item-to-subscription`. For each item in the input list:
+- Queries the product via `query.graph` (with `variants.options.*` and `variants.options.option.*`).
+- Calls `resolveSubscriptionPrice(variants, currency)` to resolve the correct variant price in cents.
+- Accumulates a total added price.
+
+Returns a `SubscriptionPricingResult` with `previous_price`, `new_price`, and `item_prices[]` (all in cents).
+
+#### `fetch-item-price-delta`
+Read-only step used by `update-subscription-item-quantity` and `remove-subscription-item`. Computes the signed price change when a quantity changes:
+- When `remove_item: true` — delta is `-(item.quantity)`.
+- When `quantity_delta` provided — delta is `quantity_delta`.
+- Price change = `delta × item.item_price` (both in cents).
+
+Returns a `SubscriptionPricingResult` ready for `updateProviderSubscriptionPriceStep`.
+
+#### `update-provider-subscription-price`
+Provider-agnostic step that delegates to the correct adapter to update the recurring price on the payment provider (Stripe). Uses `getProviderAdapter(provider)`. Compensation rolls back to `previous_price`.
+
+#### `update-subscription-price-record`
+Persists the new `subscription_price` (in cents) on the subscription record in the DB. Compensation restores the previous value.
+
+### Utility (`src/utils/resolve-subscription-price.ts`)
+
+Shared utility for subscription price resolution. Exported functions:
+
+| Function | Description |
+|---|---|
+| `formatPrice(amountInCents)` | Divides cents by 100 for API responses (e.g. 2800 → 28). Used in `enrichSubscriptionsWithProducts`. |
+| `findSubscriptionVariant(variants)` | Returns the variant whose option has `title === 'as'` and `value === 'subscription'`, or the first variant as fallback. |
+| `resolveSubscriptionPrice(variants, currencyCode?)` | Calls `findSubscriptionVariant` then picks the best matching price and returns its value **in cents** (`Math.round(amount × 100)`). |
+
+> **Price convention:** Medusa's `price.amount` and `calculated_price.calculated_amount` are in **major currency units** (e.g. `28` = €28). All storage (`subscription_price`, `item_price`) is in **integer cents** (multiply by 100 on write). API responses expose `calculated_price` via `formatPrice()` (divide by 100 on read).
 
 ### Subscribers
 
@@ -164,7 +251,24 @@ All store routes require customer authentication via `authenticate('customer', [
 | POST | `/store/customers/me/subscriptions/:id/skip` | Skip next billing cycle (verifies ownership) |
 | POST | `/store/customers/me/subscriptions/:id/address` | Update delivery address + schedule (validated with zod) |
 | POST | `/store/customers/me/subscriptions/:id/frequency` | Change frequency: `weekly \| biweekly \| monthly` (validated with zod) |
+| POST | `/store/customers/me/subscriptions/:id/item` | Add standalone item(s) to subscription — resolves subscription-variant price per product (validated with zod) |
+| PATCH | `/store/customers/me/subscriptions/:id/item/:item_id` | Update item quantity — adjusts Stripe price by signed delta (validated with zod) |
+| DELETE | `/store/customers/me/subscriptions/:id/item/:item_id` | Remove item from subscription — dismisses links, deletes entity, reduces price |
 | POST | `/store/customers/me/subscriptions/:id/bundle/:bundleId/item/:bundleItemId` | Update a custom bundle item — swap product via override (validated with zod) |
+
+**Add item body:**
+```json
+{
+  "items": [
+    { "product_id": "prod_xxx", "quantity": 1 }
+  ]
+}
+```
+
+**Update item quantity body:**
+```json
+{ "quantity": 2 }
+```
 
 **Address update body:**
 ```json
@@ -258,6 +362,8 @@ created_at, updated_at, deleted_at
 id                text PK
 type              text NOT NULL DEFAULT 'single'  CHECK (single|bundle)
 product_snapshot  jsonb NOT NULL
+quantity          integer NOT NULL DEFAULT 1
+item_price        integer NOT NULL DEFAULT 0      -- stored in cents
 custom_bundle_id  text NULL FK -> custom_bundle(id)
 created_at, updated_at, deleted_at
 ```
@@ -275,8 +381,9 @@ created_at, updated_at, deleted_at
 ### Link tables (auto-generated by Medusa)
 - `subscription_customer` — `subscription_id`, `customer_id`
 - `subscription_custom_bundle` — `subscription_id`, `custom_bundle_id`
-- `subscription_custom_item` — `subscription_id`, `custom_item_id`
+- `subscription_custom_item` — `subscription_id`, `custom_item_id` (isList — one subscription can have many standalone items)
 - `subscription_order` — `subscription_id`, `order_id`
+- `custom_item_product` — `custom_item_id`, `product_id` (linked to core `Product`)
 - `custom_item_product_variant` — `custom_item_id`, `product_variant_id`
 
 ## Payment Flow

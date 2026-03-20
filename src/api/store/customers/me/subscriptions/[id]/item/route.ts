@@ -31,8 +31,7 @@ export const POST = async (req: AuthenticatedMedusaRequest<AddSubscriptionItemSc
     const { result } = await addItemToSubscriptionWorkflow(req.scope).run({
       input: {
         subscription_id: id,
-        product_id: req.validatedBody.product_id,
-        quantity: req.validatedBody.quantity,
+        items: req.validatedBody.items,
       } as AddItemToSubscriptionWorkflowInput,
     });
 

@@ -69,19 +69,17 @@ export const detectSubscriptionItemsStep = createStep(
       const hasSubscriptionTag = item.metadata?.is_subscription;
 
       if (hasSubscriptionTag) {
-        // This is a subscription item
-        if (!subscriptionGroups.has(productId)) {
-          subscriptionGroups.set(productId, {
-            product_id: productId,
-            product_title: product.title,
-            variant_id: variantId,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            currency_code: order.currency_code,
-            frequency: (item.metadata?.frequency as string) ?? undefined,
-            item,
-          });
-        }
+        // One subscription per line item
+        subscriptionGroups.set(item.id, {
+          product_id: productId,
+          product_title: product.title,
+          variant_id: variantId,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          currency_code: order.currency_code,
+          frequency: (item.metadata?.frequency as string) ?? undefined,
+          item,
+        });
       } else {
         // Regular one-time item
         oneTimeItems.push(item);

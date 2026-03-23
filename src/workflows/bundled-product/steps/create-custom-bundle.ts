@@ -1,8 +1,9 @@
-import { ContainerRegistrationKeys, Modules, QueryContext } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, MedusaError, Modules, QueryContext } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
 import BundledProductModuleService from '../../../modules/bundled-product/service';
+import { findSubscriptionVariant } from '../../../utils/resolve-subscription-price';
 
 type Input = {
   currency_code: string;
@@ -21,11 +22,37 @@ export const createCustomBundleStep = createStep(
     } = await query.graph({
       entity: 'bundle',
       filters: { id: bundle_id },
-      fields: ['product.*', 'product.variants.*', 'product.variants.calculated_price.*'],
+      fields: [
+        'product.*',
+        'product.variants.*',
+        'product.variants.calculated_price.*',
+        'product.variants.options.*',
+        'product.variants.options.option.*',
+      ],
       context: { product: { variants: { calculated_price: QueryContext({ currency_code }) } } },
     });
 
-    const customBundle = await bundledProductModuleService.createCustomBundles({ bundle_id });
+    const variants = (bundle.product?.variants as any[]) ?? [];
+    const variant = findSubscriptionVariant(variants);
+
+    if (!variant) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, `Bundle ${bundle_id} has no variants.`);
+    }
+
+    const calculatedAmount = variant.calculated_price?.calculated_amount;
+    if (!calculatedAmount || calculatedAmount <= 0) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Bundle ${bundle_id} has no valid price for currency ${currency_code}.`,
+      );
+    }
+
+    const itemPrice = Math.round(calculatedAmount * 100);
+
+    const customBundle = await bundledProductModuleService.createCustomBundles({
+      bundle_id,
+      item_price: itemPrice,
+    });
 
     await remoteLink.create({
       [BUNDLED_PRODUCT_MODULE]: { custom_bundle_id: customBundle.id },

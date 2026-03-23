@@ -58,13 +58,12 @@ export const createCheckoutSubscriptionsStep = createStep(
 
     for (const subscription_item of subscription_items) {
       // skip_first_charge: true because checkout already charged the customer for the first period.
-      // Only attach the payment method on the first call (subsequent ones reuse the already-resolved customer).
       const { result } = await createSubscriptionWorkflow(container).run({
         input: {
           customer_id,
           bundle_product_id: subscription_item.product_id,
           stripe_customer_id: resolvedStripeCustomerId,
-          payment_method_id: resolvedStripeCustomerId ? undefined : payment_method_id,
+          payment_method_id,
           skip_first_charge: true,
           frequency: subscription_item.frequency,
           metadata: subscription_item.item.metadata,

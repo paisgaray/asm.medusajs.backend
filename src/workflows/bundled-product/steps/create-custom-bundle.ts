@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys, Modules, QueryContext } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys, MedusaError, Modules, QueryContext } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { BUNDLED_PRODUCT_MODULE } from '../../../modules/bundled-product';
@@ -34,7 +34,20 @@ export const createCustomBundleStep = createStep(
 
     const variants = (bundle.product?.variants as any[]) ?? [];
     const variant = findSubscriptionVariant(variants);
-    const itemPrice = Math.round((variant?.calculated_price?.calculated_amount ?? 0) * 100);
+
+    if (!variant) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, `Bundle ${bundle_id} has no variants.`);
+    }
+
+    const calculatedAmount = variant.calculated_price?.calculated_amount;
+    if (!calculatedAmount || calculatedAmount <= 0) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Bundle ${bundle_id} has no valid price for currency ${currency_code}.`,
+      );
+    }
+
+    const itemPrice = Math.round(calculatedAmount * 100);
 
     const customBundle = await bundledProductModuleService.createCustomBundles({
       bundle_id,

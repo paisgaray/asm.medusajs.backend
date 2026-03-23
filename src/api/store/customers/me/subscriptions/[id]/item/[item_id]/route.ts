@@ -7,7 +7,7 @@ import {
 } from '../../../../../../../../workflows/subscriptions/update-subscription-item-quantity';
 import type { UpdateSubscriptionItemSchema } from './validators';
 
-async function getOwnedSubscription(req: AuthenticatedMedusaRequest, subscriptionId: string) {
+async function getOwnedSubscription(req: AuthenticatedMedusaRequest, subscriptionId: string, itemId: string) {
   const query = req.scope.resolve('query');
   const customerId = req.auth_context?.actor_id;
 
@@ -17,11 +17,14 @@ async function getOwnedSubscription(req: AuthenticatedMedusaRequest, subscriptio
     data: [subscription],
   } = await query.graph({
     entity: 'subscription',
-    fields: ['id', 'customer.*'],
+    fields: ['id', 'customer.*', 'custom_items.id'],
     filters: { id: subscriptionId },
   });
 
   if (!subscription || subscription.customer?.id !== customerId) return null;
+
+  const itemBelongsToSubscription = (subscription.custom_items as any[])?.some((i) => i.id === itemId);
+  if (!itemBelongsToSubscription) return null;
 
   return subscription;
 }
@@ -29,7 +32,7 @@ async function getOwnedSubscription(req: AuthenticatedMedusaRequest, subscriptio
 export const PATCH = async (req: AuthenticatedMedusaRequest<UpdateSubscriptionItemSchema>, res: MedusaResponse) => {
   const { id, item_id } = req.params;
 
-  const subscription = await getOwnedSubscription(req, id);
+  const subscription = await getOwnedSubscription(req, id, item_id);
   if (!subscription) {
     return res.status(403).json({ message: 'Forbidden' });
   }
@@ -56,7 +59,7 @@ export const PATCH = async (req: AuthenticatedMedusaRequest<UpdateSubscriptionIt
 export const DELETE = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
   const { id, item_id } = req.params;
 
-  const subscription = await getOwnedSubscription(req, id);
+  const subscription = await getOwnedSubscription(req, id, item_id);
   if (!subscription) {
     return res.status(403).json({ message: 'Forbidden' });
   }

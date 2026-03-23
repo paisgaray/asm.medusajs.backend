@@ -1,7 +1,7 @@
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { findSubscriptionVariant } from '../../../utils/resolve-subscription-price';
+import { resolveSubscriptionPrice } from '../../../utils/resolve-subscription-price';
 
 type ValidateSubscriptionProductStepInput = {
   bundle_product_id: string;
@@ -40,14 +40,8 @@ export const validateSubscriptionProductStep = createStep(
     }
 
     // Get price from the subscription variant (or first variant as fallback)
-    const variant = findSubscriptionVariant((product.variants as any[]) ?? []);
-    if (!variant?.prices?.length) {
-      throw new Error(`Product ${input.bundle_product_id} has no prices configured`);
-    }
-
-    const price = variant.prices[0];
-    const subscriptionPrice = Math.round((price.amount ?? 0) * 100);
-    const currency = price.currency_code || 'eur';
+    const currency = 'eur';
+    const subscriptionPrice = resolveSubscriptionPrice((product.variants as any[]) ?? [], currency);
 
     return new StepResponse({
       bundle: product.bundle,

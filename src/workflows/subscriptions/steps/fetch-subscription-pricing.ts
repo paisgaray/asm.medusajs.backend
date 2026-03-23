@@ -30,17 +30,21 @@ export const fetchSubscriptionPricingStep = createStep(
     const subscription = await subscriptionService.retrieveSubscription(subscription_id);
     const currency = subscription.currency;
 
+    const productIds = items.map((item) => item.product_id);
+
+    const { data: products } = await query.graph({
+      entity: 'product',
+      filters: { id: productIds },
+      fields: ['id', 'variants.*', 'variants.prices.*', 'variants.options.*', 'variants.options.option.*'],
+    });
+
+    const productMap = new Map((products as any[]).map((p) => [p.id, p]));
+
     let addedPrice = 0;
     const itemPrices: number[] = [];
 
     for (const item of items) {
-      const {
-        data: [product],
-      } = await query.graph({
-        entity: 'product',
-        filters: { id: item.product_id },
-        fields: ['id', 'variants.*', 'variants.prices.*', 'variants.options.*', 'variants.options.option.*'],
-      });
+      const product = productMap.get(item.product_id);
 
       if (!product) {
         throw new Error(`Product ${item.product_id} not found`);

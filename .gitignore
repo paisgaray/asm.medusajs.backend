@@ -17,7 +17,7 @@ build
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-.medusa
+/.medusa
 *.log
 .env.local
 .env.*.local

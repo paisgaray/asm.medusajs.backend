@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "packages": {
+    "@asmtch/payment-global-payments": {
+      "signature": "3053745cd7ab41046d3de1111a29c154",
+      "file": true
+    },
+    "@asmtch/payments-api": {
+      "signature": "63d6f74550996bc78cd4b3a27eb2dac5",
+      "file": true
+    }
+  }
+}

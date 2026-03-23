@@ -1,0 +1,50 @@
+{
+  "name": "@asmtch/payment-global-payments",
+  "version": "0.1.0",
+  "description": "Plugin Global Payments Provider",
+  "author": "Asm Tech Growth",
+  "license": "MIT",
+  "main": "./.medusa/server/src/index.js",
+  "types": "./.medusa/server/src/index.d.ts",
+  "files": [
+    ".medusa/server"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./*": "./.medusa/server/src/*.js",
+    ".": {
+      "import": "./.medusa/server/src/index.js",
+      "require": "./.medusa/server/src/index.js",
+      "types": "./.medusa/server/src/index.d.ts"
+    },
+    "./providers/*": "./.medusa/server/src/providers/*/index.js"
+  },
+  "keywords": [
+    "medusa",
+    "plugin",
+    "medusa-plugin-other",
+    "medusa-plugin",
+    "medusa-v2"
+  ],
+  "scripts": {
+    "build": "medusa plugin:build",
+    "dev": "medusa plugin:develop",
+    "prepublishOnly": "medusa plugin:build"
+  },
+  "peerDependencies": {
+    "@medusajs/admin-sdk": "2.13.4",
+    "@medusajs/cli": "2.13.4",
+    "@medusajs/framework": "2.13.4",
+    "@medusajs/icons": "2.13.4",
+    "@medusajs/medusa": "2.13.4",
+    "@medusajs/test-utils": "2.13.4",
+    "@medusajs/ui": "4.0.31"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "globalpayments-api": "^3.10.9"
+  },
+  "yalcSig": "3053745cd7ab41046d3de1111a29c154"
+}

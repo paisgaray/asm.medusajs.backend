@@ -8,7 +8,7 @@ ENV PATH="$YARN_HOME:$PATH"
 WORKDIR /app
 
 FROM base AS prod-deps
-COPY package.json yarn.lock .
+COPY .yalc yalc.lock package.json yarn.lock .
 RUN --mount=type=cache,id=yarn,target=/yarn/store yarn install --prod
 
 FROM base AS build

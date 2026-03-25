@@ -13,4 +13,14 @@ export interface SubscriptionProviderAdapter {
     currency: string,
     frequency: string,
   ): Promise<void>;
+  updateFrequency(
+    providerSubscriptionId: string,
+    newFrequency: string,
+    newNextBillingDate: Date,
+  ): Promise<{ new_provider_subscription_id: string }>;
+  rollbackUpdateFrequency(
+    newProviderSubscriptionId: string,
+    previousFrequency: string,
+    previousNextBillingDate: Date,
+  ): Promise<{ new_provider_subscription_id: string }>;
 }

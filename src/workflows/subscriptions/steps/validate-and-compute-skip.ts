@@ -1,6 +1,6 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
+import { SUBSCRIPTION_MODULE, SubscriptionFrequency } from '../../../modules/subscriptions';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
 type ValidateAndComputeSkipStepInput = {
@@ -33,13 +33,13 @@ export const validateAndComputeSkipStep = createStep(
     const newDate = new Date(currentDate);
 
     switch (subscription.frequency) {
-      case 'weekly':
+      case SubscriptionFrequency.WEEKLY:
         newDate.setDate(newDate.getDate() + 7);
         break;
-      case 'biweekly':
+      case SubscriptionFrequency.BIWEEKLY:
         newDate.setDate(newDate.getDate() + 14);
         break;
-      case 'monthly':
+      case SubscriptionFrequency.MONTHLY:
       default:
         newDate.setMonth(newDate.getMonth() + 1);
         break;

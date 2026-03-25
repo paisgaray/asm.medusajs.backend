@@ -23,4 +23,14 @@ export interface SubscriptionProviderAdapter {
     previousFrequency: string,
     previousNextBillingDate: Date,
   ): Promise<{ new_provider_subscription_id: string }>;
+  updateDeliveryDate(
+    providerSubscriptionId: string,
+    frequency: string,
+    newNextBillingDate: Date,
+  ): Promise<{ new_provider_subscription_id: string }>;
+  rollbackUpdateDeliveryDate(
+    newProviderSubscriptionId: string,
+    frequency: string,
+    previousNextBillingDate: Date,
+  ): Promise<{ new_provider_subscription_id: string }>;
 }

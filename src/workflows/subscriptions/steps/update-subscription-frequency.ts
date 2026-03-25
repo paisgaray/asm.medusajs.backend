@@ -67,11 +67,14 @@ export const updateSubscriptionFrequencyStep = createStep(
       newNextBillingDate,
     );
 
+    const newDeliveryDate = new Date(newNextBillingDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
     await subscriptionService.updateSubscriptions({
       id: input.id,
       frequency: input.frequency,
       provider_subscription_id: new_provider_subscription_id,
       next_billing_date: newNextBillingDate,
+      delivery_date: newDeliveryDate,
     });
 
     const subscription = await subscriptionService.retrieveSubscription(input.id);
@@ -100,11 +103,15 @@ export const updateSubscriptionFrequencyStep = createStep(
         new Date(data.previous_next_billing_date),
       );
 
+      const previousNextBillingDate = new Date(data.previous_next_billing_date);
+      const previousDeliveryDate = new Date(previousNextBillingDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
       await subscriptionService.updateSubscriptions({
         id: data.id,
         frequency: data.previous_frequency,
         provider_subscription_id: restored_id,
-        next_billing_date: new Date(data.previous_next_billing_date),
+        next_billing_date: previousNextBillingDate,
+        delivery_date: previousDeliveryDate,
       });
     } catch (error: any) {
       container.resolve('logger').error(`Failed to rollback frequency update: ${error.message}`);

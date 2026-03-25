@@ -140,4 +140,22 @@ export class StripeSubscriptionAdapter implements SubscriptionProviderAdapter {
     );
     return { new_provider_subscription_id: newSubId };
   }
+
+  async updateDeliveryDate(
+    providerSubscriptionId: string,
+    frequency: string,
+    newNextBillingDate: Date,
+  ): Promise<{ new_provider_subscription_id: string }> {
+    const newSubId = await this.recreateSubscription(providerSubscriptionId, frequency, newNextBillingDate);
+    return { new_provider_subscription_id: newSubId };
+  }
+
+  async rollbackUpdateDeliveryDate(
+    newProviderSubscriptionId: string,
+    frequency: string,
+    previousNextBillingDate: Date,
+  ): Promise<{ new_provider_subscription_id: string }> {
+    const newSubId = await this.recreateSubscription(newProviderSubscriptionId, frequency, previousNextBillingDate);
+    return { new_provider_subscription_id: newSubId };
+  }
 }

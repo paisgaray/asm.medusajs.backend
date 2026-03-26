@@ -158,4 +158,26 @@ export class StripeSubscriptionAdapter implements SubscriptionProviderAdapter {
     const newSubId = await this.recreateSubscription(newProviderSubscriptionId, frequency, previousNextBillingDate);
     return { new_provider_subscription_id: newSubId };
   }
+
+  async changeSubscriptionPaymentMethod(providerSubscriptionId: string, paymentMethodId: string): Promise<void> {
+    await this.stripe.subscriptions.update(providerSubscriptionId, {
+      default_payment_method: paymentMethodId,
+    });
+  }
+
+  async detachPaymentMethod(paymentMethodId: string): Promise<void> {
+    await this.stripe.paymentMethods.detach(paymentMethodId);
+  }
+
+  async updatePaymentMethod(
+    paymentMethodId: string,
+    params: { billing_details?: Record<string, unknown>; metadata?: Record<string, unknown> },
+  ): Promise<void> {
+    await this.stripe.paymentMethods.update(paymentMethodId, {
+      ...(params.billing_details && {
+        billing_details: params.billing_details as Stripe.PaymentMethodUpdateParams['billing_details'],
+      }),
+      ...(params.metadata && { metadata: params.metadata as Stripe.Emptyable<Stripe.MetadataParam> }),
+    });
+  }
 }

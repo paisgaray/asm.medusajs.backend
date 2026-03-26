@@ -1,3 +1,4 @@
+import { IPaymentModuleService } from '@medusajs/framework/types';
 import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
@@ -79,77 +80,68 @@ export const ensureAccountHolderStep = createStep(
       }
     }
 
-    const paymentModuleService = container.resolve('payment');
+    const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);
 
-    if (!paymentModuleService?.createAccountHolder) {
-      throw new Error('Payment provider does not support creating account holders');
+    const accountHolderData = await paymentModuleService.createAccountHolder({
+      provider_id: input.provider_id,
+      context: {
+        customer: {
+          id: input.customer_id,
+          email: customer.email,
+        },
+      },
+    });
+
+    if (!accountHolderData?.id) {
+      throw new Error('Failed to create account holder');
     }
 
-    try {
-      const accountHolderData = await paymentModuleService.createAccountHolder({
-        provider_id: input.provider_id,
-        context: {
-          customer: {
-            id: input.customer_id,
-            email: customer.email,
-          },
+    await link.create([
+      {
+        [Modules.CUSTOMER]: { customer_id: input.customer_id },
+        [Modules.PAYMENT]: {
+          account_holder_id: accountHolderData.id,
         },
-      });
+      },
+    ]);
 
-      if (!accountHolderData?.id) {
-        throw new Error('Failed to create account holder');
-      }
-
-      await link.create([
-        {
-          [Modules.CUSTOMER]: { customer_id: input.customer_id },
-          [Modules.PAYMENT]: {
-            account_holder_id: accountHolderData.id,
-          },
-        },
-      ]);
-
-      const { data: createdAccountHolders } = await query.graph(
-        {
-          entity: 'account_holder',
-          fields: ['id', 'provider_id', 'data'],
-          filters: {
-            id: accountHolderData.id,
-          },
-        },
-        {
-          throwIfKeyNotFound: false,
-        },
-      );
-
-      if (createdAccountHolders && createdAccountHolders.length > 0) {
-        const created = createdAccountHolders[0] as {
-          id: string;
-          provider_id: string;
-          data: {
-            id?: string;
-          };
-        };
-
-        return new StepResponse({
-          id: created.id,
-          provider_id: created.provider_id || input.provider_id,
-          data: {
-            id: created.data?.id || accountHolderData.id,
-          },
-        } as AccountHolderData);
-      }
-
-      return new StepResponse({
-        id: accountHolderData.id,
-        provider_id: input.provider_id,
-        data: {
+    const { data: createdAccountHolders } = await query.graph(
+      {
+        entity: 'account_holder',
+        fields: ['id', 'provider_id', 'data'],
+        filters: {
           id: accountHolderData.id,
         },
+      },
+      {
+        throwIfKeyNotFound: false,
+      },
+    );
+
+    if (createdAccountHolders && createdAccountHolders.length > 0) {
+      const created = createdAccountHolders[0] as {
+        id: string;
+        provider_id: string;
+        data: {
+          id?: string;
+        };
+      };
+
+      return new StepResponse({
+        id: created.id,
+        provider_id: created.provider_id || input.provider_id,
+        data: {
+          id: created.data?.id || accountHolderData.id,
+        },
       } as AccountHolderData);
-    } catch (createError) {
-      const errorMessage = createError instanceof Error ? createError.message : 'Unknown error';
-      throw new Error(`Account holder creation failed: ${errorMessage}`);
     }
+
+    return new StepResponse({
+      id: accountHolderData.id,
+      provider_id: input.provider_id,
+      data: {
+        id: accountHolderData.id,
+      },
+    } as AccountHolderData);
   },
 );

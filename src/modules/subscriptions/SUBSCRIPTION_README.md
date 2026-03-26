@@ -219,6 +219,40 @@ Skips the next billing cycle by voiding the upcoming invoice and advancing `next
 
 **Stripe implementation:** Uses `pause_collection` with `behavior: 'void'` and `resumes_at` set to the new billing date ([Stripe docs](https://docs.stripe.com/billing/subscriptions/pause-payment)). The next invoice is voided, subscription stays `active`, and collection auto-resumes.
 
+#### `update-subscription-payment-method`
+Replaces the payment method used to charge an existing subscription. Can optionally set the new card as the Stripe customer-level default (affecting all subscriptions), or apply it only to this specific subscription.
+
+1. `updateSubscriptionPaymentMethodStep`:
+   - Loads the existing subscription to get `provider_customer_id`, `provider_subscription_id`, `provider`, and the previous card fields.
+   - Calls `stripe.paymentMethods.retrieve()` to verify the PM exists and extract card details server-side (last4, brand, exp_month, exp_year — **never trusted from the frontend**).
+   - Attaches the PM to the Stripe customer if not already attached (same guard as `attachPaymentMethodStep` in `create-subscription`).
+   - **If `set_as_default: true`**: calls `stripe.customers.update({ invoice_settings: { default_payment_method } })` — sets the customer-level default (affects all subscriptions).
+   - **Always**: calls `adapter.changeSubscriptionPaymentMethod(provider_subscription_id, payment_method_id)` — sets the subscription-level default (this subscription only).
+   - Persists `provider_payment_method_id`, `payment_last4`, `payment_brand`, `payment_exp_month`, `payment_exp_year` on the subscription record.
+   - Compensation: reverts subscription-level default to the old PM; if `set_as_default` was true, also reverts customer-level default; restores previous card fields in DB.
+
+**Input:**
+```typescript
+{
+  id: string;              // subscription ID
+  payment_method_id: string; // Stripe pm_xxx from stripe.createPaymentMethod() on the frontend
+  set_as_default: boolean;   // true → also sets customer-level default; false (default) → this sub only
+}
+```
+
+**Frontend flow:**
+```js
+// 1. Collect card with Stripe.js
+const { paymentMethod } = await stripe.createPaymentMethod({ type: 'card', card: cardElement });
+// 2. Send to backend
+await fetch(`/store/customers/me/subscriptions/${id}/payment-method`, {
+  method: 'POST',
+  body: JSON.stringify({ payment_method_id: paymentMethod.id, set_as_default: false }),
+});
+```
+
+> **Note on `set_as_default`:** When `false`, only the Stripe subscription's `default_payment_method` is updated; the customer's invoice settings are untouched. This is useful when a customer wants to use a different card for a single subscription without affecting the rest.
+
 ### Shared Steps (`src/workflows/subscriptions/steps/`)
 
 #### `fetch-subscription-pricing`
@@ -242,6 +276,9 @@ Provider-agnostic step that delegates to the correct adapter to update the recur
 
 #### `update-subscription-price-record`
 Persists the new `subscription_price` (in cents) on the subscription record in the DB. Compensation restores the previous value.
+
+#### `update-subscription-payment-method`
+Used by `update-subscription-payment-method` workflow. Handles the full lifecycle of swapping a subscription's payment method: Stripe attach, customer/subscription-level defaulting, DB persistence, and compensation rollback. See workflow entry above for full details.
 
 ### Utility (`src/utils/resolve-subscription-price.ts`)
 
@@ -278,6 +315,7 @@ All store routes require customer authentication via `authenticate('customer', [
 | PATCH | `/store/customers/me/subscriptions/:id/item/:item_id` | Update item quantity — adjusts Stripe price by signed delta (validated with zod) |
 | DELETE | `/store/customers/me/subscriptions/:id/item/:item_id` | Remove item from subscription — dismisses links, deletes entity, reduces price |
 | POST | `/store/customers/me/subscriptions/:id/bundle/:bundleId/item/:bundleItemId` | Update a custom bundle item — swap product via override (validated with zod) |
+| POST | `/store/customers/me/subscriptions/:id/payment-method` | Update the payment method for this subscription (`payment_method_id`, `set_as_default`) |
 
 **Add item body:**
 ```json
@@ -438,6 +476,7 @@ Customers can manage subscriptions via the store API:
 - **Change frequency**: Cancels and recreates Stripe subscription anchored to a new billing date computed from business rules; updates local record
 - **Skip next payment**: Voids upcoming invoice via provider adapter; advances `next_billing_date` by one interval
 - **Swap bundle items**: Creates `CustomItemOverride` with `expire_date = next_billing_date`
+- **Update payment method**: Attaches a new Stripe PM to the customer, sets it as the subscription-level default (and optionally the customer-level default), and refreshes cached card fields on the subscription record
 
 ## Setup Instructions
 
@@ -473,6 +512,7 @@ All workflow steps have compensation handlers where applicable:
 - `createSubscriptionAddressStep` → deletes address record
 - `createSubscriptionCustomerLinkStep` → dismisses link
 - `createSubscriptionBundleLinkStep` → dismisses link
+- `updateSubscriptionPaymentMethodStep` → reverts subscription-level (and optionally customer-level) Stripe default to the previous PM; restores previous card fields in DB
 
 The `orderPlacedHandler` subscriber catches errors so subscription failures don't block order completion.
 
@@ -500,6 +540,7 @@ export interface SubscriptionProviderAdapter {
   rollbackUpdateFrequency(newProviderSubscriptionId: string, previousFrequency: string, previousNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
   updateDeliveryDate(providerSubscriptionId: string, frequency: string, newNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
   rollbackUpdateDeliveryDate(newProviderSubscriptionId: string, frequency: string, previousNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
+  changeSubscriptionPaymentMethod(providerSubscriptionId: string, paymentMethodId: string): Promise<void>;
 }
 ```
 

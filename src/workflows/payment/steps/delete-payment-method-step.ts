@@ -1,6 +1,8 @@
 import { ContainerRegistrationKeys, MedusaError } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
+
 export type DeletePaymentMethodStepInput = {
   payment_method_id: string;
   account_holder_id: string;
@@ -10,23 +12,6 @@ export const deletePaymentMethodStep = createStep(
   'delete-payment-method-step',
   async (input: DeletePaymentMethodStepInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
-    const paymentModuleService = container.resolve('payment') as {
-      deletePaymentMethod?: (params: {
-        provider_id: string;
-        payment_method_id: string;
-        context: {
-          account_holder: {
-            data: {
-              id: string;
-            };
-          };
-        };
-      }) => Promise<void>;
-    };
-
-    if (!paymentModuleService || !paymentModuleService.deletePaymentMethod) {
-      throw new Error('Payment provider does not support deleting payment methods');
-    }
 
     const { data: accountHolders } = await query.graph({
       entity: 'account_holder',
@@ -43,22 +28,11 @@ export const deletePaymentMethodStep = createStep(
     const accountHolder = accountHolders[0] as {
       id: string;
       provider_id: string;
-      data: {
-        id?: string;
-      };
+      data: { id?: string };
     };
 
-    await paymentModuleService.deletePaymentMethod({
-      provider_id: accountHolder.provider_id,
-      payment_method_id: input.payment_method_id,
-      context: {
-        account_holder: {
-          data: {
-            id: accountHolder.data.id,
-          },
-        },
-      },
-    });
+    const adapter = getProviderAdapter(accountHolder.provider_id);
+    await adapter.detachPaymentMethod(input.payment_method_id);
 
     return new StepResponse({ success: true });
   },

@@ -1,10 +1,11 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SubscriptionFrequency } from '../../modules/subscriptions';
 import { updateSubscriptionFrequencyStep } from './steps/update-subscription-frequency';
 
 export type ChangeFrequencySubscriptionWorkflowInput = {
   id: string;
-  frequency: 'weekly' | 'biweekly' | 'monthly';
+  frequency: SubscriptionFrequency;
 };
 
 export const changeFrequencySubscriptionWorkflow = createWorkflow(

@@ -149,6 +149,16 @@ modules.push(
             // },
           },
         },
+        {
+          resolve: '@asmtch/payment-global-payments',
+          id: 'global-payments',
+          options: {
+            appKey: process.env.GLOBAL_PAYMENTS_APP_KEY,
+            environment: process.env.GLOBAL_PAYMENTS_ENV,
+            appId: process.env.GLOBAL_PAYMENTS_APP_ID,
+            merchantId: process.env.GLOBAL_PAYMENTS_MERCHANT_ID,
+          },
+        },
       ],
     },
   },
@@ -249,6 +259,19 @@ export default defineConfig({
     disable: process.env.DISABLE_MEDUSA_ADMIN === 'true',
   },
   modules,
+  plugins: [
+    {
+      resolve: '@asmtch/payments-api',
+      options: {
+        globalpayments: {
+          appKey: process.env.GLOBAL_PAYMENTS_APP_KEY,
+          environment: process.env.GLOBAL_PAYMENTS_ENV,
+          appId: process.env.GLOBAL_PAYMENTS_APP_ID,
+          merchantId: process.env.GLOBAL_PAYMENTS_MERCHANT_ID,
+        },
+      },
+    },
+  ],
   featureFlags: {
     translation: true,
   },

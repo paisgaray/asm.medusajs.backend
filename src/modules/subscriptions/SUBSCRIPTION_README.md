@@ -56,9 +56,23 @@ Module key: `subscriptions` (exported as `SUBSCRIPTION_MODULE`).
 ```typescript
 enum SubscriptionStatus { ACTIVE, PAUSED, CANCELLED, PAST_DUE, INCOMPLETE }
 enum SubscriptionProvider { STRIPE }
-enum SubscriptionFrequency { WEEKLY, BIWEEKLY, MONTHLY }
+enum SubscriptionFrequency { WEEKLY = 'weekly', BIWEEKLY = 'biweekly', MONTHLY = 'monthly' }
 enum SubscriptionPeriod { MORNING, AFTERNOON, EVENING }
+
+interface UpdateSubscriptionInput {
+  status?: SubscriptionStatus;
+  frequency?: string;
+  provider_subscription_id?: string; // updated on cancel+recreate
+  period?: string;
+  delivery_date?: Date;
+  current_period_start?: Date;
+  current_period_end?: Date;
+  next_billing_date?: Date;
+  metadata?: Record<string, unknown>;
+}
 ```
+
+> **Billing date invariant:** `delivery_date = next_billing_date + 7 days`. Stripe charges 7 days before the scheduled delivery. Both fields are always kept in sync.
 
 #### 2. Bundle Product Module (`src/modules/bundled-product/`)
 
@@ -130,12 +144,21 @@ Triggered from order-placed subscriber. Orchestrates subscription detection and 
 2. `updateSubscriptionStatusStep` — sets status to `active`.
 
 #### `change-address-subscription`
-1. `updateSubscriptionProgramationStep` — updates `delivery_date` and `period` on subscription.
+Updates delivery schedule (`delivery_date`, `period`) and/or shipping address. If `delivery_date` is provided it must be at least 7 days from now (validated at the route layer via zod). All fields are optional — only the provided fields are updated.
+1. `updateSubscriptionProgramationStep` — if `delivery_date` is set, computes `next_billing_date = delivery_date − 7 days`, recreates the Stripe subscription with the new billing anchor (cancel + create), and persists `delivery_date`, `next_billing_date`, and `provider_subscription_id`. If only `period` is provided, updates the local record only. Compensation recreates the previous Stripe subscription and restores all DB fields.
 2. `updateSubscriptionAddressStep` — updates the linked `subscription_address` record.
 
 #### `change-frequency-subscription`
-1. `updateSubscriptionFrequencyStep` — updates `frequency` on subscription record.
-   > **TODO:** Add Stripe frequency update logic (currently local-only).
+Changes the billing frequency. Computes the new `next_billing_date` from business rules, then recreates the Stripe subscription with the new interval anchored to that date. Also updates `delivery_date = next_billing_date + 7 days`.
+1. `updateSubscriptionFrequencyStep`:
+   - **Billing date rules** (all frequency transitions):
+     - `candidate = current_period_start + new_interval_days`
+     - if `candidate > now` → `new_next_billing_date = candidate`
+     - else → `new_next_billing_date = current_period_end` (existing `next_billing_date`)
+   - If new frequency matches the current Stripe interval → no-op in Stripe (returns existing subscription ID).
+   - Otherwise: cancels old Stripe subscription, creates new one with `billing_cycle_anchor = new_next_billing_date` and `proration_behavior: 'none'`.
+   - Updates DB: `frequency`, `provider_subscription_id`, `next_billing_date`, `delivery_date`.
+   - Compensation recreates the previous Stripe subscription and restores all DB fields.
 
 #### `add-item-to-subscription`
 Adds one or more standalone custom items to an existing subscription and updates the Stripe subscription price to reflect the new total.
@@ -196,6 +219,40 @@ Skips the next billing cycle by voiding the upcoming invoice and advancing `next
 
 **Stripe implementation:** Uses `pause_collection` with `behavior: 'void'` and `resumes_at` set to the new billing date ([Stripe docs](https://docs.stripe.com/billing/subscriptions/pause-payment)). The next invoice is voided, subscription stays `active`, and collection auto-resumes.
 
+#### `update-subscription-payment-method`
+Replaces the payment method used to charge an existing subscription. Can optionally set the new card as the Stripe customer-level default (affecting all subscriptions), or apply it only to this specific subscription.
+
+1. `updateSubscriptionPaymentMethodStep`:
+   - Loads the existing subscription to get `provider_customer_id`, `provider_subscription_id`, `provider`, and the previous card fields.
+   - Calls `stripe.paymentMethods.retrieve()` to verify the PM exists and extract card details server-side (last4, brand, exp_month, exp_year — **never trusted from the frontend**).
+   - Attaches the PM to the Stripe customer if not already attached (same guard as `attachPaymentMethodStep` in `create-subscription`).
+   - **If `set_as_default: true`**: calls `stripe.customers.update({ invoice_settings: { default_payment_method } })` — sets the customer-level default (affects all subscriptions).
+   - **Always**: calls `adapter.changeSubscriptionPaymentMethod(provider_subscription_id, payment_method_id)` — sets the subscription-level default (this subscription only).
+   - Persists `provider_payment_method_id`, `payment_last4`, `payment_brand`, `payment_exp_month`, `payment_exp_year` on the subscription record.
+   - Compensation: reverts subscription-level default to the old PM; if `set_as_default` was true, also reverts customer-level default; restores previous card fields in DB.
+
+**Input:**
+```typescript
+{
+  id: string;              // subscription ID
+  payment_method_id: string; // Stripe pm_xxx from stripe.createPaymentMethod() on the frontend
+  set_as_default: boolean;   // true → also sets customer-level default; false (default) → this sub only
+}
+```
+
+**Frontend flow:**
+```js
+// 1. Collect card with Stripe.js
+const { paymentMethod } = await stripe.createPaymentMethod({ type: 'card', card: cardElement });
+// 2. Send to backend
+await fetch(`/store/customers/me/subscriptions/${id}/payment-method`, {
+  method: 'POST',
+  body: JSON.stringify({ payment_method_id: paymentMethod.id, set_as_default: false }),
+});
+```
+
+> **Note on `set_as_default`:** When `false`, only the Stripe subscription's `default_payment_method` is updated; the customer's invoice settings are untouched. This is useful when a customer wants to use a different card for a single subscription without affecting the rest.
+
 ### Shared Steps (`src/workflows/subscriptions/steps/`)
 
 #### `fetch-subscription-pricing`
@@ -219,6 +276,9 @@ Provider-agnostic step that delegates to the correct adapter to update the recur
 
 #### `update-subscription-price-record`
 Persists the new `subscription_price` (in cents) on the subscription record in the DB. Compensation restores the previous value.
+
+#### `update-subscription-payment-method`
+Used by `update-subscription-payment-method` workflow. Handles the full lifecycle of swapping a subscription's payment method: Stripe attach, customer/subscription-level defaulting, DB persistence, and compensation rollback. See workflow entry above for full details.
 
 ### Utility (`src/utils/resolve-subscription-price.ts`)
 
@@ -255,6 +315,7 @@ All store routes require customer authentication via `authenticate('customer', [
 | PATCH | `/store/customers/me/subscriptions/:id/item/:item_id` | Update item quantity — adjusts Stripe price by signed delta (validated with zod) |
 | DELETE | `/store/customers/me/subscriptions/:id/item/:item_id` | Remove item from subscription — dismisses links, deletes entity, reduces price |
 | POST | `/store/customers/me/subscriptions/:id/bundle/:bundleId/item/:bundleItemId` | Update a custom bundle item — swap product via override (validated with zod) |
+| POST | `/store/customers/me/subscriptions/:id/payment-method` | Update the payment method for this subscription (`payment_method_id`, `set_as_default`) |
 
 **Add item body:**
 ```json
@@ -411,10 +472,11 @@ Customers can manage subscriptions via the store API:
 - **Pause**: Stripe `pause_collection` with `behavior: 'void'`
 - **Resume**: Clears `pause_collection`
 - **Cancel**: Immediate Stripe cancellation
-- **Change address/schedule**: Updates local `subscription_address` and delivery date/period
-- **Change frequency**: Updates local record (TODO: sync to Stripe)
+- **Change address/schedule**: Updates delivery date/period (syncs to Stripe via cancel+recreate if `delivery_date` changes; `next_billing_date = delivery_date − 7 days`) and shipping address
+- **Change frequency**: Cancels and recreates Stripe subscription anchored to a new billing date computed from business rules; updates local record
 - **Skip next payment**: Voids upcoming invoice via provider adapter; advances `next_billing_date` by one interval
 - **Swap bundle items**: Creates `CustomItemOverride` with `expire_date = next_billing_date`
+- **Update payment method**: Attaches a new Stripe PM to the customer, sets it as the subscription-level default (and optionally the customer-level default), and refreshes cached card fields on the subscription record
 
 ## Setup Instructions
 
@@ -450,6 +512,7 @@ All workflow steps have compensation handlers where applicable:
 - `createSubscriptionAddressStep` → deletes address record
 - `createSubscriptionCustomerLinkStep` → dismisses link
 - `createSubscriptionBundleLinkStep` → dismisses link
+- `updateSubscriptionPaymentMethodStep` → reverts subscription-level (and optionally customer-level) Stripe default to the previous PM; restores previous card fields in DB
 
 The `orderPlacedHandler` subscriber catches errors so subscription failures don't block order completion.
 
@@ -471,11 +534,22 @@ The `skip-subscription` workflow uses an adapter pattern for provider-agnostic p
 export interface SubscriptionProviderAdapter {
   skipNextPayment(providerSubscriptionId: string, resumesAt: Date): Promise<void>;
   rollbackSkip(providerSubscriptionId: string): Promise<void>;
+  updatePrice(providerSubscriptionId: string, newAmountInCents: number, currency: string, frequency: string): Promise<void>;
+  rollbackUpdatePrice(providerSubscriptionId: string, previousAmountInCents: number, currency: string, frequency: string): Promise<void>;
+  updateFrequency(providerSubscriptionId: string, newFrequency: string, newNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
+  rollbackUpdateFrequency(newProviderSubscriptionId: string, previousFrequency: string, previousNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
+  updateDeliveryDate(providerSubscriptionId: string, frequency: string, newNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
+  rollbackUpdateDeliveryDate(newProviderSubscriptionId: string, frequency: string, previousNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
+  changeSubscriptionPaymentMethod(providerSubscriptionId: string, paymentMethodId: string): Promise<void>;
 }
 ```
 
 **Implementations:**
-- `StripeSubscriptionAdapter` (`adapters/stripe-adapter.ts`) — uses `pause_collection` with `behavior: 'void'` + `resumes_at`
+- `StripeSubscriptionAdapter` (`adapters/stripe-adapter.ts`):
+  - `skipNextPayment` — uses `pause_collection` with `behavior: 'void'` + `resumes_at`
+  - `updatePrice` — updates Stripe subscription `price_data` in-place (`proration_behavior: 'none'`)
+  - `updateFrequency` / `updateDeliveryDate` — **cancel + recreate** pattern: cancels the existing subscription and creates a new one with `billing_cycle_anchor` set to the computed date and `proration_behavior: 'none'`. Same-interval check skips recreate when frequency is unchanged.
+  - All `rollback*` methods reverse the operation by recreating the previous state
 
 **Registry** (`adapters/index.ts`):
 ```typescript
@@ -487,6 +561,8 @@ Looks up the provider in a registry map and returns the adapter instance. Throws
 1. Create `adapters/new-provider-adapter.ts` implementing `SubscriptionProviderAdapter`
 2. Register in `adapters/index.ts`: `newProvider: () => new NewProviderAdapter()`
 3. No workflow or step changes needed.
+
+The **cancel + recreate** strategy used by `updateFrequency` and `updateDeliveryDate` is necessary because Stripe does not support changing the billing interval anchor on an existing subscription. Cancelling the old subscription and creating a new one with a precise `billing_cycle_anchor` (Unix timestamp) is the only way to guarantee exact billing dates.
 
 Other workflows (pause, resume, cancel) still call Stripe-specific steps directly. These can be migrated to the adapter pattern as needed.
 
@@ -537,7 +613,6 @@ Other workflows (pause, resume, cancel) still call Stripe-specific steps directl
 - [ ] Test with invalid bundle ID
 
 ## Known TODOs
-- [ ] Sync frequency changes to Stripe (currently local-only — see `update-subscription-frequency.ts`)
 - [ ] Webhook handlers for `invoice.payment_succeeded` (auto-create recurring orders), `invoice.payment_failed`, `customer.subscription.deleted`, `customer.subscription.updated`
 - [ ] Subscription modifications (mid-cycle bundle content changes with proration)
 - [ ] Multiple payment methods (let users change payment method)

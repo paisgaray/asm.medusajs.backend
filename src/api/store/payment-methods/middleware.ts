@@ -1,4 +1,4 @@
-import { validateAndTransformBody, validateAndTransformQuery } from '@medusajs/framework';
+import { validateAndTransformBody } from '@medusajs/framework';
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { ContainerRegistrationKeys, MedusaError, Modules } from '@medusajs/framework/utils';
 import { MiddlewareRoute } from '@medusajs/medusa';
@@ -6,14 +6,8 @@ import { MiddlewareRoute } from '@medusajs/medusa';
 import {
   StoreCreatePaymentMethodBodySchema,
   StoreDeletePaymentMethodBodySchema,
-  StorePaymentMethodsListQuerySchema,
   StoreUpdatePaymentMethodBodySchema,
 } from './validators';
-
-const paymentMethodsListQueryConfig = {
-  defaults: ['customer_id'],
-  isList: false,
-};
 
 async function ensurePaymentMethodOwnership(req: MedusaRequest, _res: MedusaResponse, next: () => void): Promise<void> {
   const link = req.scope.resolve(ContainerRegistrationKeys.LINK);
@@ -43,11 +37,11 @@ async function ensurePaymentMethodOwnership(req: MedusaRequest, _res: MedusaResp
 }
 
 export const paymentMethodsMiddlewares: MiddlewareRoute[] = [
-  {
-    matcher: '/store/customers/me/payment-methods',
-    methods: ['GET'],
-    middlewares: [validateAndTransformQuery(StorePaymentMethodsListQuerySchema, paymentMethodsListQueryConfig)],
-  },
+  // {
+  //   matcher: '/store/customers/me/payment-methods',
+  //   methods: ['GET'],
+  //   middlewares: [validateAndTransformQuery(StorePaymentMethodsListQuerySchema, paymentMethodsListQueryConfig)],
+  // },
   {
     matcher: '/store/customers/me/payment-methods',
     methods: ['POST'],

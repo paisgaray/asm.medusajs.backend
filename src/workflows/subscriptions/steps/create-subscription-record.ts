@@ -11,8 +11,8 @@ type CreateSubscriptionRecordStepInput = {
   bundle_product_id: string;
   subscription_price: number;
   currency: string;
-  stripe_subscription_id: string;
-  stripe_customer_id: string;
+  provider_subscription_id: string;
+  provider_customer_id: string;
   status: string;
   current_period_start?: Date;
   next_billing_date?: Date;
@@ -37,8 +37,8 @@ export const createSubscriptionRecordStep = createStep(
 
     const subscription = await subscriptionService.createSubscriptions({
       provider_id: input.payment_provider_id,
-      provider_subscription_id: input.stripe_subscription_id,
-      provider_customer_id: input.stripe_customer_id,
+      provider_subscription_id: input.provider_subscription_id,
+      provider_customer_id: input.provider_customer_id,
       subscription_price: input.subscription_price,
       currency: input.currency,
       status: input.status as SubscriptionStatus,

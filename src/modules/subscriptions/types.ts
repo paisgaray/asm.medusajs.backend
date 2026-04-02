@@ -40,6 +40,10 @@ export interface CreateSubscriptionInput {
 
 export interface UpdateSubscriptionInput {
   status?: SubscriptionStatus;
+  frequency?: string;
+  provider_subscription_id?: string;
+  period?: string;
+  delivery_date?: Date;
   current_period_start?: Date;
   current_period_end?: Date;
   next_billing_date?: Date;

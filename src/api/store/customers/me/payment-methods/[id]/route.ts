@@ -1,7 +1,10 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { deletePaymentMethodWorkflow, updatePaymentMethodWorkflow } from '../../../../workflows/payment';
-import type { StoreDeletePaymentMethodBody, StoreUpdatePaymentMethodBody } from '../validators';
+import { deletePaymentMethodWorkflow, updatePaymentMethodWorkflow } from '../../../../../../workflows/payment';
+import type {
+  StoreDeletePaymentMethodBody,
+  StoreUpdatePaymentMethodBody,
+} from '../../../../payment-methods/validators';
 
 export async function DELETE(req: MedusaRequest<StoreDeletePaymentMethodBody>, res: MedusaResponse): Promise<void> {
   const body = req.validatedBody as StoreDeletePaymentMethodBody;

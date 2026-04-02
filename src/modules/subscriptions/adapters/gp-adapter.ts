@@ -137,7 +137,7 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
 
   async attachPaymentMethod(
     payment_method_id: string,
-    payment_customer_id: string,
+    _: string,
   ): Promise<{
     payment_method_id: string;
     paymentMethod: { brand: string; last4: string; exp_month: number; exp_year: number };
@@ -153,8 +153,6 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
         'X-GP-Version': '2021-03-22',
       },
     });
-
-    console.log({ DATA: data });
 
     return {
       payment_method_id,

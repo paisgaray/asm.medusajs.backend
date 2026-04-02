@@ -4,6 +4,7 @@ import { MedusaService } from '@medusajs/framework/utils';
 import { formatPrice } from '../../utils/resolve-subscription-price';
 import { Subscription } from './models/subscription';
 import { SubscriptionAddress } from './models/subscriptionAddress';
+import { SubscriptionInvoice } from './models/subscriptionInvoice';
 
 export const SUBSCRIPTION_FIELDS = [
   'id',
@@ -38,6 +39,7 @@ export const SUBSCRIPTION_FIELDS = [
 export default class SubscriptionModuleService extends MedusaService({
   Subscription,
   SubscriptionAddress,
+  SubscriptionInvoice,
 }) {
   /**
    * Resolve product data for all custom_items within subscriptions

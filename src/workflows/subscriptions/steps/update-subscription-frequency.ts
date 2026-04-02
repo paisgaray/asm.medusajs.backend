@@ -1,7 +1,8 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE, SubscriptionFrequency } from '../../../modules/subscriptions';
+import { SUBSCRIPTION_MODULE, SubscriptionFrequency, SubscriptionProvider } from '../../../modules/subscriptions';
 import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
+import { INTERVAL_DAYS } from '../../../modules/subscriptions/constants/interval-days';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
 type UpdateSubscriptionFrequencyStepInput = {
@@ -13,14 +14,8 @@ type CompensationData = {
   id: string;
   previous_frequency: SubscriptionFrequency;
   previous_next_billing_date: string;
-  provider: string;
+  providerId: SubscriptionProvider;
   new_provider_subscription_id: string;
-};
-
-const INTERVAL_DAYS: Record<SubscriptionFrequency, number> = {
-  [SubscriptionFrequency.WEEKLY]: 7,
-  [SubscriptionFrequency.BIWEEKLY]: 14,
-  [SubscriptionFrequency.MONTHLY]: 30,
 };
 
 /**
@@ -53,14 +48,14 @@ export const updateSubscriptionFrequencyStep = createStep(
 
     const existing = await subscriptionService.retrieveSubscription(input.id);
     const previousFrequency = existing.frequency as SubscriptionFrequency;
-    const provider = existing.provider;
+    const providerId = existing.provider_id;
     const providerSubscriptionId = existing.provider_subscription_id;
     const currentPeriodStart = new Date(existing.current_period_start!);
     const currentPeriodEnd = new Date(existing.next_billing_date!);
 
     const newNextBillingDate = computeNewNextBillingDate(currentPeriodStart, currentPeriodEnd, input.frequency);
 
-    const adapter = getProviderAdapter(provider);
+    const adapter = getProviderAdapter(providerId);
     const { new_provider_subscription_id } = await adapter.updateFrequency(
       providerSubscriptionId,
       input.frequency,
@@ -79,16 +74,13 @@ export const updateSubscriptionFrequencyStep = createStep(
 
     const subscription = await subscriptionService.retrieveSubscription(input.id);
 
-    return new StepResponse(
-      { subscription },
-      {
-        id: input.id,
-        previous_frequency: previousFrequency,
-        previous_next_billing_date: currentPeriodEnd.toISOString(),
-        provider,
-        new_provider_subscription_id,
-      } satisfies CompensationData,
-    );
+    return new StepResponse({ subscription }, {
+      id: input.id,
+      previous_frequency: previousFrequency,
+      previous_next_billing_date: currentPeriodEnd.toISOString(),
+      providerId,
+      new_provider_subscription_id,
+    } satisfies CompensationData);
   },
   async (data: CompensationData, { container }) => {
     if (!data?.new_provider_subscription_id) return;
@@ -96,7 +88,7 @@ export const updateSubscriptionFrequencyStep = createStep(
     const subscriptionService: SubscriptionModuleService = container.resolve(SUBSCRIPTION_MODULE);
 
     try {
-      const adapter = getProviderAdapter(data.provider);
+      const adapter = getProviderAdapter(data.providerId);
       const { new_provider_subscription_id: restored_id } = await adapter.rollbackUpdateFrequency(
         data.new_provider_subscription_id,
         data.previous_frequency,
@@ -118,4 +110,3 @@ export const updateSubscriptionFrequencyStep = createStep(
     }
   },
 );
-

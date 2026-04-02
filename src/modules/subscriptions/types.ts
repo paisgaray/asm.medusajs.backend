@@ -7,7 +7,8 @@ export enum SubscriptionStatus {
 }
 
 export enum SubscriptionProvider {
-  STRIPE = 'stripe',
+  STRIPE = 'pp_stripe_stripe',
+  GLOBAL_PAYMENTS = 'pp_global-payments_global-payments',
 }
 
 export enum SubscriptionFrequency {

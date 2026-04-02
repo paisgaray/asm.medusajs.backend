@@ -29,7 +29,7 @@ export default async function orderPlacedGlobalPayment({ event: { data }, contai
       const secret = crypto.createHash('sha512').update(`${nonce}${process.env.GLOBAL_PAYMENTS_APP_KEY}`).digest('hex');
 
       const { data } = await axios.post<{ type: string; token: string }>(
-        'https://apis.sandbox.globalpay.com/ucp/accesstoken',
+        `${process.env.GLOBAL_PAYMENT_BASE_URL}/accesstoken`,
         {
           grant_type: 'client_credentials',
           app_id: process.env.GLOBAL_PAYMENTS_APP_ID,
@@ -40,7 +40,7 @@ export default async function orderPlacedGlobalPayment({ event: { data }, contai
       );
 
       await axios.patch(
-        `https://apis.sandbox.globalpay.com/ucp/payment-methods/${orderData.token}`,
+        `${process.env.GLOBAL_PAYMENT_BASE_URL}/payment-methods/${orderData.token}`,
         { usage_mode: 'MULTIPLE' },
         {
           headers: {

@@ -1,12 +1,13 @@
 import { model } from '@medusajs/framework/utils';
 
-import { SubscriptionFrequency } from '../types';
+import { SubscriptionFrequency, SubscriptionProvider } from '../types';
 import { SubscriptionAddress } from './subscriptionAddress';
+import { SubscriptionInvoice } from './subscriptionInvoice';
 
 export const Subscription = model.define('subscription', {
   id: model.id().primaryKey(),
-  provider: model.text(), // 'stripe', 'paypal', etc.
-  provider_subscription_id: model.text(),
+  provider_id: model.enum(Object.values(SubscriptionProvider)).nullable(),
+  provider_subscription_id: model.text().nullable(),
   provider_customer_id: model.text(),
   status: model.text().default('active'), // active, paused, cancelled, past_due, incomplete
   subscription_price: model.number(),
@@ -23,4 +24,5 @@ export const Subscription = model.define('subscription', {
   payment_exp_year: model.number().nullable(),
   metadata: model.json().nullable(),
   address: model.belongsTo(() => SubscriptionAddress, { mappedBy: 'subscription' }).nullable(),
+  invoices: model.hasMany(() => SubscriptionInvoice, { mappedBy: 'subscription' }),
 });

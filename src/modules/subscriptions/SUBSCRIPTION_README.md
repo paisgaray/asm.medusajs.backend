@@ -520,7 +520,7 @@ The `orderPlacedHandler` subscriber catches errors so subscription failures don'
 
 ```typescript
 export enum SubscriptionProvider {
-  STRIPE = 'stripe',
+  STRIPE = 'pp_stripe_stripe',
   // PAYPAL = 'paypal', // Future
 }
 ```

@@ -1,7 +1,7 @@
 import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
+import { SUBSCRIPTION_MODULE, SubscriptionProvider } from '../../../modules/subscriptions';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 import { resolveSubscriptionPrice } from '../../../utils/resolve-subscription-price';
 
@@ -11,7 +11,7 @@ type FetchSubscriptionPricingStepInput = {
 };
 
 export type SubscriptionPricingResult = {
-  provider: string;
+  provider_id: SubscriptionProvider;
   provider_subscription_id: string;
   subscription_id: string;
   previous_price: number;
@@ -65,7 +65,7 @@ export const fetchSubscriptionPricingStep = createStep(
     const newPrice = previousPrice + addedPrice;
 
     return new StepResponse({
-      provider: subscription.provider,
+      provider_id: subscription.provider_id,
       provider_subscription_id: subscription.provider_subscription_id,
       subscription_id,
       previous_price: previousPrice,

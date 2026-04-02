@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import Stripe from 'stripe';
 
+import { SubscriptionProvider } from '../../../modules/subscriptions';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
 type ResumeStripeSubscriptionStepInput = {
@@ -14,7 +15,7 @@ export const resumeStripeSubscriptionStep = createStep(
 
     const subscription = await subscriptionService.retrieveSubscription(input.subscription_id);
 
-    if (subscription.provider !== 'stripe') {
+    if (subscription.provider_id !== SubscriptionProvider.STRIPE) {
       throw new Error('This step only supports Stripe subscriptions');
     }
 

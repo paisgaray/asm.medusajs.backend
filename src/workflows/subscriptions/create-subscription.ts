@@ -1,21 +1,23 @@
 import { OrderDTO } from '@medusajs/framework/types';
 import { createWorkflow, transform, when, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SubscriptionProvider } from '../../modules/subscriptions';
 import { attachPaymentMethodStep } from './steps/attach-payment-method';
-import { createStripeSubscriptionStep } from './steps/create-stripe-subscription';
+import { createPaymentSubscriptionStep } from './steps/create-payment-subscription';
 import { createSubscriptionAddressStep } from './steps/create-subscription-address';
 import { createSubscriptionBundleLinkStep } from './steps/create-subscription-bundle-link';
 import { createSubscriptionCustomerLinkStep } from './steps/create-subscription-customer-link';
 import { createSubscriptionRecordStep } from './steps/create-subscription-record';
-import { getOrCreateStripeCustomerStep } from './steps/get-or-create-stripe-customer';
-import { getsertStripeProductStep } from './steps/getsert-stripe-product';
+import { getOrCreatePaymentCustomerStep } from './steps/get-or-create-payment-customer';
+import { getsertPaymentProductStep } from './steps/getsert-payment-product';
 import { validateSubscriptionProductStep } from './steps/validate-subscription-product';
 
 type CreateSubscriptionWorkflowInput = {
   customer_id: string;
   bundle_product_id: string;
+  payment_provider_id: SubscriptionProvider;
   /** Pass this to skip the getOrCreateStripeCustomer step (e.g. checkout already resolved it) */
-  stripe_customer_id?: string;
+  payment_customer_id?: string;
   /** When true, first payment was handled by checkout. Subscription starts billing next month. */
   skip_first_charge?: boolean;
   /** Payment method to attach to customer (only used if customer needs to be created) */
@@ -36,23 +38,19 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 2: Get or create Stripe customer (skip if already provided)
     const customerResult = when(
-      { stripe_customer_id: input.stripe_customer_id },
-      ({ stripe_customer_id }) => !stripe_customer_id,
+      { payment_customer_id: input.payment_customer_id },
+      ({ payment_customer_id }) => !payment_customer_id,
     ).then(() => {
-      return getOrCreateStripeCustomerStep({
+      return getOrCreatePaymentCustomerStep({
+        payment_provider_id: input.payment_provider_id,
         customer_id: input.customer_id,
       });
     });
 
     // Resolve the final stripe_customer_id: use provided or fetched
     const resolvedCustomer = transform(
-      {
-        provided: input.stripe_customer_id,
-        fetched: customerResult?.stripe_customer_id,
-      },
-      (data) => ({
-        stripe_customer_id: data.provided || data.fetched,
-      }),
+      { provided: input.payment_customer_id, fetched: customerResult?.payment_customer_id },
+      (data) => ({ payment_customer_id: data.provided || data.fetched }),
     );
 
     // Step 3: Attach payment method if provided (must happen before creating subscription)
@@ -61,24 +59,25 @@ export const createSubscriptionWorkflow = createWorkflow(
       ({ payment_method_id }) => !!payment_method_id,
     ).then(() => {
       return attachPaymentMethodStep({
-        payment_method_id: input.payment_method_id!,
-        stripe_customer_id: resolvedCustomer.stripe_customer_id,
+        payment_provider_id: input.payment_provider_id,
+        payment_method_id: input.payment_method_id,
+        payment_customer_id: resolvedCustomer.payment_customer_id,
       });
     });
 
     // Step 4: Get or create Stripe product for the bundle
-    const { stripe_product_id } = getsertStripeProductStep({
+    const { payment_product_id } = getsertPaymentProductStep({
+      payment_provider_id: input.payment_provider_id,
       product_name: product_title,
       medusa_product_id: bundle.id,
-      metadata: {
-        medusa_bundle_id: bundle.id,
-      },
+      metadata: { medusa_bundle_id: bundle.id },
     });
 
     // Step 4: Create Stripe subscription
-    const stripeResult = createStripeSubscriptionStep({
-      stripe_customer_id: resolvedCustomer.stripe_customer_id,
-      stripe_product_id,
+    const paymentSubscription = createPaymentSubscriptionStep({
+      payment_provider_id: input.payment_provider_id,
+      payment_customer_id: resolvedCustomer.payment_customer_id,
+      payment_product_id,
       subscription_price,
       currency,
       skip_first_charge: input.skip_first_charge,
@@ -101,23 +100,24 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     // Step 6: Create subscription record in database
     const subscriptionData = createSubscriptionRecordStep({
+      payment_provider_id: input.payment_provider_id,
       customer_id: input.customer_id,
       bundle_product_id: input.bundle_product_id,
       subscription_price,
       currency,
-      stripe_subscription_id: stripeResult.stripe_subscription_id,
-      stripe_customer_id: resolvedCustomer.stripe_customer_id,
-      status: stripeResult.status,
-      current_period_start: stripeResult.current_period_start,
-      next_billing_date: stripeResult.next_billing_date,
+      frequency: input.frequency,
+      order: input.order,
+      address_id: subscriptionAddress.id,
+      stripe_customer_id: resolvedCustomer.payment_customer_id,
+      stripe_subscription_id: paymentSubscription.payment_subscription_id,
+      status: paymentSubscription.status,
+      current_period_start: paymentSubscription.current_period_start,
+      next_billing_date: paymentSubscription.next_billing_date,
       provider_payment_method_id: resolvedPaymentMethod.provider_payment_method_id,
       payment_last4: resolvedPaymentMethod.payment_last4,
       payment_brand: resolvedPaymentMethod.payment_brand,
       payment_exp_month: resolvedPaymentMethod.payment_exp_month,
       payment_exp_year: resolvedPaymentMethod.payment_exp_year,
-      frequency: input.frequency,
-      order: input.order,
-      address_id: subscriptionAddress.id,
     });
 
     // Step 7: Link subscription to customer
@@ -134,7 +134,6 @@ export const createSubscriptionWorkflow = createWorkflow(
 
     return new WorkflowResponse({
       subscription: subscriptionData.subscription,
-      // client_secret: stripeResult.client_secret,
     });
   },
 );

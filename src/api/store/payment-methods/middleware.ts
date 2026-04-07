@@ -23,13 +23,10 @@ async function ensurePaymentMethodOwnership(req: MedusaRequest, _res: MedusaResp
 
   const links = await link.list({
     [Modules.CUSTOMER]: { customer_id: body.customer_id.trim() },
+    [Modules.PAYMENT]: { account_holder_id: body.account_holder_id },
   });
 
-  const hasAccess = links?.some(
-    (linkEntry) => linkEntry[Modules.PAYMENT]?.account_holder_id === body.account_holder_id,
-  );
-
-  if (!hasAccess) {
+  if (!links || links.length === 0) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, 'Access denied');
   }
 

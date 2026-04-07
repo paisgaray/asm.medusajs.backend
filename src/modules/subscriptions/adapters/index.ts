@@ -3,6 +3,7 @@ import { StripeSubscriptionAdapter } from './stripe-adapter';
 
 const adapters: Record<string, () => SubscriptionProviderAdapter> = {
   stripe: () => new StripeSubscriptionAdapter(),
+  pp_stripe_stripe: () => new StripeSubscriptionAdapter(),
   // paypal: () => new PaypalSubscriptionAdapter(),
 };
 

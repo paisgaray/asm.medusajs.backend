@@ -39,7 +39,7 @@ export const ensureAccountHolderStep = createStep(
     };
 
     const existingAccountHolder = customer.account_holders?.find(
-      (ah) => ah.provider_id === input.provider_id && ah.data?.id,
+      (ah) => ah && ah.provider_id === input.provider_id && ah.data?.id,
     );
 
     if (existingAccountHolder) {

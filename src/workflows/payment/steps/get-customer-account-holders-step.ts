@@ -44,7 +44,7 @@ export const getCustomerAccountHoldersStep = createStep(
     }
 
     const accountHolders: AccountHolderData[] = accountHoldersData
-      .filter((ah) => ah.provider_id && ah.data?.id)
+      .filter((ah) => ah && ah.provider_id && ah.data?.id)
       .map((ah) => ({
         id: ah.id,
         provider_id: ah.provider_id,

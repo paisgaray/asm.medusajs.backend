@@ -18,7 +18,7 @@ export const ensureAccountHolderStep = createStep(
     const { data: customerData } = await query.graph(
       {
         entity: 'customer',
-        fields: ['id', 'email'],
+        fields: ['id', 'email', 'account_holders.id', 'account_holders.provider_id', 'account_holders.data'],
         filters: {
           id: input.customer_id,
         },
@@ -32,52 +32,24 @@ export const ensureAccountHolderStep = createStep(
       throw new Error('Customer not found');
     }
 
-    const customer = customerData[0] as { id: string; email: string };
+    const customer = customerData[0] as {
+      id: string;
+      email: string;
+      account_holders?: Array<{ id: string; provider_id: string; data: { id?: string } }>;
+    };
 
-    const allLinks = await link.list({
-      [Modules.CUSTOMER]: { customer_id: input.customer_id },
-    });
+    const existingAccountHolder = customer.account_holders?.find(
+      (ah) => ah && ah.provider_id === input.provider_id && ah.data?.id,
+    );
 
-    if (allLinks && allLinks.length > 0) {
-      const accountHolderIds = allLinks
-        .map((linkEntry) => linkEntry[Modules.PAYMENT]?.account_holder_id)
-        .filter((id): id is string => !!id);
-
-      if (accountHolderIds.length > 0) {
-        const { data: accountHoldersData } = await query.graph(
-          {
-            entity: 'account_holder',
-            fields: ['id', 'provider_id', 'data'],
-            filters: {
-              id: accountHolderIds,
-              provider_id: input.provider_id,
-            },
-          },
-          {
-            throwIfKeyNotFound: false,
-          },
-        );
-
-        if (accountHoldersData && accountHoldersData.length > 0) {
-          const existing = accountHoldersData[0] as {
-            id: string;
-            provider_id: string;
-            data: {
-              id?: string;
-            };
-          };
-
-          if (existing?.data?.id) {
-            return new StepResponse({
-              id: existing.id,
-              provider_id: existing.provider_id,
-              data: {
-                id: existing.data.id,
-              },
-            } as AccountHolderData);
-          }
-        }
-      }
+    if (existingAccountHolder) {
+      return new StepResponse({
+        id: existingAccountHolder.id,
+        provider_id: existingAccountHolder.provider_id,
+        data: {
+          id: existingAccountHolder.data.id!,
+        },
+      } as AccountHolderData);
     }
 
     const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);

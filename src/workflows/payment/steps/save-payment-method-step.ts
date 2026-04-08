@@ -28,6 +28,7 @@ export const savePaymentMethodStep = createStep(
         payment_method: input.payment_method_id,
         confirm: true,
         usage: 'off_session',
+        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
       },
       context: {
         account_holder: {

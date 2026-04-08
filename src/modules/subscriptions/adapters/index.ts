@@ -4,6 +4,7 @@ import { SubscriptionProviderAdapter } from './provider-adapter';
 import { StripeSubscriptionAdapter } from './stripe-adapter';
 
 const adapters: Record<string, () => SubscriptionProviderAdapter> = {
+  stripe: () => new StripeSubscriptionAdapter(),
   [SubscriptionProvider.STRIPE]: () => new StripeSubscriptionAdapter(),
   [SubscriptionProvider.GLOBAL_PAYMENTS]: () => new GPSubscriptionAdapter(),
 };

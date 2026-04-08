@@ -45,15 +45,6 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
 
   async rollbackUpdatePrice(): Promise<void> {}
 
-  async pdateFrequency(
-    providerSubscriptionId: string,
-    newFrequency: string,
-    newNextBillingDate: Date,
-  ): Promise<{ new_provider_subscription_id: string }> {
-    console.log({ providerSubscriptionId, newFrequency, newNextBillingDate });
-    return { new_provider_subscription_id: '' };
-  }
-
   async updateFrequency(
     providerSubscriptionId: string,
     newFrequency: string,

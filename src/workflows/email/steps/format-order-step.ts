@@ -40,9 +40,12 @@ export const formatOrderStep = createStep(
       value: formatCurrency(total),
     }));
 
-    const formatPaymentMethod = (payment: { card: { brand?: string; last4?: string } }) => {
-      const brandName = payment?.card?.brand || 'Card';
-      const last4 = payment?.card?.last4 || 'XXXX';
+    const formatPaymentMethod = (payment: {
+      card?: { brand?: string; last4?: string };
+      raw?: { cardDetails: { brand: string; maskedNumberLast4: string } };
+    }) => {
+      const brandName = payment?.card?.brand || payment?.raw?.cardDetails?.brand || 'Card';
+      const last4 = payment?.card?.last4 || payment?.raw?.cardDetails?.maskedNumberLast4.slice(-4) || 'XXXX';
 
       const normalizedBrand = brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase();
 
@@ -57,7 +60,7 @@ export const formatOrderStep = createStep(
       orderItems: order.items.map((item) => ({
         itemImageUrl: item.thumbnail || '#',
         itemName: item.title,
-        itemType: item.product_type || 'Entrega pontual (Mock)',
+        itemType: item.metadata?.is_subscription ? `Subscrición ${item.metadata.frequency}` : 'Entrega pontual',
         itemQuantity: item.quantity,
         itemPrice: formatCurrency(item.total),
       })),
@@ -79,7 +82,7 @@ export const formatOrderStep = createStep(
       },
 
       deliverySchedule: {
-        deliveryDate: order.metadata?.periodDate,
+        deliveryDate: order.metadata?.delivery_date,
         deliveryTime: order.metadata?.period,
       },
 

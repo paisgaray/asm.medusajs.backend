@@ -1,3 +1,7 @@
+import { CustomerDTO } from '@medusajs/framework/types';
+
+import { CreatePaymentSubscriptionStepInput } from './type';
+
 export interface SubscriptionProviderAdapter {
   skipNextPayment(providerSubscriptionId: string, resumesAt: Date): Promise<void>;
   rollbackSkip(providerSubscriptionId: string): Promise<void>;
@@ -39,4 +43,34 @@ export interface SubscriptionProviderAdapter {
     previousNextBillingDate: Date,
   ): Promise<{ new_provider_subscription_id: string }>;
   changeSubscriptionPaymentMethod(providerSubscriptionId: string, paymentMethodId: string): Promise<void>;
+  getOrCreatePaymentCustomer(customer_id: string): Promise<{
+    paymentCustomerId: string;
+    wasCreated: boolean;
+    customer: CustomerDTO;
+  }>;
+  attachPaymentMethod(
+    payment_method_id: string,
+    payment_customer_id: string,
+  ): Promise<{
+    payment_method_id: string;
+    paymentMethod: {
+      brand: string;
+      last4: string;
+      exp_month: number;
+      exp_year: number;
+    };
+  }>;
+  getsertPaymentProduct(
+    product_name: string,
+    medusa_product_id: string,
+    metadata?: Record<string, string>,
+  ): Promise<{
+    paymentProductId: string;
+    wasCreated: boolean;
+  }>;
+  createPaymentSubscription(input: CreatePaymentSubscriptionStepInput): Promise<{
+    subscription: { id: string; status: string };
+    periodStart: number;
+    periodEnd: number;
+  }>;
 }

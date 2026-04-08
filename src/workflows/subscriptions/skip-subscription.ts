@@ -10,13 +10,13 @@ type SkipSubscriptionWorkflowInput = {
 
 export const skipSubscriptionWorkflow = createWorkflow('skip-subscription', (input: SkipSubscriptionWorkflowInput) => {
   // Step 1: Validate subscription and compute new billing date (provider-agnostic)
-  const { provider, provider_subscription_id, new_next_billing_date } = validateAndComputeSkipStep({
+  const { provider_id, provider_subscription_id, new_next_billing_date } = validateAndComputeSkipStep({
     subscription_id: input.subscription_id,
   });
 
   // Step 2: Skip on the payment provider (adapter pattern)
   skipProviderSubscriptionStep({
-    provider,
+    provider_id,
     provider_subscription_id,
     new_next_billing_date,
   });

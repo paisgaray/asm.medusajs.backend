@@ -1,9 +1,10 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SubscriptionProvider } from '../../../modules/subscriptions';
 import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
 
 type SkipProviderSubscriptionStepInput = {
-  provider: string;
+  provider_id: SubscriptionProvider;
   provider_subscription_id: string;
   new_next_billing_date: Date;
 };
@@ -15,18 +16,18 @@ type SkipProviderSubscriptionStepInput = {
 export const skipProviderSubscriptionStep = createStep(
   'skip-provider-subscription',
   async (input: SkipProviderSubscriptionStepInput, { container }) => {
-    const adapter = getProviderAdapter(input.provider);
+    const adapter = getProviderAdapter(input.provider_id);
 
     await adapter.skipNextPayment(input.provider_subscription_id, new Date(input.new_next_billing_date));
 
     container
       .resolve('logger')
-      .info(`Skipped next payment on ${input.provider} for subscription: ${input.provider_subscription_id}`);
+      .info(`Skipped next payment on ${input.provider_id} for subscription: ${input.provider_subscription_id}`);
 
     return new StepResponse(
       { skipped: true },
       {
-        provider: input.provider,
+        provider_id: input.provider_id,
         provider_subscription_id: input.provider_subscription_id,
       },
     );
@@ -36,7 +37,7 @@ export const skipProviderSubscriptionStep = createStep(
       return;
     }
 
-    const adapter = getProviderAdapter(data.provider);
+    const adapter = getProviderAdapter(data.provider_id);
 
     try {
       await adapter.rollbackSkip(data.provider_subscription_id);

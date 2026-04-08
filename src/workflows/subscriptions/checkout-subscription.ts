@@ -38,7 +38,8 @@ export const checkoutSubscriptionWorkflow = createWorkflow(
         customer_id: input.customer_id,
         subscription_items,
         order_id: input.order_id,
-        stripe_customer_id: paymentMethodData.stripe_customer_id,
+        payment_provider_id: paymentMethodData.payment_provider_id,
+        payment_customer_id: paymentMethodData.payment_customer_id,
         payment_method_id: paymentMethodData.payment_method_id,
         order,
       });

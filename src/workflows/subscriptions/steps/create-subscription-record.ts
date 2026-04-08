@@ -6,12 +6,13 @@ import SubscriptionModuleService from '../../../modules/subscriptions/service';
 import { SubscriptionProvider, SubscriptionStatus } from '../../../modules/subscriptions/types';
 
 type CreateSubscriptionRecordStepInput = {
+  payment_provider_id: SubscriptionProvider;
   customer_id: string;
   bundle_product_id: string;
   subscription_price: number;
   currency: string;
-  stripe_subscription_id: string;
-  stripe_customer_id: string;
+  provider_subscription_id: string;
+  provider_customer_id: string;
   status: string;
   current_period_start?: Date;
   next_billing_date?: Date;
@@ -23,6 +24,7 @@ type CreateSubscriptionRecordStepInput = {
   frequency: string;
   order: OrderDTO;
   address_id: string;
+  metadata?: Record<string, unknown>;
 };
 
 export const createSubscriptionRecordStep = createStep(
@@ -34,9 +36,9 @@ export const createSubscriptionRecordStep = createStep(
     const delivery_date = new Date(`${year}-${month}-${day}`);
 
     const subscription = await subscriptionService.createSubscriptions({
-      provider: SubscriptionProvider.STRIPE,
-      provider_subscription_id: input.stripe_subscription_id,
-      provider_customer_id: input.stripe_customer_id,
+      provider_id: input.payment_provider_id,
+      provider_subscription_id: input.provider_subscription_id,
+      provider_customer_id: input.provider_customer_id,
       subscription_price: input.subscription_price,
       currency: input.currency,
       status: input.status as SubscriptionStatus,
@@ -51,6 +53,7 @@ export const createSubscriptionRecordStep = createStep(
       delivery_date,
       frequency: input.frequency as any,
       address_id: input.address_id,
+      metadata: input.metadata,
     });
 
     // Return subscription and IDs needed for creating links

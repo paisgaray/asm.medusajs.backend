@@ -46,7 +46,7 @@ export const validateAndComputeSkipStep = createStep(
     }
 
     return new StepResponse({
-      provider: subscription.provider,
+      provider_id: subscription.provider_id,
       provider_subscription_id: subscription.provider_subscription_id,
       new_next_billing_date: newDate,
       previous_next_billing_date: currentDate,

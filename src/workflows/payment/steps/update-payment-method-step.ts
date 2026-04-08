@@ -1,6 +1,7 @@
 import { ContainerRegistrationKeys, MedusaError } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SubscriptionProvider } from '../../../modules/subscriptions';
 import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
 
 export type UpdatePaymentMethodStepInput = {
@@ -29,7 +30,7 @@ export const updatePaymentMethodStep = createStep(
 
     const accountHolder = accountHolders[0] as {
       id: string;
-      provider_id: string;
+      provider_id: SubscriptionProvider;
       data: { id?: string };
     };
 

@@ -6,20 +6,20 @@ import { SubscriptionPricingResult } from './fetch-subscription-pricing';
 export const updateProviderSubscriptionPriceStep = createStep(
   'update-provider-subscription-price',
   async (input: SubscriptionPricingResult, { container }) => {
-    const adapter = getProviderAdapter(input.provider);
+    const adapter = getProviderAdapter(input.provider_id);
 
     await adapter.updatePrice(input.provider_subscription_id, input.new_price, input.currency, input.frequency);
 
     container
       .resolve('logger')
       .info(
-        `Updated price on ${input.provider} for subscription: ${input.provider_subscription_id} — ${input.previous_price} → ${input.new_price} ${input.currency}`,
+        `Updated price on ${input.provider_id} for subscription: ${input.provider_subscription_id} — ${input.previous_price} → ${input.new_price} ${input.currency}`,
       );
 
     return new StepResponse(
       { updated: true },
       {
-        provider: input.provider,
+        provider_id: input.provider_id,
         provider_subscription_id: input.provider_subscription_id,
         previous_price: input.previous_price,
         currency: input.currency,
@@ -30,7 +30,7 @@ export const updateProviderSubscriptionPriceStep = createStep(
   async (data, { container }) => {
     if (!data?.provider_subscription_id) return;
 
-    const adapter = getProviderAdapter(data.provider);
+    const adapter = getProviderAdapter(data.provider_id);
 
     try {
       await adapter.rollbackUpdatePrice(

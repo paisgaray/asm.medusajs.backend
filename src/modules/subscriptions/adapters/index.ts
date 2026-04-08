@@ -1,17 +1,17 @@
+import { SubscriptionProvider } from '../types';
+import { GPSubscriptionAdapter } from './gp-adapter';
 import { SubscriptionProviderAdapter } from './provider-adapter';
 import { StripeSubscriptionAdapter } from './stripe-adapter';
 
 const adapters: Record<string, () => SubscriptionProviderAdapter> = {
   stripe: () => new StripeSubscriptionAdapter(),
-  pp_stripe_stripe: () => new StripeSubscriptionAdapter(),
-  // paypal: () => new PaypalSubscriptionAdapter(),
+  [SubscriptionProvider.STRIPE]: () => new StripeSubscriptionAdapter(),
+  [SubscriptionProvider.GLOBAL_PAYMENTS]: () => new GPSubscriptionAdapter(),
 };
 
-export function getProviderAdapter(provider: string): SubscriptionProviderAdapter {
+export function getProviderAdapter(provider: SubscriptionProvider): SubscriptionProviderAdapter {
   const factory = adapters[provider];
-  if (!factory) {
-    throw new Error(`No subscription adapter registered for provider: "${provider}"`);
-  }
+  if (!factory) throw new Error(`No subscription adapter registered for provider: "${provider}"`);
   return factory();
 }
 

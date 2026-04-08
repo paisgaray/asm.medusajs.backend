@@ -14,12 +14,8 @@ export const createSubscriptionBundleLinkStep = createStep(
     const remoteLink = container.resolve('remoteLink');
 
     await remoteLink.create({
-      [SUBSCRIPTION_MODULE]: {
-        subscription_id: input.subscription_id,
-      },
-      [BUNDLED_PRODUCT_MODULE]: {
-        custom_bundle_id: input.custom_bundle_id,
-      },
+      [SUBSCRIPTION_MODULE]: { subscription_id: input.subscription_id },
+      [BUNDLED_PRODUCT_MODULE]: { custom_bundle_id: input.custom_bundle_id },
     });
 
     return new StepResponse(
@@ -33,12 +29,8 @@ export const createSubscriptionBundleLinkStep = createStep(
     const remoteLink = container.resolve('remoteLink');
 
     await remoteLink.dismiss({
-      [SUBSCRIPTION_MODULE]: {
-        subscription_id: data.subscription_id,
-      },
-      [BUNDLED_PRODUCT_MODULE]: {
-        custom_bundle_id: data.custom_bundle_id,
-      },
+      [SUBSCRIPTION_MODULE]: { subscription_id: data.subscription_id },
+      [BUNDLED_PRODUCT_MODULE]: { custom_bundle_id: data.custom_bundle_id },
     });
   },
 );

@@ -1,7 +1,5 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
-import { createSubscriptionWorkflow } from '../../../workflows/subscriptions';
-
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve('query');
 
@@ -60,34 +58,34 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   });
 };
 
-export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { customer_id, bundle_product_id, metadata } = req.body as {
-    customer_id: string;
-    bundle_product_id: string;
-    metadata: Record<string, unknown>;
-  };
+// export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
+//   const { customer_id, bundle_product_id, metadata } = req.body as {
+//     customer_id: string;
+//     bundle_product_id: string;
+//     metadata: Record<string, unknown>;
+//   };
 
-  if (!customer_id || !bundle_product_id) {
-    return res.status(400).json({ message: 'customer_id and bundle_product_id are required' });
-  }
+//   if (!customer_id || !bundle_product_id) {
+//     return res.status(400).json({ message: 'customer_id and bundle_product_id are required' });
+//   }
 
-  try {
-    const { result } = await createSubscriptionWorkflow(req.scope).run({
-      input: {
-        customer_id,
-        bundle_product_id,
-        metadata,
-      },
-    });
+//   try {
+//     const { result } = await createSubscriptionWorkflow(req.scope).run({
+//       input: {
+//         customer_id,
+//         bundle_product_id,
+//         metadata,
+//       },
+//     });
 
-    res.json({
-      subscription: result.subscription,
-    });
-  } catch (error) {
-    req.scope.resolve('logger').error('Failed to create subscription:', error);
-    return res.status(500).json({
-      message: 'Failed to create subscription',
-      error: error.message,
-    });
-  }
-};
+//     res.json({
+//       subscription: result.subscription,
+//     });
+//   } catch (error) {
+//     req.scope.resolve('logger').error('Failed to create subscription:', error);
+//     return res.status(500).json({
+//       message: 'Failed to create subscription',
+//       error: error.message,
+//     });
+//   }
+// };

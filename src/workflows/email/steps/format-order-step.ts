@@ -1,6 +1,9 @@
 import { BigNumberValue, OrderWorkflowDTO } from '@medusajs/framework/types';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { TamplateLang } from '../../../constants/sendgrid-templates';
+import { SubscriptionFrequency } from '../../../modules/subscriptions';
+
 export interface FormatOrderPreparingDataInput {
   order: OrderWorkflowDTO;
   payment: {
@@ -19,6 +22,8 @@ export const formatOrderStep = createStep(
     if (!recipientEmail) {
       throw new Error(`Order ${order.id} não possui e-mail do cliente`);
     }
+
+    const language = order.metadata.language as TamplateLang;
 
     const formatCurrency = (value: number | BigNumberValue) => {
       if (value === undefined) return '0 €';
@@ -52,6 +57,19 @@ export const formatOrderStep = createStep(
       return `${normalizedBrand} **** ${last4}`;
     };
 
+    const translate = {
+      'ca-ES': {
+        weekly: 'Subscripció setmanal',
+        biweekly: 'Subscripció quinzenal',
+        monthly: 'Subscripció mensual',
+      },
+      es: {
+        weekly: 'Suscripción semanal',
+        biweekly: 'Suscripción quincenal',
+        monthly: 'Suscripción mensual',
+      },
+    };
+
     const templateData = {
       firstName: order.customer.first_name,
       orderUrl: `${process.env.STORE_URL}/orders/${order}`,
@@ -60,7 +78,9 @@ export const formatOrderStep = createStep(
       orderItems: order.items.map((item) => ({
         itemImageUrl: item.thumbnail || '#',
         itemName: item.title,
-        itemType: item.metadata?.is_subscription ? `Subscrición ${item.metadata.frequency}` : 'Entrega pontual',
+        itemType: item.metadata?.is_subscription
+          ? translate[language][item.metadata.frequency as SubscriptionFrequency]
+          : 'Entrega pontual',
         itemQuantity: item.quantity,
         itemPrice: formatCurrency(item.total),
       })),

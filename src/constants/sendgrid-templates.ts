@@ -21,4 +21,4 @@ export const SENDGRID_TEMPLATES = {
     PAYMENT_NOT_APPROVED: 'd-b23249abe881427f8badc774880eba76',
     PAYMENT_APPROVED: 'd-dadda7e1dafb4d52b9cd80fc5e546590',
   },
-} as const;
+};

@@ -38,16 +38,30 @@ export const ensureAccountHolderStep = createStep(
       account_holders?: Array<{ id: string; provider_id: string; data: { id?: string } }>;
     };
 
-    const existingAccountHolder = customer.account_holders?.find(
-      (ah) => ah && ah.provider_id === input.provider_id && ah.data?.id,
-    );
+    const existingAccountHolder = customer.account_holders?.find((ah) => ah && ah.provider_id === input.provider_id);
 
     if (existingAccountHolder) {
+      const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);
+
+      // Heal: if data.id is missing (account holder created before data was populated),
+      // patch it now so subsequent steps can use it.
+      if (!existingAccountHolder.data?.id) {
+        await paymentModuleService.updateAccountHolder({
+          id: existingAccountHolder.id,
+          provider_id: existingAccountHolder.provider_id,
+          context: {
+            account_holder: {
+              data: { id: input.customer_id },
+            },
+          },
+        });
+      }
+
       return new StepResponse({
         id: existingAccountHolder.id,
         provider_id: existingAccountHolder.provider_id,
         data: {
-          id: existingAccountHolder.data.id!,
+          id: existingAccountHolder.data?.id ?? input.customer_id,
         },
       } as AccountHolderData);
     }

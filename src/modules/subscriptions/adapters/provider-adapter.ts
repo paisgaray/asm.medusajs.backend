@@ -73,4 +73,23 @@ export interface SubscriptionProviderAdapter {
     periodStart: number;
     periodEnd: number;
   }>;
+  preparePaymentMethodData(token: string): Promise<Record<string, unknown>>;
+  /**
+   * Returns an updated account holder data object to persist locally (e.g. for providers
+   * that have no external payment method storage API). Return null if no local persistence
+   * is needed (e.g. Stripe handles storage externally).
+   */
+  persistPaymentMethodLocally(
+    currentAccountHolderData: Record<string, unknown>,
+    paymentMethodId: string,
+    paymentMethodData: Record<string, unknown>,
+  ): Record<string, unknown> | null;
+  /**
+   * Returns an updated account holder data object with the payment method removed.
+   * Return null if no local removal is needed (e.g. Stripe stores externally).
+   */
+  removePaymentMethodLocally(
+    currentAccountHolderData: Record<string, unknown>,
+    paymentMethodId: string,
+  ): Record<string, unknown> | null;
 }

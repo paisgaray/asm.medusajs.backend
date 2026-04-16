@@ -5,12 +5,16 @@ import { listPaymentMethodsStep } from '../steps/list-payment-methods-step';
 
 type ListCustomerPaymentMethodsWorkflowInput = {
   customer_id: string;
+  provider_id?: string;
 };
 
 export const listCustomerPaymentMethodsWorkflow = createWorkflow(
   'list-customer-payment-methods',
   (input: ListCustomerPaymentMethodsWorkflowInput) => {
-    const accountHolders = getCustomerAccountHoldersStep({ customer_id: input.customer_id });
+    const accountHolders = getCustomerAccountHoldersStep({
+      customer_id: input.customer_id,
+      provider_id: input.provider_id,
+    });
 
     const paymentMethods = listPaymentMethodsStep({ account_holders: accountHolders });
 

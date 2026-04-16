@@ -2,12 +2,19 @@ import { IPaymentModuleService } from '@medusajs/framework/types';
 import { Modules } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { SubscriptionProvider } from '../../../modules/subscriptions';
+import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
 import { AccountHolderData } from './get-customer-account-holders-step';
 
 export type SavePaymentMethodStepInput = {
   account_holder: AccountHolderData;
   payment_method_id: string;
   metadata?: Record<string, unknown>;
+};
+
+export type SavePaymentMethodStepOutput = {
+  savedMethod: ReturnType<IPaymentModuleService['createPaymentMethods']> extends Promise<infer T> ? T : never;
+  providerData: Record<string, unknown>;
 };
 
 export const savePaymentMethodStep = createStep(
@@ -19,17 +26,12 @@ export const savePaymentMethodStep = createStep(
       throw new Error('Account holder data is missing');
     }
 
-    // createPaymentMethods routes to the provider's savePaymentMethod internally.
-    // The `data` field is spread into Stripe's setupIntents.create, so
-    // `payment_method` is the Stripe PM ID to attach to the customer.
+    const adapter = getProviderAdapter(input.account_holder.provider_id as SubscriptionProvider);
+    const providerData = await adapter.preparePaymentMethodData(input.payment_method_id);
+
     const savedMethod = await paymentModuleService.createPaymentMethods({
       provider_id: input.account_holder.provider_id,
-      data: {
-        payment_method: input.payment_method_id,
-        confirm: true,
-        usage: 'off_session',
-        automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      },
+      data: providerData,
       context: {
         account_holder: {
           data: input.account_holder.data,
@@ -37,6 +39,6 @@ export const savePaymentMethodStep = createStep(
       },
     });
 
-    return new StepResponse(savedMethod);
+    return new StepResponse({ savedMethod, providerData });
   },
 );

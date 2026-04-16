@@ -1,6 +1,7 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
 import { ensureAccountHolderStep } from '../steps/ensure-account-holder-step';
+import { persistPaymentMethodStep } from '../steps/persist-payment-method-step';
 import { savePaymentMethodStep } from '../steps/save-payment-method-step';
 
 type CreatePaymentMethodWorkflowInput = {
@@ -18,14 +19,20 @@ export const createPaymentMethodWorkflow = createWorkflow(
       provider_id: input.provider_id,
     });
 
-    const savedMethod = savePaymentMethodStep({
+    const saveResult = savePaymentMethodStep({
       account_holder: accountHolder,
       payment_method_id: input.payment_method_id,
       metadata: input.metadata,
     });
 
+    persistPaymentMethodStep({
+      account_holder: accountHolder,
+      payment_method_id: input.payment_method_id,
+      payment_method_data: saveResult.providerData as Record<string, unknown>,
+    });
+
     return new WorkflowResponse({
-      payment_method: savedMethod,
+      payment_method: saveResult.savedMethod,
       account_holder_id: accountHolder.id,
     });
   },

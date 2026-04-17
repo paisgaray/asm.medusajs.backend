@@ -323,6 +323,29 @@ export class StripeSubscriptionAdapter implements SubscriptionProviderAdapter {
     return { paymentProductId, wasCreated };
   }
 
+  persistPaymentMethodLocally(
+    _currentAccountHolderData: Record<string, unknown>,
+    _paymentMethodId: string,
+    _paymentMethodData: Record<string, unknown>,
+  ): null {
+    // Stripe stores payment methods externally — no local persistence needed.
+    return null;
+  }
+
+  removePaymentMethodLocally(_currentAccountHolderData: Record<string, unknown>, _paymentMethodId: string): null {
+    // Stripe manages payment methods externally via detachPaymentMethod.
+    return null;
+  }
+
+  async preparePaymentMethodData(token: string): Promise<Record<string, unknown>> {
+    return {
+      payment_method: token,
+      confirm: true,
+      usage: 'off_session',
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+    };
+  }
+
   async createPaymentSubscription(input: CreatePaymentSubscriptionStepInput): Promise<{
     subscription: { id: string; status: string };
     periodStart: number;

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { container } from '@medusajs/framework';
 import { CustomerDTO, ICustomerModuleService } from '@medusajs/framework/types';
 import axios from 'axios';
@@ -33,17 +34,17 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
     return data;
   }
 
-  async skipNextPayment(): Promise<void> {}
+  async skipNextPayment(): Promise<void> { }
 
-  async rollbackSkip(): Promise<void> {}
+  async rollbackSkip(): Promise<void> { }
 
-  async detachPaymentMethod(): Promise<void> {}
+  async detachPaymentMethod(): Promise<void> { }
 
-  async updatePaymentMethod(): Promise<void> {}
+  async updatePaymentMethod(): Promise<void> { }
 
-  async updatePrice(): Promise<void> {}
+  async updatePrice(): Promise<void> { }
 
-  async rollbackUpdatePrice(): Promise<void> {}
+  async rollbackUpdatePrice(): Promise<void> { }
 
   async updateFrequency(
     providerSubscriptionId: string,
@@ -81,7 +82,7 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
     return { new_provider_subscription_id: '' };
   }
 
-  async changeSubscriptionPaymentMethod(): Promise<void> {}
+  async changeSubscriptionPaymentMethod(): Promise<void> { }
 
   async getOrCreatePaymentCustomer(customer_id: string): Promise<{
     paymentCustomerId: string;
@@ -162,6 +163,61 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
     _: Record<string, string>,
   ): Promise<{ paymentProductId: string; wasCreated: boolean }> {
     return { paymentProductId: null, wasCreated: false };
+  }
+
+  removePaymentMethodLocally(
+    currentAccountHolderData: Record<string, unknown>,
+    paymentMethodId: string,
+  ): Record<string, unknown> | null {
+    const existingMethods = (currentAccountHolderData?.payment_methods as Array<Record<string, unknown>>) ?? [];
+    if (!existingMethods.some((m) => m.id === paymentMethodId)) {
+      return null;
+    }
+    return {
+      ...currentAccountHolderData,
+      payment_methods: existingMethods.filter((m) => m.id !== paymentMethodId),
+    };
+  }
+
+  persistPaymentMethodLocally(
+    currentAccountHolderData: Record<string, unknown>,
+    paymentMethodId: string,
+    paymentMethodData: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const existingMethods = (currentAccountHolderData?.payment_methods as Array<Record<string, unknown>>) ?? [];
+    if (existingMethods.some((m) => m.id === paymentMethodId)) {
+      return null;
+    }
+    return {
+      ...currentAccountHolderData,
+      payment_methods: [...existingMethods, { id: paymentMethodId, ...paymentMethodData }],
+    };
+  }
+
+  async preparePaymentMethodData(token: string): Promise<Record<string, unknown>> {
+    const { type, token: accessToken } = await this.getCredential();
+
+    await axios.patch(
+      `${process.env.GLOBAL_PAYMENT_BASE_URL}/payment-methods/${token}`,
+      { usage_mode: 'MULTIPLE' },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `${type} ${accessToken}`,
+          'X-GP-Version': '2021-03-22',
+        },
+      },
+    );
+
+    const { paymentMethod } = await this.attachPaymentMethod(token, '');
+
+    return {
+      token,
+      brand: paymentMethod.brand,
+      last4: paymentMethod.last4,
+      exp_month: paymentMethod.exp_month,
+      exp_year: paymentMethod.exp_year,
+    };
   }
 
   async createPaymentSubscription(

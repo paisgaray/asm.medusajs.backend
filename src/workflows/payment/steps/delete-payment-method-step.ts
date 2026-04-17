@@ -1,4 +1,5 @@
-import { ContainerRegistrationKeys, MedusaError } from '@medusajs/framework/utils';
+import { IPaymentModuleService } from '@medusajs/framework/types';
+import { ContainerRegistrationKeys, MedusaError, Modules } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { SubscriptionProvider } from '../../../modules/subscriptions';
@@ -29,11 +30,25 @@ export const deletePaymentMethodStep = createStep(
     const accountHolder = accountHolders[0] as {
       id: string;
       provider_id: SubscriptionProvider;
-      data: { id?: string };
+      data: Record<string, unknown>;
     };
 
     const adapter = getProviderAdapter(accountHolder.provider_id);
+
+    // Detach from provider (Stripe: API call; GP: no-op — token revocation not required)
     await adapter.detachPaymentMethod(input.payment_method_id);
+
+    // Remove from local storage if the provider uses it (GP stores cards in account_holder.data)
+    const updatedData = adapter.removePaymentMethodLocally(accountHolder.data ?? {}, input.payment_method_id);
+
+    if (updatedData) {
+      const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);
+      await paymentModuleService.updateAccountHolder({
+        id: accountHolder.id,
+        provider_id: accountHolder.provider_id,
+        context: { account_holder: { data: updatedData } },
+      });
+    }
 
     return new StepResponse({ success: true });
   },

@@ -3,6 +3,7 @@ import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 export type GetCustomerAccountHoldersStepInput = {
   customer_id: string;
+  provider_id?: string;
 };
 
 export type AccountHolderData = {
@@ -10,6 +11,7 @@ export type AccountHolderData = {
   provider_id: string;
   data: {
     id: string;
+    [key: string]: unknown;
   };
 };
 
@@ -36,8 +38,11 @@ export const getCustomerAccountHoldersStep = createStep(
     }
 
     const accountHoldersData =
-      (customerData[0] as { account_holders?: Array<{ id: string; provider_id: string; data: { id?: string } }> })
-        .account_holders ?? [];
+      (
+        customerData[0] as {
+          account_holders?: Array<{ id: string; provider_id: string; data: Record<string, unknown> & { id?: string } }>;
+        }
+      ).account_holders ?? [];
 
     if (accountHoldersData.length === 0) {
       return new StepResponse([]);
@@ -45,11 +50,13 @@ export const getCustomerAccountHoldersStep = createStep(
 
     const accountHolders: AccountHolderData[] = accountHoldersData
       .filter((ah) => ah && ah.provider_id && ah.data?.id)
+      .filter((ah) => !input.provider_id || ah.provider_id === input.provider_id)
       .map((ah) => ({
         id: ah.id,
         provider_id: ah.provider_id,
         data: {
-          id: ah.data.id!,
+          ...(ah.data as Record<string, unknown>),
+          id: ah.data.id as string,
         },
       }));
 

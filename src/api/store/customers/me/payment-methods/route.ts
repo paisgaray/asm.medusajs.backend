@@ -10,9 +10,12 @@ export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
+  const providerId = req.query?.provider_id as string | undefined;
+
   const { result } = await listCustomerPaymentMethodsWorkflow(req.scope).run({
     input: {
       customer_id: customerId,
+      provider_id: providerId,
     },
   });
 

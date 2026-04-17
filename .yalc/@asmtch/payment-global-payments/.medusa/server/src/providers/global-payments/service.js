@@ -387,8 +387,56 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
                 return { action: "not_supported", data: { session_id: sessionId, amount } };
         }
     }
-    async createAccountHolder() {
-        this.logger_.info("GlobalPaymentsProvider: createAccountHolder not required");
+    async createAccountHolder({ context }) {
+        // GP has no external customer API. We use the Medusa customer ID as the
+        // account holder identifier so Medusa creates the DB record.
+        const customerId = context?.customer?.id;
+        if (!customerId) {
+            throw new Error("GlobalPaymentsProvider.createAccountHolder: missing customer.id in context");
+        }
+        this.logger_.info(`GlobalPaymentsProvider: createAccountHolder for customer ${customerId}`);
+        // Store id in both external_id and data.id so ensure-account-holder-step
+        // can find the existing account holder on subsequent calls via ah.data?.id.
+        return { id: customerId, data: { id: customerId } };
+    }
+    async listPaymentMethods({ context }) {
+        const paymentMethods = context?.account_holder?.data?.payment_methods ?? [];
+        return paymentMethods.map((pm) => ({
+            id: pm.id,
+            data: {
+                ...pm,
+                card: pm.card ?? {
+                    brand: pm.brand ?? null,
+                    last4: pm.last4 ?? null,
+                    exp_month: pm.exp_month ?? null,
+                    exp_year: pm.exp_year ?? null,
+                },
+            },
+        }));
+    }
+    async updateAccountHolder({ context }) {
+        const { account_holder } = context;
+        return { data: account_holder.data };
+    }
+    async savePaymentMethod({ data, context }) {
+        // The adapter layer already converted the single-use token to multi-use
+        // and fetched the card details. We just package them for Medusa storage.
+        const { token, brand, last4, exp_month, exp_year } = data ?? {};
+        if (!token) {
+            throw new Error("GlobalPaymentsProvider.savePaymentMethod: missing token in data");
+        }
+        return {
+            id: token,
+            data: {
+                token,
+                card: {
+                    brand: brand ?? null,
+                    last4: last4 ?? null,
+                    exp_month: exp_month ?? null,
+                    exp_year: exp_year ?? null,
+                },
+            },
+        };
     }
 }
 GlobalPaymentsProvider.identifier = "global-payments";

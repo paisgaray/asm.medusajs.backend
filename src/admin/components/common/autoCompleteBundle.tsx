@@ -37,7 +37,7 @@ export default function ProductSelect({
     return () => clearTimeout(handler)
   }, [searchTerm])
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['products-autocomplete', debouncedSearch, offset, type],
     queryFn: async () =>
       sdk.client.fetch<{ products: HttpTypes.AdminProduct[]; count: number; limit: number; offset: number }>(
@@ -45,6 +45,8 @@ export default function ProductSelect({
         { query: { q: debouncedSearch, offset: String(offset), limit: String(PAGE_SIZE), type } },
       ),
   })
+
+  if (error) console.error('[ProductSelect] query error:', error)
 
 
   const products = useMemo(() => {

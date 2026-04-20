@@ -37,31 +37,13 @@ export default function ProductSelect({
     return () => clearTimeout(handler)
   }, [searchTerm])
 
-  const { data: tagData } = useQuery({
-    queryKey: ['bundled-tag'],
-    queryFn: async () => sdk.admin.productTag.list({ value: 'bundled', limit: 1 }),
-    enabled: type === 'bundled',
-  })
-
-  const bundledTagId = tagData?.product_tags?.[0]?.id
-
   const { data, isLoading } = useQuery({
-    queryKey: ['products-autocomplete', debouncedSearch, offset, type === 'bundled' ? bundledTagId : type],
-    queryFn: async () => {
-      if (type === 'not-bundled') {
-        return sdk.client.fetch<{ products: HttpTypes.AdminProduct[]; count: number; limit: number; offset: number }>(
-          '/admin/product-select',
-          { query: { q: debouncedSearch, offset: String(offset), limit: String(PAGE_SIZE) } },
-        )
-      }
-      return sdk.admin.product.list({
-        limit: PAGE_SIZE,
-        offset,
-        q: debouncedSearch,
-        ...(type === 'bundled' && bundledTagId ? { tag_id: [bundledTagId] } : {}),
-      })
-    },
-    enabled: type !== 'bundled' || !!bundledTagId,
+    queryKey: ['products-autocomplete', debouncedSearch, offset, type],
+    queryFn: async () =>
+      sdk.client.fetch<{ products: HttpTypes.AdminProduct[]; count: number; limit: number; offset: number }>(
+        '/admin/product-select',
+        { query: { q: debouncedSearch, offset: String(offset), limit: String(PAGE_SIZE), type } },
+      ),
   })
 
 

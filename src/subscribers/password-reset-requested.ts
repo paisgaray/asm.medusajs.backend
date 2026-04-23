@@ -15,12 +15,16 @@
 import type { SubscriberArgs, SubscriberConfig } from '@medusajs/framework';
 import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
 
-import { SENDGRID_TEMPLATES } from '../constants/sendgrid-templates';
+import { SENDGRID_TEMPLATES, TamplateLang } from '../constants/sendgrid-templates';
 
-export default async function resetPasswordTokenHandler({
-  event: { data },
-  container,
-}: SubscriberArgs<{ entity_id: string; token: string; actor_type: string }>) {
+type Input = {
+  entity_id: string;
+  token: string;
+  actor_type: string;
+  metadata: Record<string, unknown>;
+};
+
+export default async function resetPasswordTokenHandler({ event: { data }, container }: SubscriberArgs<Input>) {
   console.log('[Password Reset Subscriber] Evento recebido:', JSON.stringify(data, null, 2));
 
   const email = data.entity_id; // email do usuário
@@ -64,10 +68,12 @@ export default async function resetPasswordTokenHandler({
       firstName = email.split('@')[0] || 'Cliente';
     }
 
+    const language = data.metadata.language as TamplateLang;
+
     const notificationResult = await notificationModuleService.createNotifications({
       to: email,
       channel: 'email',
-      template: SENDGRID_TEMPLATES.RESET_PASSWORD, // ID do template dinâmico no SendGrid
+      template: SENDGRID_TEMPLATES[language].RESET_PASSWORD, // ID do template dinâmico no SendGrid
       data: {
         firstName,
         actionUrl: resetUrl,

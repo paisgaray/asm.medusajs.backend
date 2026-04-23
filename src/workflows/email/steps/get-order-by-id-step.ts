@@ -49,6 +49,7 @@ export const getOrderByIdStep = createStep(
         'item_subtotal',
         'item_total',
         'item_tax_total',
+        'metadata',
       ],
       filters: { id: order_id },
     });

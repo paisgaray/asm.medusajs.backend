@@ -40,7 +40,7 @@ export default async function orderPlacedGlobalPayment({ event: { data }, contai
       );
 
       await axios.patch(
-        `${process.env.GLOBAL_PAYMENT_BASE_URL}/payment-methods/${orderData.token}`,
+        `${process.env.GLOBAL_PAYMENT_BASE_URL}/payment-methods/${orderData.payment_token ?? orderData.token}`,
         { usage_mode: 'MULTIPLE' },
         {
           headers: {

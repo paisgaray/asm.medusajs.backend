@@ -36,6 +36,7 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
                 session_id: sessionId,
                 amount: amount,
                 currency_code: currency_code,
+                payment_token: data?.payment_token ?? null,
                 metadata: {
                     amount: amount,
                     currency_code: currency_code
@@ -132,22 +133,31 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
     async authorizePayment(input) {
         //this.logger_.info("-- authorizePayment --")    
         const metadata = input.data?.metadata;
-        const token = input.data?.token;
-        //if (!token || typeof token !== "string") throw new Error("Invalid payment token")
-        const amountMinor = Number(metadata?.amount || 0);
+        const token = input.data?.payment_token ?? input.data?.token;
+        // Safely extract the minor-unit amount, handling Medusa BigNumber objects
+        // e.g. { value: "1000", numeric: 1000 } stored during initiatePayment
+        const rawAmount = metadata?.amount ?? input.data?.amount ?? 0;
+        const amountMinor = typeof rawAmount === "object" && rawAmount !== null
+            ? Number(rawAmount.numeric ?? rawAmount.value ?? 0)
+            : Number(rawAmount || 0);
+        this.logger_.info(`[GP authorizePayment] input.data=${JSON.stringify(input.data)}`);
+        this.logger_.info(`[GP authorizePayment] metadata=${JSON.stringify(metadata)} rawAmount=${JSON.stringify(rawAmount)} amountMinor=${amountMinor} token=${token}`);
         //if (isNaN(amount)) throw new Error("Invalid amount")    
-        if (!token || typeof token !== "string" || isNaN(amountMinor)) {
-            return { status: utils_1.PaymentSessionStatus.ERROR };
+        if (!token || typeof token !== "string" || isNaN(amountMinor) || amountMinor <= 0) {
+            this.logger_.error(`[GP authorizePayment] guard fired — token=${token} amountMinor=${amountMinor}`);
+            return { status: utils_1.PaymentSessionStatus.ERROR, data: input.data ?? {} };
         }
-        const amount = amountMinor / 100; // convert minor -> major units
-        const currency = (metadata?.currency_code || "EUR").toUpperCase();
+        // Clamp to 2 decimal places to avoid GP rejecting floating-point noise
+        const amount = parseFloat((amountMinor / 100).toFixed(2));
+        const currency = (metadata?.currency_code || input.data?.currency_code || "EUR").toUpperCase();
+        this.logger_.info(`[GP authorizePayment] sending to GP — amount=${amount} currency=${currency}`);
         const sessionId = metadata?.session_id || Date.now();
         const orderId = typeof input.data?.id === "string"
             ? input.data.id
             : `medusa-${Date.now()}`;
         //this.logger_.info(`ORDER ID: ${orderId}`)
-        const context = input.data?.context;
-        const billingAddress = context.cart?.billing_address;
+        const context = input.context ?? input.data?.context;
+        const billingAddress = context?.cart?.billing_address;
         /**
          * Construcción de Address compatible con Global Payments
          */
@@ -197,8 +207,6 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
                 .withCurrency(currency)
                 .withOrderId(orderId)
                 .withAddress(gpAddress)
-                .withConvenienceAmt(2)
-                .withOfflineAuthCode("123456")
                 .execute();
             //this.logger_.info(`GP TRANSACTION FULL: ${JSON.stringify(transaction, null, 2)}`)
             const mapped = mapGpTransaction(transaction);

@@ -1,6 +1,6 @@
 import { createWorkflow, WorkflowResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SENDGRID_TEMPLATES } from '../../constants/sendgrid-templates';
+import { TamplateLang } from '../../constants/sendgrid-templates';
 import { formatOrderStep } from './steps/format-order-step';
 import { GetOrderByFulfillmentIdOutput, getOrderByFulfillmentIdStep } from './steps/get-order-by-fulfillmentId-step';
 import { sendEmailStep } from './steps/send-email-step';
@@ -19,7 +19,8 @@ export const sendOrderShippedEmailWorkflow = createWorkflow(
     const { templateData, recipientEmail } = formatOrderStep({ order, payment });
 
     const result = sendEmailStep({
-      templateId: SENDGRID_TEMPLATES.ORDER_SHIPPED,
+      language: order.metadata.language as TamplateLang,
+      template: 'ORDER_SHIPPED',
       recipientEmail,
       templateData,
     });

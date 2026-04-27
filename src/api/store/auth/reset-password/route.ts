@@ -23,12 +23,15 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { generateResetPasswordTokenWorkflow } from '@medusajs/medusa/core-flows';
 
+import { TamplateLang } from '../../../../constants/sendgrid-templates';
+
 interface ResetPasswordRequest {
   email: string;
+  language: TamplateLang;
 }
 
 export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: MedusaResponse) {
-  const { email } = req.body;
+  const { email, language } = req.body;
 
   if (!email) {
     return res.status(400).json({
@@ -53,6 +56,7 @@ export async function POST(req: MedusaRequest<ResetPasswordRequest>, res: Medusa
         actorType: 'customer',
         provider: 'emailpass',
         secret: jwtSecret, // ✅ CRÍTICO: Secret necessário para gerar o token JWT
+        metadata: { language: language || 'es' },
       },
     });
 

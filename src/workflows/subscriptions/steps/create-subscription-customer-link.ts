@@ -14,12 +14,8 @@ export const createSubscriptionCustomerLinkStep = createStep(
     const remoteLink = container.resolve('remoteLink');
 
     await remoteLink.create({
-      [SUBSCRIPTION_MODULE]: {
-        subscription_id: input.subscription_id,
-      },
-      [Modules.CUSTOMER]: {
-        customer_id: input.customer_id,
-      },
+      [SUBSCRIPTION_MODULE]: { subscription_id: input.subscription_id },
+      [Modules.CUSTOMER]: { customer_id: input.customer_id },
     });
 
     return new StepResponse(
@@ -33,12 +29,8 @@ export const createSubscriptionCustomerLinkStep = createStep(
     const remoteLink = container.resolve('remoteLink');
 
     await remoteLink.dismiss({
-      [SUBSCRIPTION_MODULE]: {
-        subscription_id: data.subscription_id,
-      },
-      [Modules.CUSTOMER]: {
-        customer_id: data.customer_id,
-      },
+      [SUBSCRIPTION_MODULE]: { subscription_id: data.subscription_id },
+      [Modules.CUSTOMER]: { customer_id: data.customer_id },
     });
   },
 );

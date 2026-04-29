@@ -1,36 +1,40 @@
-import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { AuthenticatedMedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 
 import { createPaymentMethodWorkflow, listCustomerPaymentMethodsWorkflow } from '../../../../../workflows/payment';
-import type { StoreCreatePaymentMethodBody, StorePaymentMethodsListQuery } from '../../../payment-methods/validators';
+import type { StoreCreatePaymentMethodBody } from '../../../payment-methods/validators';
 
-export async function GET(
-  req: MedusaRequest<undefined, StorePaymentMethodsListQuery>,
-  res: MedusaResponse,
-): Promise<void> {
-  const query = req.filterableFields as StorePaymentMethodsListQuery;
+export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
+  const customerId = req.auth_context?.actor_id;
 
-  if (!query.customer_id) {
-    res.status(400).json({ message: 'customer_id is required' });
-    return;
+  if (!customerId) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
+
+  const providerId = req.query?.provider_id as string | undefined;
 
   const { result } = await listCustomerPaymentMethodsWorkflow(req.scope).run({
     input: {
-      customer_id: query.customer_id,
+      customer_id: customerId,
+      provider_id: providerId,
     },
   });
 
   res.json({
-    payment_methods: result.payment_methods,
+    paymentMethods: result.payment_methods,
   });
 }
 
-export async function POST(req: MedusaRequest<StoreCreatePaymentMethodBody>, res: MedusaResponse): Promise<void> {
-  const body = req.validatedBody as StoreCreatePaymentMethodBody;
+export async function POST(req: AuthenticatedMedusaRequest<StoreCreatePaymentMethodBody>, res: MedusaResponse) {
+  const customerId = req.auth_context?.actor_id;
+  if (!customerId) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const body = req.validatedBody;
 
   const { result, errors } = await createPaymentMethodWorkflow(req.scope).run({
     input: {
-      customer_id: body.customer_id,
+      customer_id: customerId,
       provider_id: body.provider_id,
       payment_method_id: body.payment_method_id,
       metadata: body.metadata,

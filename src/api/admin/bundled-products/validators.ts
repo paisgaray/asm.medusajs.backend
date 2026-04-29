@@ -11,7 +11,6 @@ export const CreateBundledProductsSchema = z.object({
       z.object({
         product_id: z.string(),
         details: z.string().optional(),
-        quantity: z.number().int().min(1),
       }),
     )
     .min(2),
@@ -36,7 +35,6 @@ export const AddBundledProductItemQuerySchema = z.object({
 export const AddBundledProductItemSchema = z.object({
   product_id: z.string().nonempty(),
   details: z.string().optional(),
-  quantity: z.number().int().min(1),
 });
 
 export const UpdateBundledProductItemQuerySchema = z.object({
@@ -46,7 +44,6 @@ export const UpdateBundledProductItemQuerySchema = z.object({
 
 export const UpdateBundledProductItemSchema = z.object({
   details: z.string().optional(),
-  quantity: z.number().int().min(1),
 });
 
 export type CreateBundledProductsSchema = z.infer<typeof CreateBundledProductsSchema>;

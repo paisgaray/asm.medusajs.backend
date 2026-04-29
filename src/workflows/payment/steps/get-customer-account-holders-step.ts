@@ -1,8 +1,9 @@
-import { ContainerRegistrationKeys, Modules } from '@medusajs/framework/utils';
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 export type GetCustomerAccountHoldersStepInput = {
   customer_id: string;
+  provider_id?: string;
 };
 
 export type AccountHolderData = {
@@ -10,6 +11,7 @@ export type AccountHolderData = {
   provider_id: string;
   data: {
     id: string;
+    [key: string]: unknown;
   };
 };
 
@@ -17,12 +19,11 @@ export const getCustomerAccountHoldersStep = createStep(
   'get-customer-account-holders-step',
   async (input: GetCustomerAccountHoldersStepInput, { container }) => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY);
-    const link = container.resolve(ContainerRegistrationKeys.LINK);
 
     const { data: customerData } = await query.graph(
       {
         entity: 'customer',
-        fields: ['id'],
+        fields: ['id', 'account_holders.id', 'account_holders.provider_id', 'account_holders.data'],
         filters: {
           id: input.customer_id,
         },
@@ -36,46 +37,26 @@ export const getCustomerAccountHoldersStep = createStep(
       return new StepResponse([]);
     }
 
-    const allLinks = await link.list({
-      [Modules.CUSTOMER]: { customer_id: input.customer_id },
-    });
+    const accountHoldersData =
+      (
+        customerData[0] as {
+          account_holders?: Array<{ id: string; provider_id: string; data: Record<string, unknown> & { id?: string } }>;
+        }
+      ).account_holders ?? [];
 
-    if (!allLinks || allLinks.length === 0) {
-      return new StepResponse([]);
-    }
-
-    const accountHolderIds = allLinks
-      .map((linkEntry) => linkEntry[Modules.PAYMENT]?.account_holder_id)
-      .filter((id): id is string => !!id);
-
-    if (accountHolderIds.length === 0) {
-      return new StepResponse([]);
-    }
-
-    const { data: accountHoldersData } = await query.graph(
-      {
-        entity: 'account_holder',
-        fields: ['id', 'provider_id', 'data'],
-        filters: {
-          id: accountHolderIds,
-        },
-      },
-      {
-        throwIfKeyNotFound: false,
-      },
-    );
-
-    if (!accountHoldersData || accountHoldersData.length === 0) {
+    if (accountHoldersData.length === 0) {
       return new StepResponse([]);
     }
 
     const accountHolders: AccountHolderData[] = accountHoldersData
-      .filter((ah: { provider_id?: string; data?: { id?: string } }) => ah.provider_id && ah.data?.id)
-      .map((ah: { id: string; provider_id: string; data: { id?: string } }) => ({
+      .filter((ah) => ah && ah.provider_id && ah.data?.id)
+      .filter((ah) => !input.provider_id || ah.provider_id === input.provider_id)
+      .map((ah) => ({
         id: ah.id,
         provider_id: ah.provider_id,
         data: {
-          id: ah.data.id!,
+          ...(ah.data as Record<string, unknown>),
+          id: ah.data.id as string,
         },
       }));
 

@@ -36,7 +36,7 @@ export const fetchItemPriceDeltaStep = createStep(
     const newPrice = previousPrice + item.item_price * delta;
 
     return new StepResponse({
-      provider: subscription.provider,
+      provider_id: subscription.provider_id,
       provider_subscription_id: subscription.provider_subscription_id,
       subscription_id,
       previous_price: previousPrice,

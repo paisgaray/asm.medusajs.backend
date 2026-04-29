@@ -1,7 +1,7 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 import Stripe from 'stripe';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
+import { SUBSCRIPTION_MODULE, SubscriptionProvider } from '../../../modules/subscriptions';
 import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
@@ -13,7 +13,7 @@ type UpdateSubscriptionPaymentMethodStepInput = {
 
 type CompensationData = {
   id: string;
-  provider: string;
+  provider_id: SubscriptionProvider;
   provider_subscription_id: string;
   provider_customer_id: string;
   previous_payment_method_id: string | null;
@@ -32,7 +32,7 @@ export const updateSubscriptionPaymentMethodStep = createStep(
     const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     const existing = await subscriptionService.retrieveSubscription(input.id);
-    const { provider, provider_subscription_id, provider_customer_id } = existing;
+    const { provider_id, provider_subscription_id, provider_customer_id } = existing;
 
     // Retrieve PM from Stripe — verify it exists and extract card details server-side (never trust frontend)
     const paymentMethod = await stripe.paymentMethods.retrieve(input.payment_method_id);
@@ -60,7 +60,7 @@ export const updateSubscriptionPaymentMethodStep = createStep(
     }
 
     // Always set as subscription-level default (only this subscription)
-    const adapter = getProviderAdapter(provider);
+    const adapter = getProviderAdapter(provider_id);
     await adapter.changeSubscriptionPaymentMethod(provider_subscription_id, input.payment_method_id);
     logger.info(
       `Payment method ${input.payment_method_id} set as subscription-level default for ${provider_subscription_id}`,
@@ -91,7 +91,7 @@ export const updateSubscriptionPaymentMethodStep = createStep(
       },
       {
         id: input.id,
-        provider,
+        provider_id,
         provider_subscription_id,
         provider_customer_id,
         previous_payment_method_id: existing.provider_payment_method_id ?? null,
@@ -111,7 +111,7 @@ export const updateSubscriptionPaymentMethodStep = createStep(
     const stripe = new Stripe(process.env.STRIPE_API_KEY!);
 
     try {
-      const adapter = getProviderAdapter(data.provider);
+      const adapter = getProviderAdapter(data.provider_id);
 
       // Revert subscription-level default
       await adapter.changeSubscriptionPaymentMethod(data.provider_subscription_id, data.previous_payment_method_id);

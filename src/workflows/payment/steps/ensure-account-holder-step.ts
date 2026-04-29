@@ -18,7 +18,7 @@ export const ensureAccountHolderStep = createStep(
     const { data: customerData } = await query.graph(
       {
         entity: 'customer',
-        fields: ['id', 'email'],
+        fields: ['id', 'email', 'account_holders.id', 'account_holders.provider_id', 'account_holders.data'],
         filters: {
           id: input.customer_id,
         },
@@ -32,52 +32,38 @@ export const ensureAccountHolderStep = createStep(
       throw new Error('Customer not found');
     }
 
-    const customer = customerData[0] as { id: string; email: string };
+    const customer = customerData[0] as {
+      id: string;
+      email: string;
+      account_holders?: Array<{ id: string; provider_id: string; data: { id?: string } }>;
+    };
 
-    const allLinks = await link.list({
-      [Modules.CUSTOMER]: { customer_id: input.customer_id },
-    });
+    const existingAccountHolder = customer.account_holders?.find((ah) => ah && ah.provider_id === input.provider_id);
 
-    if (allLinks && allLinks.length > 0) {
-      const accountHolderIds = allLinks
-        .map((linkEntry) => linkEntry[Modules.PAYMENT]?.account_holder_id)
-        .filter((id): id is string => !!id);
+    if (existingAccountHolder) {
+      const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);
 
-      if (accountHolderIds.length > 0) {
-        const { data: accountHoldersData } = await query.graph(
-          {
-            entity: 'account_holder',
-            fields: ['id', 'provider_id', 'data'],
-            filters: {
-              id: accountHolderIds,
-              provider_id: input.provider_id,
+      // Heal: if data.id is missing (account holder created before data was populated),
+      // patch it now so subsequent steps can use it.
+      if (!existingAccountHolder.data?.id) {
+        await paymentModuleService.updateAccountHolder({
+          id: existingAccountHolder.id,
+          provider_id: existingAccountHolder.provider_id,
+          context: {
+            account_holder: {
+              data: { id: input.customer_id },
             },
           },
-          {
-            throwIfKeyNotFound: false,
-          },
-        );
-
-        if (accountHoldersData && accountHoldersData.length > 0) {
-          const existing = accountHoldersData[0] as {
-            id: string;
-            provider_id: string;
-            data: {
-              id?: string;
-            };
-          };
-
-          if (existing?.data?.id) {
-            return new StepResponse({
-              id: existing.id,
-              provider_id: existing.provider_id,
-              data: {
-                id: existing.data.id,
-              },
-            } as AccountHolderData);
-          }
-        }
+        });
       }
+
+      return new StepResponse({
+        id: existingAccountHolder.id,
+        provider_id: existingAccountHolder.provider_id,
+        data: {
+          id: existingAccountHolder.data?.id ?? input.customer_id,
+        },
+      } as AccountHolderData);
     }
 
     const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);

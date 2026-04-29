@@ -18,6 +18,7 @@ const customerIdSchema = z
 
 export const StorePaymentMethodsListQuerySchema = z.object({
   customer_id: customerIdSchema,
+  provider_id: z.string().optional(),
 });
 
 export const StoreDeletePaymentMethodBodySchema = z.object({

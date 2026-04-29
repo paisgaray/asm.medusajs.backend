@@ -36,6 +36,7 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
                 session_id: sessionId,
                 amount: amount,
                 currency_code: currency_code,
+                payment_token: data?.payment_token ?? null,
                 metadata: {
                     amount: amount,
                     currency_code: currency_code
@@ -132,22 +133,31 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
     async authorizePayment(input) {
         //this.logger_.info("-- authorizePayment --")    
         const metadata = input.data?.metadata;
-        const token = input.data?.token;
-        //if (!token || typeof token !== "string") throw new Error("Invalid payment token")
-        const amountMinor = Number(metadata?.amount || 0);
+        const token = input.data?.payment_token ?? input.data?.token;
+        // Safely extract the minor-unit amount, handling Medusa BigNumber objects
+        // e.g. { value: "1000", numeric: 1000 } stored during initiatePayment
+        const rawAmount = metadata?.amount ?? input.data?.amount ?? 0;
+        const amountMinor = typeof rawAmount === "object" && rawAmount !== null
+            ? Number(rawAmount.numeric ?? rawAmount.value ?? 0)
+            : Number(rawAmount || 0);
+        this.logger_.info(`[GP authorizePayment] input.data=${JSON.stringify(input.data)}`);
+        this.logger_.info(`[GP authorizePayment] metadata=${JSON.stringify(metadata)} rawAmount=${JSON.stringify(rawAmount)} amountMinor=${amountMinor} token=${token}`);
         //if (isNaN(amount)) throw new Error("Invalid amount")    
-        if (!token || typeof token !== "string" || isNaN(amountMinor)) {
-            return { status: utils_1.PaymentSessionStatus.ERROR };
+        if (!token || typeof token !== "string" || isNaN(amountMinor) || amountMinor <= 0) {
+            this.logger_.error(`[GP authorizePayment] guard fired — token=${token} amountMinor=${amountMinor}`);
+            return { status: utils_1.PaymentSessionStatus.ERROR, data: input.data ?? {} };
         }
-        const amount = amountMinor / 100; // convert minor -> major units
-        const currency = (metadata?.currency_code || "EUR").toUpperCase();
+        // Clamp to 2 decimal places to avoid GP rejecting floating-point noise
+        const amount = parseFloat((amountMinor / 100).toFixed(2));
+        const currency = (metadata?.currency_code || input.data?.currency_code || "EUR").toUpperCase();
+        this.logger_.info(`[GP authorizePayment] sending to GP — amount=${amount} currency=${currency}`);
         const sessionId = metadata?.session_id || Date.now();
         const orderId = typeof input.data?.id === "string"
             ? input.data.id
             : `medusa-${Date.now()}`;
         //this.logger_.info(`ORDER ID: ${orderId}`)
-        const context = input.data?.context;
-        const billingAddress = context.cart?.billing_address;
+        const context = input.context ?? input.data?.context;
+        const billingAddress = context?.cart?.billing_address;
         /**
          * Construcción de Address compatible con Global Payments
          */
@@ -197,8 +207,6 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
                 .withCurrency(currency)
                 .withOrderId(orderId)
                 .withAddress(gpAddress)
-                .withConvenienceAmt(2)
-                .withOfflineAuthCode("123456")
                 .execute();
             //this.logger_.info(`GP TRANSACTION FULL: ${JSON.stringify(transaction, null, 2)}`)
             const mapped = mapGpTransaction(transaction);
@@ -387,8 +395,56 @@ class GlobalPaymentsProvider extends utils_1.AbstractPaymentProvider {
                 return { action: "not_supported", data: { session_id: sessionId, amount } };
         }
     }
-    async createAccountHolder() {
-        this.logger_.info("GlobalPaymentsProvider: createAccountHolder not required");
+    async createAccountHolder({ context }) {
+        // GP has no external customer API. We use the Medusa customer ID as the
+        // account holder identifier so Medusa creates the DB record.
+        const customerId = context?.customer?.id;
+        if (!customerId) {
+            throw new Error("GlobalPaymentsProvider.createAccountHolder: missing customer.id in context");
+        }
+        this.logger_.info(`GlobalPaymentsProvider: createAccountHolder for customer ${customerId}`);
+        // Store id in both external_id and data.id so ensure-account-holder-step
+        // can find the existing account holder on subsequent calls via ah.data?.id.
+        return { id: customerId, data: { id: customerId } };
+    }
+    async listPaymentMethods({ context }) {
+        const paymentMethods = context?.account_holder?.data?.payment_methods ?? [];
+        return paymentMethods.map((pm) => ({
+            id: pm.id,
+            data: {
+                ...pm,
+                card: pm.card ?? {
+                    brand: pm.brand ?? null,
+                    last4: pm.last4 ?? null,
+                    exp_month: pm.exp_month ?? null,
+                    exp_year: pm.exp_year ?? null,
+                },
+            },
+        }));
+    }
+    async updateAccountHolder({ context }) {
+        const { account_holder } = context;
+        return { data: account_holder.data };
+    }
+    async savePaymentMethod({ data, context }) {
+        // The adapter layer already converted the single-use token to multi-use
+        // and fetched the card details. We just package them for Medusa storage.
+        const { token, brand, last4, exp_month, exp_year } = data ?? {};
+        if (!token) {
+            throw new Error("GlobalPaymentsProvider.savePaymentMethod: missing token in data");
+        }
+        return {
+            id: token,
+            data: {
+                token,
+                card: {
+                    brand: brand ?? null,
+                    last4: last4 ?? null,
+                    exp_month: exp_month ?? null,
+                    exp_year: exp_year ?? null,
+                },
+            },
+        };
     }
 }
 GlobalPaymentsProvider.identifier = "global-payments";

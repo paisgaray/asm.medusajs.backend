@@ -1,3 +1,7 @@
+import { CustomerDTO } from '@medusajs/framework/types';
+
+import { CreatePaymentSubscriptionStepInput } from './type';
+
 export interface SubscriptionProviderAdapter {
   skipNextPayment(providerSubscriptionId: string, resumesAt: Date): Promise<void>;
   rollbackSkip(providerSubscriptionId: string): Promise<void>;
@@ -39,4 +43,53 @@ export interface SubscriptionProviderAdapter {
     previousNextBillingDate: Date,
   ): Promise<{ new_provider_subscription_id: string }>;
   changeSubscriptionPaymentMethod(providerSubscriptionId: string, paymentMethodId: string): Promise<void>;
+  getOrCreatePaymentCustomer(customer_id: string): Promise<{
+    paymentCustomerId: string;
+    wasCreated: boolean;
+    customer: CustomerDTO;
+  }>;
+  attachPaymentMethod(
+    payment_method_id: string,
+    payment_customer_id: string,
+  ): Promise<{
+    payment_method_id: string;
+    paymentMethod: {
+      brand: string;
+      last4: string;
+      exp_month: number;
+      exp_year: number;
+    };
+  }>;
+  getsertPaymentProduct(
+    product_name: string,
+    medusa_product_id: string,
+    metadata?: Record<string, string>,
+  ): Promise<{
+    paymentProductId: string;
+    wasCreated: boolean;
+  }>;
+  createPaymentSubscription(input: CreatePaymentSubscriptionStepInput): Promise<{
+    subscription: { id: string; status: string };
+    periodStart: number;
+    periodEnd: number;
+  }>;
+  preparePaymentMethodData(token: string): Promise<Record<string, unknown>>;
+  /**
+   * Returns an updated account holder data object to persist locally (e.g. for providers
+   * that have no external payment method storage API). Return null if no local persistence
+   * is needed (e.g. Stripe handles storage externally).
+   */
+  persistPaymentMethodLocally(
+    currentAccountHolderData: Record<string, unknown>,
+    paymentMethodId: string,
+    paymentMethodData: Record<string, unknown>,
+  ): Record<string, unknown> | null;
+  /**
+   * Returns an updated account holder data object with the payment method removed.
+   * Return null if no local removal is needed (e.g. Stripe stores externally).
+   */
+  removePaymentMethodLocally(
+    currentAccountHolderData: Record<string, unknown>,
+    paymentMethodId: string,
+  ): Record<string, unknown> | null;
 }

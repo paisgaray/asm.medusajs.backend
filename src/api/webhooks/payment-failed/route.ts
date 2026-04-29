@@ -13,6 +13,8 @@
 import type { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
 import { Modules } from '@medusajs/framework/utils';
 
+import { SubscriptionProvider } from '../../../modules/subscriptions';
+
 /**
  * Stripe Webhook Types
  */
@@ -85,7 +87,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         const eventData: PaymentFailedEventData = {
           id: medusaPaymentId,
           reason: stripeEvent.data?.object?.last_payment_error?.message || 'Payment failed',
-          provider: 'stripe',
+          provider: SubscriptionProvider.STRIPE,
           provider_payment_id: paymentIntentId,
         };
 

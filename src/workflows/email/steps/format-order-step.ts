@@ -1,6 +1,9 @@
 import { BigNumberValue, OrderWorkflowDTO } from '@medusajs/framework/types';
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
+import { TamplateLang } from '../../../constants/sendgrid-templates';
+import { SubscriptionFrequency } from '../../../modules/subscriptions';
+
 export interface FormatOrderPreparingDataInput {
   order: OrderWorkflowDTO;
   payment: {
@@ -19,6 +22,8 @@ export const formatOrderStep = createStep(
     if (!recipientEmail) {
       throw new Error(`Order ${order.id} não possui e-mail do cliente`);
     }
+
+    const language = order.metadata.language as TamplateLang;
 
     const formatCurrency = (value: number | BigNumberValue) => {
       if (value === undefined) return '0 €';
@@ -40,13 +45,29 @@ export const formatOrderStep = createStep(
       value: formatCurrency(total),
     }));
 
-    const formatPaymentMethod = (payment: { card: { brand?: string; last4?: string } }) => {
-      const brandName = payment?.card?.brand || 'Card';
-      const last4 = payment?.card?.last4 || 'XXXX';
+    const formatPaymentMethod = (payment: {
+      card?: { brand?: string; last4?: string };
+      raw?: { cardDetails: { brand: string; maskedNumberLast4: string } };
+    }) => {
+      const brandName = payment?.card?.brand || payment?.raw?.cardDetails?.brand || 'Card';
+      const last4 = payment?.card?.last4 || payment?.raw?.cardDetails?.maskedNumberLast4.slice(-4) || 'XXXX';
 
       const normalizedBrand = brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase();
 
       return `${normalizedBrand} **** ${last4}`;
+    };
+
+    const translate = {
+      'ca-ES': {
+        weekly: 'Subscripció setmanal',
+        biweekly: 'Subscripció quinzenal',
+        monthly: 'Subscripció mensual',
+      },
+      es: {
+        weekly: 'Suscripción semanal',
+        biweekly: 'Suscripción quincenal',
+        monthly: 'Suscripción mensual',
+      },
     };
 
     const templateData = {
@@ -57,7 +78,9 @@ export const formatOrderStep = createStep(
       orderItems: order.items.map((item) => ({
         itemImageUrl: item.thumbnail || '#',
         itemName: item.title,
-        itemType: item.product_type || 'Entrega pontual (Mock)',
+        itemType: item.metadata?.is_subscription
+          ? translate[language][item.metadata.frequency as SubscriptionFrequency]
+          : 'Entrega pontual',
         itemQuantity: item.quantity,
         itemPrice: formatCurrency(item.total),
       })),
@@ -79,7 +102,7 @@ export const formatOrderStep = createStep(
       },
 
       deliverySchedule: {
-        deliveryDate: order.metadata?.periodDate,
+        deliveryDate: order.metadata?.delivery_date,
         deliveryTime: order.metadata?.period,
       },
 

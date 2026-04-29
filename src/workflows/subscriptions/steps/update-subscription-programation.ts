@@ -1,6 +1,6 @@
 import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
-import { SUBSCRIPTION_MODULE } from '../../../modules/subscriptions';
+import { SUBSCRIPTION_MODULE, SubscriptionProvider } from '../../../modules/subscriptions';
 import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
 import SubscriptionModuleService from '../../../modules/subscriptions/service';
 
@@ -12,7 +12,7 @@ type UpdateSubscriptionProgramationStepInput = {
 
 type CompensationData = {
   id: string;
-  provider: string;
+  providerId: SubscriptionProvider;
   new_provider_subscription_id: string;
   previous_next_billing_date: string;
   previous_delivery_date: string;
@@ -33,7 +33,7 @@ export const updateSubscriptionProgramationStep = createStep(
       // Stripe charges 7 days before delivery
       newNextBillingDate = new Date(deliveryDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      const adapter = getProviderAdapter(existing.provider);
+      const adapter = getProviderAdapter(existing.provider_id);
       ({ new_provider_subscription_id } = await adapter.updateDeliveryDate(
         existing.provider_subscription_id,
         existing.frequency,
@@ -53,7 +53,7 @@ export const updateSubscriptionProgramationStep = createStep(
 
     return new StepResponse({ subscription }, {
       id: input.id,
-      provider: existing.provider,
+      providerId: existing.provider_id,
       new_provider_subscription_id,
       previous_next_billing_date: new Date(existing.next_billing_date!).toISOString(),
       previous_delivery_date: new Date(existing.delivery_date!).toISOString(),
@@ -67,7 +67,7 @@ export const updateSubscriptionProgramationStep = createStep(
 
     try {
       const existing = await subscriptionService.retrieveSubscription(data.id);
-      const adapter = getProviderAdapter(data.provider);
+      const adapter = getProviderAdapter(data.providerId);
       const { new_provider_subscription_id: restored_id } = await adapter.rollbackUpdateDeliveryDate(
         data.new_provider_subscription_id,
         existing.frequency,

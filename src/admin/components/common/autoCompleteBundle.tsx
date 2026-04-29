@@ -37,33 +37,22 @@ export default function ProductSelect({
     return () => clearTimeout(handler)
   }, [searchTerm])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['products-autocomplete', debouncedSearch, offset],
-    queryFn: async () => {
-      return await sdk.admin.product.list({
-        limit: PAGE_SIZE,
-        offset,
-        q: debouncedSearch,
-      })
-    },
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['products-autocomplete', debouncedSearch, offset, type],
+    queryFn: async () =>
+      sdk.client.fetch<{ products: HttpTypes.AdminProduct[]; count: number; limit: number; offset: number }>(
+        '/admin/product-select',
+        { query: { q: debouncedSearch, offset: String(offset), limit: String(PAGE_SIZE), type } },
+      ),
   })
+
+  if (error) console.error('[ProductSelect] query error:', error)
+
 
   const products = useMemo(() => {
     if (!data?.products) return []
 
     let list = data.products
-
-    if (type === 'bundled') {
-      list = list.filter((p) =>
-        p.tags?.some((t) => t.value === 'bundled')
-      )
-    }
-
-    if (type === 'not-bundled') {
-      list = list.filter(
-        (p) => !p.tags?.some((t) => t.value === 'bundled')
-      )
-    }
 
     if (
       selectProduct &&
@@ -73,7 +62,7 @@ export default function ProductSelect({
     }
 
     return list
-  }, [data, type, selectProduct])
+  }, [data, selectProduct])
 
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>

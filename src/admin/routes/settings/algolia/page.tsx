@@ -41,15 +41,15 @@ const AlgoliaManagementPage = () => {
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
+    runSearch(searchQuery.trim(), currentPage);
+  }, [language, currentPage]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       runSearch(searchQuery.trim(), currentPage);
     }, 400);
     return () => clearTimeout(timer);
-  }, [searchQuery, language, currentPage]);
+  }, [searchQuery]);
 
   const runSearch = async (q: string, page: number) => {
     setIsSearching(true);
@@ -207,12 +207,12 @@ const AlgoliaManagementPage = () => {
         <Heading level="h2">Search Indexed Products</Heading>
         <Input placeholder="Search products in this index..." value={searchQuery} onChange={handleSearchChange} />
 
-        {!searchQuery.trim() ? (
-          <Text className="text-ui-fg-subtle text-center py-4">Enter a search term to find indexed products</Text>
-        ) : isSearching ? (
+        {isSearching ? (
           <Text className="text-ui-fg-subtle text-center py-4">Searching...</Text>
         ) : searchResults && searchResults.hits.length === 0 ? (
-          <Text className="text-ui-fg-subtle text-center py-4">No products found for &ldquo;{searchQuery}&rdquo;</Text>
+          <Text className="text-ui-fg-subtle text-center py-4">
+            {searchQuery.trim() ? `No products found for "${searchQuery}"` : 'No products indexed for this language'}
+          </Text>
         ) : searchResults && searchResults.hits.length > 0 ? (
           <>
             <div className="flex items-center justify-between">

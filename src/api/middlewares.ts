@@ -6,6 +6,7 @@ import { contactAdminMiddlewares } from './admin/contact/middleware';
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { customBundleProductsMiddlewares } from './store/bundle-products/custom/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
+import { lineItemBatchMiddlewares } from './store/carts/[id]/line-items/batch/middleware';
 import { contactStoreMiddlewares } from './store/contact/middleware';
 import { subscriptionMiddlewares } from './store/customers/me/subscriptions/middleware';
 import { newsletterMiddlewares } from './store/newsletter/middleware';
@@ -19,6 +20,7 @@ export default defineMiddlewares({
   routes: [
     ...bundledProductsMiddlewares,
     ...customBundleProductsMiddlewares,
+    ...lineItemBatchMiddlewares,
     ...lineItemBundlesMiddlewares,
     ...productSearchMiddlewares,
     ...newsletterMiddlewares,

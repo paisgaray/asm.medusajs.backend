@@ -2,6 +2,7 @@ import { createStep, StepResponse } from '@medusajs/framework/workflows-sdk';
 
 import { ALGOLIA_MODULE } from '../../../modules/algolia';
 import AlgoliaModuleService from '../../../modules/algolia/service';
+import { AlgoliaSearchResult } from '../../../modules/algolia/types';
 import { AlgoliaHit } from '../types';
 
 type SearchProductsStepInput = {
@@ -19,6 +20,7 @@ type SearchProductsStepOutput = {
   page: number;
   nbHits: number;
   nbPages: number;
+  facets: Record<string, number>;
 };
 
 export const searchProductsStep = createStep(
@@ -46,10 +48,11 @@ export const searchProductsStep = createStep(
         page,
         nbHits: 0,
         nbPages: 0,
+        facets: {},
       });
     }
 
-    const firstResult = result.results[0];
+    const firstResult = result.results[0] as AlgoliaSearchResult & { facets?: Record<string, number> };
     const hits = firstResult.hits || [];
 
     return new StepResponse({
@@ -58,6 +61,7 @@ export const searchProductsStep = createStep(
       page: firstResult.page || 0,
       nbHits: firstResult.nbHits || 0,
       nbPages: firstResult.nbPages || 0,
+      facets: firstResult.facets || {},
     });
   },
 );

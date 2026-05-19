@@ -23,6 +23,7 @@ interface SearchWithPricingOutput {
   nbHits: number;
   nbPages: number;
   query: string;
+  facets: Record<string, number>;
 }
 
 export const searchProductsWithPricingWorkflow = createWorkflow(
@@ -55,6 +56,7 @@ export const searchProductsWithPricingWorkflow = createWorkflow(
       nbHits: searchResults.nbHits,
       nbPages: searchResults.nbPages,
       query: input.searchQuery,
+      facets: searchResults.facets,
     });
   },
 );

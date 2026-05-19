@@ -2,15 +2,15 @@ import { MedusaError } from '@medusajs/framework/utils';
 import { algoliasearch, SearchClient } from 'algoliasearch';
 
 import type {
+  AlgoliaError,
   AlgoliaProduct,
+  AlgoliaRecentSearch,
+  AlgoliaRecentSearchesResponse,
   AlgoliaSearchRequest,
   AlgoliaSearchResponse,
-  AlgoliaRecentSearchesResponse,
-  AlgoliaRecentSearch,
-  ProductInput,
   ProductCollection,
+  ProductInput,
   ProductTag,
-  AlgoliaError,
   SalesChannel,
   SalesChannelMetadata,
 } from './types';
@@ -47,7 +47,9 @@ const COMMON_SUFFIXES = [
   '00x', // Códigos numéricos
 ];
 
-type Container = Record<string, never>;
+type Container = {
+  logger?: { warn: (msg: string, ...args: unknown[]) => void; info: (msg: string, ...args: unknown[]) => void };
+};
 
 type AlgoliaLogEntry = {
   timestamp: string;
@@ -67,8 +69,10 @@ type AlgoliaLogEntry = {
 export default class AlgoliaModuleService {
   private client: SearchClient;
   private options: AlgoliaOptions;
+  private logger?: Container['logger'];
 
   constructor(_container: Container, options: AlgoliaOptions) {
+    this.logger = _container?.logger;
     if (!options.appId || !options.apiKey || !options.productIndexName) {
       const missing = [];
       if (!options.appId) missing.push('ALGOLIA_APP_ID');
@@ -267,6 +271,7 @@ export default class AlgoliaModuleService {
       query: query || '',
       page,
       hitsPerPage,
+      facets: ['tags.value'],
     };
 
     if (filterString && filterString.trim()) {
@@ -292,6 +297,7 @@ export default class AlgoliaModuleService {
     if (sortBy) {
       indexName = `${baseIndex}_${sortBy}`;
       shouldTryReplica = true;
+      this.logger?.info(`[Algolia] Attempting sort replica index: "${indexName}"`);
     }
 
     const filterParts = filters ? [filters] : [];
@@ -333,6 +339,9 @@ export default class AlgoliaModuleService {
         errorMessage.includes('invalid index name');
 
       if (isIndexError && shouldTryReplica) {
+        this.logger?.warn(
+          `[Algolia] Sort replica index "${indexName}" not found. Falling back to base index "${baseIndex}" (results will be unsorted). Create this replica in your Algolia dashboard to enable sorting by "${sortBy}".`,
+        );
         try {
           const fallbackRequest = this.createSearchRequest(baseIndex, query || '', page, hitsPerPage, filterString);
           return (await this.client.search(fallbackRequest)) as AlgoliaSearchResponse;
@@ -824,16 +833,16 @@ export default class AlgoliaModuleService {
       language,
       variants: Array.isArray(product.variants)
         ? product.variants.map((v) => ({
-            id: v.id || '',
-            title: v.title || '',
-            sku: v.sku || '',
-            calculated_price: v.calculated_price
-              ? {
-                  calculated_amount: v.calculated_price.calculated_amount || 0,
-                  currency_code: v.calculated_price.currency_code || 'USD',
-                }
-              : null,
-          }))
+          id: v.id || '',
+          title: v.title || '',
+          sku: v.sku || '',
+          calculated_price: v.calculated_price
+            ? {
+              calculated_amount: v.calculated_price.calculated_amount || 0,
+              currency_code: v.calculated_price.currency_code || 'USD',
+            }
+            : null,
+        }))
         : [],
       sku: product.variants?.[0]?.sku || '',
       tags: tagsFormatted,

@@ -54,10 +54,8 @@ export const hydrateProductsWithPricingStep = createStep(
 
       const products = allProducts || [];
 
-      const productList = products;
-
-      const productMapByHandle = new Map(productList.map((p) => [p.handle, p]));
-      const productMapById = new Map(productList.map((p) => [p.id, p]));
+      const productMapByHandle = new Map(products.map((p) => [p.handle, p]));
+      const productMapById = new Map(products.map((p) => [p.id, p]));
 
       const hydratedProducts = hits.map((hit: AlgoliaHit): Product => {
         let product = hit.objectID ? productMapById.get(hit.objectID) : undefined;

@@ -1,7 +1,22 @@
 import { defineRouteConfig } from '@medusajs/admin-sdk';
-import { Trash, Plus } from '@medusajs/icons';
-import { Container, Heading, Button, Input, Table, Text, Select, toast } from '@medusajs/ui';
-import { useState, useEffect } from 'react';
+import { Plus, Trash } from '@medusajs/icons';
+import {
+  Button,
+  Container,
+  createDataTableColumnHelper,
+  DataTable,
+  DataTablePaginationState,
+  Heading,
+  Input,
+  Select,
+  Text,
+  toast,
+  useDataTable,
+} from '@medusajs/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+
+import { sdk } from '../../../lib/sdk';
 
 type RegionZipcode = {
   id: string;
@@ -17,59 +32,105 @@ type Region = {
   currency_code: string;
 };
 
+const limit = 15;
+
+const columnHelper = createDataTableColumnHelper<RegionZipcode>();
+
 const ZipcodesManagementPage = () => {
-  const [zipcodes, setZipcodes] = useState<RegionZipcode[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
+  const queryClient = useQueryClient();
+
   const [newZipcode, setNewZipcode] = useState('');
   const [selectedRegionId, setSelectedRegionId] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [filterRegionId, setFilterRegionId] = useState<string>('all');
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageSize: limit,
+    pageIndex: 0,
+  });
 
-  useEffect(() => {
-    fetchRegions();
-    fetchZipcodes();
-  }, []);
+  const offset = useMemo(() => pagination.pageIndex * limit, [pagination]);
 
-  const fetchRegions = async () => {
+  const { data: regionsData } = useQuery<{ regions: Region[] }>({
+    queryKey: ['regions'],
+    queryFn: () => sdk.client.fetch('/admin/regions', { method: 'GET' }),
+  });
+  const regions = regionsData?.regions ?? [];
+
+  const { data: zipcodesData, isLoading } = useQuery<{
+    region_zipcodes: RegionZipcode[];
+    count: number;
+  }>({
+    queryKey: ['region-zipcodes', offset, limit, filterRegionId],
+    queryFn: () =>
+      sdk.client.fetch('/admin/region-zipcodes', {
+        method: 'GET',
+        query: {
+          limit,
+          offset,
+          ...(filterRegionId !== 'all' && { region_id: filterRegionId }),
+        },
+      }),
+  });
+
+  const getRegionName = (regionId: string) => {
+    return regions.find((r) => r.id === regionId)?.name || regionId;
+  };
+
+  const handleDeleteZipcode = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this zipcode?')) return;
+
     try {
-      const response = await fetch('/admin/regions', {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setRegions(result.regions || []);
-        if (result.regions?.length > 0) {
-          setSelectedRegionId(result.regions[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching regions:', error);
+      await sdk.client.fetch(`/admin/region-zipcodes/${id}`, { method: 'DELETE' });
+      toast.success('Success', { description: 'Zipcode deleted successfully' });
+      queryClient.invalidateQueries({ queryKey: ['region-zipcodes'] });
+    } catch {
+      toast.error('Error', { description: 'Failed to delete zipcode' });
     }
   };
 
-  const fetchZipcodes = async (regionId?: string) => {
-    setIsLoading(true);
-    try {
-      const url = regionId ? `/admin/region-zipcodes?region_id=${regionId}` : '/admin/region-zipcodes';
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('zipcode', {
+        header: 'Zipcode',
+        cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+      }),
+      columnHelper.accessor('region_id', {
+        header: 'Region',
+        cell: ({ getValue }) => getRegionName(getValue()),
+      }),
+      columnHelper.accessor('created_at', {
+        header: 'Created At',
+        cell: ({ getValue }) => new Date(getValue()).toLocaleDateString(),
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              variant="transparent"
+              onClick={() => handleDeleteZipcode(row.original.id)}
+              className="text-ui-fg-error"
+            >
+              <Trash />
+            </Button>
+          </div>
+        ),
+      }),
+    ],
+    [regions],
+  );
 
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setZipcodes(result.region_zipcodes || []);
-      }
-    } catch (error) {
-      console.error('Error fetching zipcodes:', error);
-      toast.error('Error', {
-        description: 'Failed to load zipcodes',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const table = useDataTable({
+    columns,
+    data: zipcodesData?.region_zipcodes ?? [],
+    isLoading,
+    pagination: {
+      state: pagination,
+      onPaginationChange: setPagination,
+    },
+    rowCount: zipcodesData?.count ?? 0,
+  });
 
   const handleAddZipcode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,74 +138,23 @@ const ZipcodesManagementPage = () => {
 
     setIsAdding(true);
     try {
-      const response = await fetch('/admin/region-zipcodes', {
+      await sdk.client.fetch('/admin/region-zipcodes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          zipcode: newZipcode.trim(),
-          region_id: selectedRegionId,
-        }),
+        body: { zipcode: newZipcode.trim(), region_id: selectedRegionId },
       });
-
-      if (response.ok) {
-        toast.success('Success', {
-          description: 'Zipcode added successfully',
-        });
-        setNewZipcode('');
-        await fetchZipcodes(filterRegionId === 'all' ? undefined : filterRegionId);
-      } else {
-        const error = await response.json();
-        toast.error('Error', {
-          description: error.message || 'Failed to add zipcode',
-        });
-      }
-    } catch (error) {
-      console.error('Error adding zipcode:', error);
-      toast.error('Error', {
-        description: 'Failed to add zipcode',
-      });
+      toast.success('Success', { description: 'Zipcode added successfully' });
+      setNewZipcode('');
+      queryClient.invalidateQueries({ queryKey: ['region-zipcodes'] });
+    } catch (error: any) {
+      toast.error('Error', { description: error?.message || 'Failed to add zipcode' });
     } finally {
       setIsAdding(false);
     }
   };
 
-  const handleDeleteZipcode = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this zipcode?')) return;
-
-    try {
-      const response = await fetch(`/admin/region-zipcodes/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        toast.success('Success', {
-          description: 'Zipcode deleted successfully',
-        });
-        await fetchZipcodes(filterRegionId === 'all' ? undefined : filterRegionId);
-      } else {
-        toast.error('Error', {
-          description: 'Failed to delete zipcode',
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting zipcode:', error);
-      toast.error('Error', {
-        description: 'Failed to delete zipcode',
-      });
-    }
-  };
-
   const handleFilterChange = (regionId: string) => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
     setFilterRegionId(regionId);
-    fetchZipcodes(regionId === 'all' ? undefined : regionId);
-  };
-
-  const getRegionName = (regionId: string) => {
-    return regions.find((r) => r.id === regionId)?.name || regionId;
   };
 
   return (
@@ -207,44 +217,10 @@ const ZipcodesManagementPage = () => {
         </div>
 
         {/* Zipcodes Table */}
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Text>Loading zipcodes...</Text>
-          </div>
-        ) : zipcodes.length === 0 ? (
-          <div className="flex justify-center py-8">
-            <Text className="text-ui-fg-subtle">No zipcodes found</Text>
-          </div>
-        ) : (
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Zipcode</Table.HeaderCell>
-                <Table.HeaderCell>Region</Table.HeaderCell>
-                <Table.HeaderCell>Created At</Table.HeaderCell>
-                <Table.HeaderCell className="text-right">Actions</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {zipcodes.map((zipcode) => (
-                <Table.Row key={zipcode.id}>
-                  <Table.Cell className="font-medium">{zipcode.zipcode}</Table.Cell>
-                  <Table.Cell>{getRegionName(zipcode.region_id)}</Table.Cell>
-                  <Table.Cell>{new Date(zipcode.created_at).toLocaleDateString()}</Table.Cell>
-                  <Table.Cell className="text-right">
-                    <Button
-                      variant="transparent"
-                      onClick={() => handleDeleteZipcode(zipcode.id)}
-                      className="text-ui-fg-error"
-                    >
-                      <Trash />
-                    </Button>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
-        )}
+        <DataTable instance={table}>
+          <DataTable.Table />
+          <DataTable.Pagination />
+        </DataTable>
       </div>
     </Container>
   );

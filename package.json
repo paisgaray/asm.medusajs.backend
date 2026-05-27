@@ -2,7 +2,7 @@
   "name": "asm-suggero-medusa-backend",
   "version": "0.0.8",
   "description": "A starter for Medusa projects.",
-  "author": "Medusa (https://medusajs.com)",
+  "author": "Quality Digital",
   "license": "MIT",
   "keywords": [
     "sqlite",

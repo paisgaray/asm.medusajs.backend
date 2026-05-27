@@ -1,9 +1,11 @@
 {
   "editor.tabSize": 2,
-  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "always",
-    "source.organizeImports": "always"
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": ["source.organizeImports", "source.fixAll.eslint"],
+  "[typescriptreact]": {
+    "editor.codeActionsOnSave": ["source.organizeImports", "source.fixAll.eslint"]
+  },
+  "[typescript]": {
+    "editor.codeActionsOnSave": ["source.organizeImports", "source.fixAll.eslint"]
   }
 }

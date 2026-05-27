@@ -3,6 +3,7 @@ import multer from 'multer';
 
 import { bundledProductsMiddlewares } from './admin/bundled-products/middleware';
 import { contactAdminMiddlewares } from './admin/contact/middleware';
+import { recommenderMiddlewares } from './admin/recommender/middleware';
 import { regionZipcodeMiddlewares } from './admin/region-zipcodes/middleware';
 import { customBundleProductsMiddlewares } from './store/bundle-products/custom/middleware';
 import { lineItemBundlesMiddlewares } from './store/carts/[id]/line-item-bundles/middleware';
@@ -28,6 +29,7 @@ export default defineMiddlewares({
     ...regionZipcodeMiddlewares,
     ...contactAdminMiddlewares,
     ...contactStoreMiddlewares,
+    ...recommenderMiddlewares,
     ...subscriptionMiddlewares,
     {
       matcher: '/admin/imports/disfruta',

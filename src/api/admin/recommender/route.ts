@@ -62,7 +62,7 @@ export async function POST(req: AuthenticatedMedusaRequest<RecommenderSchema>, r
           dia: body.dia,
           hora: body.hora,
           dia_semana: body.dia_semana,
-          top_k_baskets: body.top_k_baskets,
+          top_k_baskets: body.top_k_baskets ?? '10',
           page_size: body.page_size,
         }
       : {
@@ -72,10 +72,10 @@ export async function POST(req: AuthenticatedMedusaRequest<RecommenderSchema>, r
           dia: body.dia,
           hora: body.hora,
           dia_semana: body.dia_semana,
-          top_k_categories: body.top_k_categories,
-          first_k_categories: body.first_k_categories,
-          qty_products_first_k_categories: body.qty_products_first_k_categories,
-          qty_products_rest_categories: body.qty_products_rest_categories,
+          top_k_categories: body.top_k_categories ?? '15',
+          first_k_categories: body.first_k_categories ?? '5',
+          qty_products_first_k_categories: body.qty_products_first_k_categories ?? '2',
+          qty_products_rest_categories: body.qty_products_rest_categories ?? '1',
           page_size: body.page_size,
         };
 

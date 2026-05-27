@@ -90,7 +90,7 @@ const BUNDLE_FIELDS: FieldDef[] = [
   { key: 'mes', label: 'Month', hint: '1–12' },
   { key: 'dia', label: 'Day', hint: '1–31' },
   { key: 'hora', label: 'Hour', hint: '0–23' },
-  { key: 'dia_semana', label: 'Weekday', hint: '0=Mon … 6=Sun' },
+  { key: 'dia_semana', label: 'Weekday', hint: '1=Sun … 7=Sat' },
   { key: 'top_k_baskets', label: 'Top K Baskets', hint: 'top_k_baskets' },
   { key: 'page_size', label: 'Page Size', hint: 'page_size' },
 ];
@@ -101,7 +101,7 @@ const PRODUCT_FIELDS: FieldDef[] = [
   { key: 'mes', label: 'Month', hint: '1–12' },
   { key: 'dia', label: 'Day', hint: '1–31' },
   { key: 'hora', label: 'Hour', hint: '0–23' },
-  { key: 'dia_semana', label: 'Weekday', hint: '0=Mon … 6=Sun' },
+  { key: 'dia_semana', label: 'Weekday', hint: '1=Sun … 7=Sat' },
   { key: 'top_k_categories', label: 'Top K Categories', hint: 'top_k_categories' },
   { key: 'first_k_categories', label: 'First K Categories', hint: 'first_k_categories' },
   {

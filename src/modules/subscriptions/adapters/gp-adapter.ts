@@ -40,6 +40,16 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
     this.payment_provider_id = SubscriptionProvider.GLOBAL_PAYMENTS;
   }
 
+  private getBaseUrl(): string {
+    const configuredBaseUrl = process.env.GLOBAL_PAYMENT_BASE_URL?.trim();
+
+    if (configuredBaseUrl) {
+      return configuredBaseUrl.replace(/\/+$/, '');
+    }
+
+    throw new Error('Global Payments base URL is not configured');
+  }
+
   private async getStoredPaymentMethodData(
     customerId: string,
     paymentMethodId: string,
@@ -66,11 +76,12 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
   }
 
   private async getCredential(): Promise<{ type: string; token: string }> {
+    const baseUrl = this.getBaseUrl();
     const nonce = new Date().toISOString();
     const secret = crypto.createHash('sha512').update(`${nonce}${process.env.GLOBAL_PAYMENTS_APP_KEY}`).digest('hex');
 
     const { data } = await axios.post<{ type: string; token: string }>(
-      `${process.env.GLOBAL_PAYMENT_BASE_URL}/accesstoken`,
+      `${baseUrl}/accesstoken`,
       {
         grant_type: 'client_credentials',
         app_id: process.env.GLOBAL_PAYMENTS_APP_ID,
@@ -183,11 +194,12 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
     payment_method_id: string;
     paymentMethod: { brand: string; last4: string; exp_month: number; exp_year: number };
   }> {
+    const baseUrl = this.getBaseUrl();
     const { type, token } = await this.getCredential();
 
     const { data } = await axios.get<{
       card: { brand: string; number_last4: string; expiry_month: string; expiry_year: string };
-    }>(`${process.env.GLOBAL_PAYMENT_BASE_URL}/payment-methods/${payment_method_id}`, {
+    }>(`${baseUrl}/payment-methods/${payment_method_id}`, {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `${type} ${token}`,
@@ -255,10 +267,11 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
       }
     }
 
+    const baseUrl = this.getBaseUrl();
     const { type, token: accessToken } = await this.getCredential();
 
     await axios.patch(
-      `${process.env.GLOBAL_PAYMENT_BASE_URL}/payment-methods/${token}`,
+      `${baseUrl}/payment-methods/${token}`,
       { usage_mode: 'MULTIPLE' },
       {
         headers: {

@@ -20,6 +20,7 @@ export const createPaymentMethodWorkflow = createWorkflow(
     });
 
     const saveResult = savePaymentMethodStep({
+      customer_id: input.customer_id,
       account_holder: accountHolder,
       payment_method_id: input.payment_method_id,
       metadata: input.metadata,

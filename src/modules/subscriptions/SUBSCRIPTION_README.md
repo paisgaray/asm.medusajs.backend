@@ -552,7 +552,8 @@ export interface SubscriptionProviderAdapter {
   - `updateFrequency` / `updateDeliveryDate` — **cancel + recreate** pattern: cancels the existing subscription and creates a new one with `billing_cycle_anchor` set to the computed date and `proration_behavior: 'none'`. Same-interval check skips recreate when frequency is unchanged.
   - All `rollback*` methods reverse the operation by recreating the previous state
 - `GPSubscriptionAdapter` (`adapters/gp-adapter.ts`):
-  - `preparePaymentMethodData` first reuses the locally stored checkout tokenization for the customer when available, then falls back to the Global Payments API lookup. The workflow stays provider-agnostic; only the adapter decides how to hydrate provider data.
+  - `preparePaymentMethodData` first reuses the locally stored checkout tokenization for the workflow's authoritative `customer_id` when available, then falls back to the Global Payments API lookup.
+  - The adapter derives the GP REST base URL from `GLOBAL_PAYMENT_BASE_URL` when present, or from `GLOBAL_PAYMENTS_ENV` (`sandbox` / `production`) as a fallback so runtime behavior does not depend on a local-only URL env.
 
 **Registry** (`adapters/index.ts`):
 ```typescript

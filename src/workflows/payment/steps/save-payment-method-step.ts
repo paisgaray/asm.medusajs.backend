@@ -7,6 +7,7 @@ import { getProviderAdapter } from '../../../modules/subscriptions/adapters';
 import { AccountHolderData } from './get-customer-account-holders-step';
 
 export type SavePaymentMethodStepInput = {
+  customer_id: string;
   account_holder: AccountHolderData;
   payment_method_id: string;
   metadata?: Record<string, unknown>;
@@ -28,7 +29,7 @@ export const savePaymentMethodStep = createStep(
 
     const adapter = getProviderAdapter(input.account_holder.provider_id as SubscriptionProvider);
     const providerData = await adapter.preparePaymentMethodData(input.payment_method_id, {
-      customer_id: input.account_holder.data.id,
+      customer_id: input.customer_id,
       metadata: input.metadata,
     });
 

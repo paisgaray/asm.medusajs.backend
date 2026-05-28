@@ -42,16 +42,19 @@ export const ensureAccountHolderStep = createStep(
 
     if (existingAccountHolder) {
       const paymentModuleService = container.resolve<IPaymentModuleService>(Modules.PAYMENT);
+      const existingData = (existingAccountHolder.data as Record<string, unknown> | undefined) ?? {};
 
-      // Heal: if data.id is missing (account holder created before data was populated),
-      // patch it now so subsequent steps can use it.
-      if (!existingAccountHolder.data?.id) {
+      // Heal: ensure data.id is the Medusa customer id while preserving any provider-specific data.
+      if (existingAccountHolder.data?.id !== input.customer_id) {
         await paymentModuleService.updateAccountHolder({
           id: existingAccountHolder.id,
           provider_id: existingAccountHolder.provider_id,
           context: {
             account_holder: {
-              data: { id: input.customer_id },
+              data: {
+                ...existingData,
+                id: input.customer_id,
+              },
             },
           },
         });
@@ -61,7 +64,8 @@ export const ensureAccountHolderStep = createStep(
         id: existingAccountHolder.id,
         provider_id: existingAccountHolder.provider_id,
         data: {
-          id: existingAccountHolder.data?.id ?? input.customer_id,
+          ...existingData,
+          id: input.customer_id,
         },
       } as AccountHolderData);
     }

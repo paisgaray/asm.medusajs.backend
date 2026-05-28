@@ -3,7 +3,7 @@ import { CustomerDTO, ICustomerModuleService } from '@medusajs/framework/types';
 import Stripe from 'stripe';
 
 import { SubscriptionProvider } from '../types';
-import { SubscriptionProviderAdapter } from './provider-adapter';
+import { PreparePaymentMethodDataContext, SubscriptionProviderAdapter } from './provider-adapter';
 import { CreatePaymentSubscriptionStepInput } from './type';
 
 export class StripeSubscriptionAdapter implements SubscriptionProviderAdapter {
@@ -337,7 +337,10 @@ export class StripeSubscriptionAdapter implements SubscriptionProviderAdapter {
     return null;
   }
 
-  async preparePaymentMethodData(token: string): Promise<Record<string, unknown>> {
+  async preparePaymentMethodData(
+    token: string,
+    _context?: PreparePaymentMethodDataContext,
+  ): Promise<Record<string, unknown>> {
     return {
       payment_method: token,
       confirm: true,

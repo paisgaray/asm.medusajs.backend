@@ -6,14 +6,63 @@ import crypto from 'node:crypto';
 
 import { INTERVAL_DAYS } from '../constants/interval-days';
 import { SubscriptionFrequency, SubscriptionProvider } from '../types';
-import { SubscriptionProviderAdapter } from './provider-adapter';
+import { PreparePaymentMethodDataContext, SubscriptionProviderAdapter } from './provider-adapter';
 import { CreatePaymentSubscriptionStepInput } from './type';
+
+const GLOBAL_PAYMENTS_CARD_PROVIDER = 'global-payments';
+
+type StoredGlobalPaymentsCard = {
+  card_token?: string;
+  brand?: string | null;
+  last4?: string | null;
+  exp_month?: string | number | null;
+  exp_year?: string | number | null;
+};
+
+type PaymentsApiService = {
+  listPaymentCards(provider: string, customerId: string, isActive?: boolean): Promise<StoredGlobalPaymentsCard[]>;
+};
+
+const toNullableNumber = (value: string | number | null | undefined): number | null => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isNaN(parsed) ? null : parsed;
+};
 
 export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
   private readonly payment_provider_id: SubscriptionProvider;
 
   constructor() {
     this.payment_provider_id = SubscriptionProvider.GLOBAL_PAYMENTS;
+  }
+
+  private async getStoredPaymentMethodData(
+    customerId: string,
+    paymentMethodId: string,
+  ): Promise<Record<string, unknown> | undefined> {
+    try {
+      const paymentsApiService = container.resolve<PaymentsApiService>('payment_payments_api');
+      const storedCards = await paymentsApiService.listPaymentCards(GLOBAL_PAYMENTS_CARD_PROVIDER, customerId);
+      const storedCard = storedCards.find((card) => card.card_token === paymentMethodId);
+
+      if (!storedCard) {
+        return undefined;
+      }
+
+      return {
+        token: paymentMethodId,
+        brand: storedCard.brand ?? null,
+        last4: storedCard.last4 ?? null,
+        exp_month: toNullableNumber(storedCard.exp_month),
+        exp_year: toNullableNumber(storedCard.exp_year),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   private async getCredential(): Promise<{ type: string; token: string }> {
@@ -194,7 +243,18 @@ export class GPSubscriptionAdapter implements SubscriptionProviderAdapter {
     };
   }
 
-  async preparePaymentMethodData(token: string): Promise<Record<string, unknown>> {
+  async preparePaymentMethodData(
+    token: string,
+    context?: PreparePaymentMethodDataContext,
+  ): Promise<Record<string, unknown>> {
+    if (context?.customer_id) {
+      const storedPaymentMethodData = await this.getStoredPaymentMethodData(context.customer_id, token);
+
+      if (storedPaymentMethodData) {
+        return storedPaymentMethodData;
+      }
+    }
+
     const { type, token: accessToken } = await this.getCredential();
 
     await axios.patch(

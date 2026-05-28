@@ -2,6 +2,11 @@ import { CustomerDTO } from '@medusajs/framework/types';
 
 import { CreatePaymentSubscriptionStepInput } from './type';
 
+export type PreparePaymentMethodDataContext = {
+  customer_id?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export interface SubscriptionProviderAdapter {
   skipNextPayment(providerSubscriptionId: string, resumesAt: Date): Promise<void>;
   rollbackSkip(providerSubscriptionId: string): Promise<void>;
@@ -73,7 +78,7 @@ export interface SubscriptionProviderAdapter {
     periodStart: number;
     periodEnd: number;
   }>;
-  preparePaymentMethodData(token: string): Promise<Record<string, unknown>>;
+  preparePaymentMethodData(token: string, context?: PreparePaymentMethodDataContext): Promise<Record<string, unknown>>;
   /**
    * Returns an updated account holder data object to persist locally (e.g. for providers
    * that have no external payment method storage API). Return null if no local persistence

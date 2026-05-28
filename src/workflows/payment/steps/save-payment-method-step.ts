@@ -27,7 +27,10 @@ export const savePaymentMethodStep = createStep(
     }
 
     const adapter = getProviderAdapter(input.account_holder.provider_id as SubscriptionProvider);
-    const providerData = await adapter.preparePaymentMethodData(input.payment_method_id);
+    const providerData = await adapter.preparePaymentMethodData(input.payment_method_id, {
+      customer_id: input.account_holder.data.id,
+      metadata: input.metadata,
+    });
 
     const savedMethod = await paymentModuleService.createPaymentMethods({
       provider_id: input.account_holder.provider_id,

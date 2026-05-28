@@ -541,6 +541,7 @@ export interface SubscriptionProviderAdapter {
   updateDeliveryDate(providerSubscriptionId: string, frequency: string, newNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
   rollbackUpdateDeliveryDate(newProviderSubscriptionId: string, frequency: string, previousNextBillingDate: Date): Promise<{ new_provider_subscription_id: string }>;
   changeSubscriptionPaymentMethod(providerSubscriptionId: string, paymentMethodId: string): Promise<void>;
+  preparePaymentMethodData(token: string, context?: { customer_id?: string; metadata?: Record<string, unknown> }): Promise<Record<string, unknown>>;
 }
 ```
 
@@ -550,6 +551,8 @@ export interface SubscriptionProviderAdapter {
   - `updatePrice` — updates Stripe subscription `price_data` in-place (`proration_behavior: 'none'`)
   - `updateFrequency` / `updateDeliveryDate` — **cancel + recreate** pattern: cancels the existing subscription and creates a new one with `billing_cycle_anchor` set to the computed date and `proration_behavior: 'none'`. Same-interval check skips recreate when frequency is unchanged.
   - All `rollback*` methods reverse the operation by recreating the previous state
+- `GPSubscriptionAdapter` (`adapters/gp-adapter.ts`):
+  - `preparePaymentMethodData` first reuses the locally stored checkout tokenization for the customer when available, then falls back to the Global Payments API lookup. The workflow stays provider-agnostic; only the adapter decides how to hydrate provider data.
 
 **Registry** (`adapters/index.ts`):
 ```typescript

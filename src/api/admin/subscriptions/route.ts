@@ -1,12 +1,29 @@
 import { MedusaRequest, MedusaResponse } from '@medusajs/framework/http';
+import { ContainerRegistrationKeys } from '@medusajs/framework/utils';
 
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const query = req.scope.resolve('query');
+import { SubscriptionProvider } from '../../../modules/subscriptions';
+import { SUBSCRIPTION_ADMIN_LIST_FIELDS } from '../../../modules/subscriptions/service';
+import { formatPrice } from '../../../utils/resolve-subscription-price';
 
-  const { customer_id, status, limit = 50, offset = 0 } = req.query;
+function resolveSubscriptionProvider(providerId: string | null | undefined) {
+  return providerId ?? SubscriptionProvider.STRIPE;
+}
 
-  // Build filters for query
-  const filters: any = {};
+function mapSubscriptionRow(sub: Record<string, unknown>) {
+  const providerId = resolveSubscriptionProvider(sub.provider_id as string | null);
+
+  return {
+    ...sub,
+    provider_id: providerId,
+    provider: providerId,
+    calculated_price: formatPrice(sub.subscription_price as number),
+  };
+}
+
+function buildBaseFilters(query: Record<string, unknown>) {
+  const { customer_id, status } = query;
+  const filters: Record<string, unknown> = {};
+
   if (customer_id && typeof customer_id === 'string') {
     filters.customer = { id: customer_id };
   }
@@ -14,36 +31,63 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters.status = status;
   }
 
+  return filters;
+}
+
+const LIST_FIELDS = [
+  ...SUBSCRIPTION_ADMIN_LIST_FIELDS,
+  'customer.id',
+  'customer.email',
+  'customer.first_name',
+  'customer.last_name',
+] as const;
+
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+
+  const { customer_id, status, provider, limit = 50, offset = 0 } = req.query;
+  const filters = buildBaseFilters({ customer_id, status });
+  const providerFilter = typeof provider === 'string' ? provider : undefined;
+  const numericLimit = Number(limit);
+  const numericOffset = Number(offset);
+
+  // Legacy rows may have null provider_id — treat as Stripe when filtering
+  if (providerFilter === SubscriptionProvider.STRIPE) {
+    const { data: subscriptions } = await query.graph({
+      entity: 'subscription',
+      fields: [...LIST_FIELDS],
+      filters,
+      pagination: { order: { created_at: 'DESC' } },
+    });
+
+    const mapped = (subscriptions as Record<string, unknown>[])
+      .map(mapSubscriptionRow)
+      .filter((sub) => sub.provider_id === SubscriptionProvider.STRIPE);
+
+    res.json({
+      subscriptions: mapped.slice(numericOffset, numericOffset + numericLimit),
+      count: mapped.length,
+      limit: numericLimit,
+      offset: numericOffset,
+    });
+    return;
+  }
+
+  if (providerFilter && providerFilter !== 'all') {
+    filters.provider_id = providerFilter;
+  }
+
   const { data: subscriptions } = await query.graph({
     entity: 'subscription',
-    fields: [
-      'id',
-      'status',
-      'provider',
-      'provider_subscription_id',
-      'subscription_price',
-      'currency',
-      'current_period_start',
-      'current_period_end',
-      'next_billing_date',
-      'metadata',
-      'created_at',
-      'updated_at',
-      'customer.*',
-      'bundles.*',
-      'bundles.items.*',
-      'bundles.product.*',
-      'items.*',
-    ],
+    fields: [...LIST_FIELDS],
     filters,
     pagination: {
-      skip: Number(offset),
-      take: Number(limit),
+      skip: numericOffset,
+      take: numericLimit,
       order: { created_at: 'DESC' },
     },
   });
 
-  // Get count for pagination
   const { data: allSubscriptions } = await query.graph({
     entity: 'subscription',
     fields: ['id'],
@@ -51,41 +95,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   });
 
   res.json({
-    subscriptions,
+    subscriptions: (subscriptions as Record<string, unknown>[]).map(mapSubscriptionRow),
     count: allSubscriptions.length,
-    limit: Number(limit),
-    offset: Number(offset),
+    limit: numericLimit,
+    offset: numericOffset,
   });
 };
-
-// export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-//   const { customer_id, bundle_product_id, metadata } = req.body as {
-//     customer_id: string;
-//     bundle_product_id: string;
-//     metadata: Record<string, unknown>;
-//   };
-
-//   if (!customer_id || !bundle_product_id) {
-//     return res.status(400).json({ message: 'customer_id and bundle_product_id are required' });
-//   }
-
-//   try {
-//     const { result } = await createSubscriptionWorkflow(req.scope).run({
-//       input: {
-//         customer_id,
-//         bundle_product_id,
-//         metadata,
-//       },
-//     });
-
-//     res.json({
-//       subscription: result.subscription,
-//     });
-//   } catch (error) {
-//     req.scope.resolve('logger').error('Failed to create subscription:', error);
-//     return res.status(500).json({
-//       message: 'Failed to create subscription',
-//       error: error.message,
-//     });
-//   }
-// };

@@ -33,7 +33,7 @@ export const updateSubscriptionProgramationStep = createStep(
       // Stripe charges 7 days before delivery
       newNextBillingDate = new Date(deliveryDate.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      const adapter = getProviderAdapter(existing.provider_id);
+      const adapter = getProviderAdapter(existing.provider_id ?? SubscriptionProvider.STRIPE);
       ({ new_provider_subscription_id } = await adapter.updateDeliveryDate(
         existing.provider_subscription_id,
         existing.frequency,
@@ -53,7 +53,7 @@ export const updateSubscriptionProgramationStep = createStep(
 
     return new StepResponse({ subscription }, {
       id: input.id,
-      providerId: existing.provider_id,
+      providerId: existing.provider_id ?? SubscriptionProvider.STRIPE,
       new_provider_subscription_id,
       previous_next_billing_date: new Date(existing.next_billing_date!).toISOString(),
       previous_delivery_date: new Date(existing.delivery_date!).toISOString(),

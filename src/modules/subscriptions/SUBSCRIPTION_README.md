@@ -20,7 +20,7 @@ Module key: `subscriptions` (exported as `SUBSCRIPTION_MODULE`).
 
 - **`Subscription`** (`models/subscription.ts`)
   - `id` (PK)
-  - `provider` — payment provider (`"stripe"`)
+  - `provider_id` — payment provider (`pp_stripe_stripe` | `pp_global-payments_global-payments`)
   - `provider_subscription_id` — Stripe subscription ID
   - `provider_customer_id` — Stripe customer ID
   - `status` — `active | paused | cancelled | past_due | incomplete` (default `active`)
@@ -356,11 +356,21 @@ All store routes require customer authentication via `authenticate('customer', [
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/admin/subscriptions` | List subscriptions with filters (`customer_id`, `status`, `limit`, `offset`) |
-| POST | `/admin/subscriptions` | Create subscription (`customer_id`, `bundle_product_id`, `metadata`) |
+| GET | `/admin/subscriptions` | List subscriptions with filters (`customer_id`, `status`, `provider`, `limit`, `offset`); returns `calculated_price` |
 | GET | `/admin/subscriptions/:id` | Get subscription detail |
 | POST | `/admin/subscriptions/:id` | Update subscription `status` and/or `metadata` |
+| DELETE | `/admin/subscriptions/:id` | Cancel on provider when applicable and soft-delete record |
 | POST | `/admin/subscriptions/:id/cancel` | Cancel subscription via workflow |
+
+#### Admin UI
+
+| Route | Description |
+|---|---|
+| `/subscriptions` | Paginated list with filters for **status** and **provider** (`pp_stripe_stripe`, `pp_global-payments_global-payments`) |
+
+Columns: customer, provider, status, price, frequency, next billing date, created at, actions (edit status, delete).
+
+**Provider filter:** legacy rows with null `provider_id` are treated as Stripe (`pp_stripe_stripe`).
 
 ### Webhooks
 
@@ -371,7 +381,7 @@ All store routes require customer authentication via `authenticate('customer', [
 ### subscription
 ```sql
 id               text PK
-provider         text NOT NULL
+provider_id      text NULL CHECK (pp_stripe_stripe | pp_global-payments_global-payments)
 provider_subscription_id  text NOT NULL
 provider_customer_id      text NOT NULL
 status           text NOT NULL DEFAULT 'active'
@@ -585,6 +595,7 @@ Other workflows (pause, resume, cancel) still call Stripe-specific steps directl
 | Workflow steps | `src/workflows/subscriptions/steps/` |
 | Store API routes | `src/api/store/customers/me/subscriptions/` |
 | Admin API routes | `src/api/admin/subscriptions/` |
+| Admin UI route | `src/admin/routes/subscriptions/page.tsx` |
 | Middleware config | `src/api/middlewares.ts` |
 | Order-placed subscriber | `src/subscribers/order-placed.ts` |
 | Payment failed webhook | `src/api/webhooks/payment-failed/route.ts` |

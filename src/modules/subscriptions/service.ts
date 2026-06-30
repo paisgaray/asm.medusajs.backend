@@ -9,7 +9,7 @@ import { SubscriptionInvoice } from './models/subscriptionInvoice';
 export const SUBSCRIPTION_FIELDS = [
   'id',
   'status',
-  'provider',
+  'provider_id',
   'provider_subscription_id',
   'subscription_price',
   'currency',
@@ -34,6 +34,18 @@ export const SUBSCRIPTION_FIELDS = [
   'custom_items.*',
   'custom_items.product.*',
   'address.*',
+] as const;
+
+export const SUBSCRIPTION_ADMIN_LIST_FIELDS = [
+  'id',
+  'status',
+  'provider_id',
+  'provider_subscription_id',
+  'subscription_price',
+  'currency',
+  'frequency',
+  'next_billing_date',
+  'created_at',
 ] as const;
 
 export default class SubscriptionModuleService extends MedusaService({

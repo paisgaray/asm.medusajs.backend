@@ -71,8 +71,8 @@ export const formatOrderStep = createStep(
     };
 
     const templateData = {
-      firstName: order.customer.first_name,
-      orderUrl: `${process.env.STORE_URL}/orders/${order}`,
+      firstName: order.customer.first_name || order.shipping_address?.first_name || '',
+      orderUrl: `${process.env.STORE_URL}/orders/${order.id}`,
       orderId: order.display_id,
 
       orderItems: order.items.map((item) => ({

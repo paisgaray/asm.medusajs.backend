@@ -518,6 +518,10 @@ All workflow steps have compensation handlers where applicable:
 - `resumeStripeSubscriptionStep` → re-pauses on rollback
 - `skipProviderSubscriptionStep` → calls `adapter.rollbackSkip()` (unsets `pause_collection` for Stripe)
 - `updateSubscriptionNextBillingStep` → restores previous `next_billing_date`
+
+## Data Maintenance
+
+- `Migration20260706100000` removes orphan rows from `auth_identity` where `app_metadata.customer_id` exists but is JSON `null`. This prevents customer account linkage conflicts in social login flows (for example, Google login).
 - `createSubscriptionRecordStep` → deletes subscription record
 - `createSubscriptionAddressStep` → deletes address record
 - `createSubscriptionCustomerLinkStep` → dismisses link
